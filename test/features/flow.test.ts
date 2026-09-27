@@ -147,6 +147,8 @@ describe('training flow', () => {
       scheduled_check_id: null,
     });
     expect(out.relaxOnly).toBe(false);
+    // UX audit M5: nothing to call a "best" on the first check.
+    expect(out.best).toEqual({ longest_hold: null, repeated_holds: null, quick_flicks: null });
     const prog = await getProgramme(db);
     expect(prog.hold_s).toBe(6);
     expect(prog.hold_reps).toBe(5);

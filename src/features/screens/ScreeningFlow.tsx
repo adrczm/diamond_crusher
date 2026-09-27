@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { CAUTION_CARD, OUTCOME, SCREENING_INTRO, SKIPPED_NOTE, SURGERY_DATE_PROMPT, questionText } from '../../content/en/screening';
 import { COMMON } from '../../content/en/strings';
-import { isVisible, questionsFor, screenSizeFor, type Answers, type QuestionKey, type ScreeningKind } from '../../domain/safety';
+import { isVisible, questionsFor, questionsForChange, screenSizeFor, type Answers, type ChangeTopic, type QuestionKey, type ScreeningKind } from '../../domain/safety';
 import type { Anatomy, SafetyMode } from '../../domain/types';
 import { Banner, Button, Card, Field, H1, H2, P, Label } from '../../ui/kit';
 
@@ -18,14 +18,20 @@ export function ScreeningFlow({
   anatomy,
   onDone,
   busy,
+  topics,
 }: {
   kind: ScreeningKind;
   anatomy: Anatomy;
+  /** "Something changed?" only: what changed, to ask only the related questions (UX audit M10). */
+  topics?: readonly ChangeTopic[];
   onDone: (a: ScreeningAnswers) => void;
   busy?: boolean;
 }) {
   const [startedAt] = useState(() => new Date().toISOString());
-  const all = useMemo(() => questionsFor(screenSizeFor(kind), anatomy), [kind, anatomy]);
+  const all = useMemo(
+    () => (kind === 'something_changed' && topics ? questionsForChange(topics, anatomy) : questionsFor(screenSizeFor(kind), anatomy)),
+    [kind, anatomy, topics]
+  );
   const [answers, setAnswers] = useState<Answers>({});
   const [index, setIndex] = useState(0);
   const [surgeryDate, setSurgeryDate] = useState('');
