@@ -34,7 +34,7 @@ const config: ExpoConfig = {
     ['expo-sqlite', { useSQLCipher: true }],
     ['expo-secure-store', { faceIDPermission: 'Unlock the app with Face ID.', configureAndroidBackup: false }],
     ['expo-local-authentication', { faceIDPermission: 'Unlock the app with Face ID.' }],
-    ['expo-notifications', { icon: './assets/notification-icon.png', color: '#3b82f6' }],
+    ['expo-notifications', { icon: './assets/notification-icon.png', color: '#2B6B5E' }],
     ['expo-audio', { recordAudioAndroid: false }],
     ['expo-build-properties', { android: { enableProguardInReleaseBuilds: false } }],
     ['./plugins/withNoNetwork', { keepInternet: isDevBuild }],
