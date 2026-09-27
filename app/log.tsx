@@ -138,11 +138,6 @@ export default function LogScreen() {
           setKind(k);
         }}
       />
-      {kind && kind !== 'context' ? (
-        <P small muted>
-          {APP_QUESTION_LABEL}
-        </P>
-      ) : null}
       {kind ? (
         <>
           <Label>{kind === 'sex' ? EVENTS.whenSex : EVENTS.when}</Label>
@@ -190,6 +185,12 @@ export default function LogScreen() {
           <Choice options={EVENTS.contextKinds.map((o) => ({ value: o.value as ContextKind, label: o.label }))} value={ctx} onChange={setCtx} />
           <Field label={EVENTS.contextNote} value={note} onChangeText={setNote} maxLength={60} />
         </>
+      ) : null}
+      {/* M8: LOG-003 keeps the label visible, but at the bottom so it does not lead the form. */}
+      {kind && kind !== 'context' ? (
+        <P small muted>
+          {APP_QUESTION_LABEL}
+        </P>
       ) : null}
       {!kind && (data.events.length || data.flags.length) ? (
         <Card>

@@ -78,7 +78,8 @@ export const PLAN = {
   customPlaceholder: 'Your own moment (40 characters or fewer)',
   time: 'Reminder time',
   days: 'Days',
-  planLine: (anchor: string, minutes: number) => `${anchor.charAt(0).toUpperCase()}${anchor.slice(1)}, I will do my session (about ${minutes} minutes).`,
+  // H9: the real session length changes with the level, so the plan does not promise a number of minutes.
+  planLine: (anchor: string, _minutes?: number) => `${anchor.charAt(0).toUpperCase()}${anchor.slice(1)}, I will do my session (a few minutes).`,
   permissionWhy: 'Reminders need permission to show notifications. You can change this at any time.',
   allowReminders: 'Allow reminders',
   noReminders: 'Skip reminders',
@@ -110,12 +111,25 @@ export const HOME = {
   relaxPractice: 'Relax practice',
   weekTitle: 'This week',
   weekCount: (done: number, target: number) => `${done} of ${target} days`,
+  /** Day letters for the week dots, Monday first (ISO weekday − 1). */
+  dayLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+  dayNames: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+  todayMark: 'today',
+  dayTrained: 'trained',
+  dayNotTrained: 'no training',
   weekNice: (target: number) => `${target} of ${target}. Nice week.`,
   paused: 'Paused',
   somethingChanged: 'Something changed?',
   logSomething: 'Log something',
-  level: (n: number, name: string | null) => (name ? `Level ${n}: ${name}` : `Level ${n}`),
+  level: (n: number, name: string | null, max?: number | null) => `Level ${n}${max ? ` of ${max}` : ''}${name ? `: ${name}` : ''}`,
   next: (what: string) => `Next: ${what}`,
+  nextAfter: (what: string, weeks: number) => `Next: ${what}, after ${weeks} more good ${weeks === 1 ? 'week' : 'weeks'}`,
+  goodWeek: (sessions: number) => `A good week is 5 days with ${sessions} full ${sessions === 1 ? 'session' : 'sessions'} or more, and no pain.`,
+  nextReminder: (when: string) => `Next reminder: ${when}`,
+  whenToday: (time: string) => `today at ${time}`,
+  whenTomorrow: (time: string) => `tomorrow at ${time}`,
+  whenDay: (day: string, time: string) => `${day} at ${time}`,
+  sessionContents: 'Today’s session',
   nextCheck: (date: string) => `Next check: ${date}`,
   checkReady: 'Your monthly check is ready',
   reviewReady: 'Your 12-week review is ready',
@@ -128,6 +142,13 @@ export const HOME = {
   blocked: 'Exercises are paused',
   everyday: 'Everyday squeezes',
   knackCard: 'New today: the knack and everyday squeezes',
+};
+
+/** C2: setup that onboarding no longer asks for, offered on Today after the first full session. */
+export const SETUP = {
+  plan: { title: 'Pick your training times', body: 'Link each session to something you do each day. The app can then remind you.', action: 'Choose times' },
+  expect: { title: 'What to expect', body: 'Read how long changes usually take, and what is normal on the way.', action: 'Read it' },
+  lock: { title: 'Lock the app', body: 'The app can ask for your fingerprint, face or phone PIN each time it opens.', action: 'Open settings' },
 };
 
 export const NEXT_NAME: Record<string, string> = {

@@ -1,4 +1,6 @@
 // Guided session (spec 03): timed phases, cues, Getting weak, Pain, pause on background, then the 15-second log (06a).
+// From Today's Start (go=1) it runs at once; the 30 s relax is the lead-in (M6). Other ways in keep the ready screen,
+// because on the web the Start tap there is the gesture that allows sound.
 import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -8,16 +10,19 @@ import { BLOCK_NAME, INTENSITY, PHASE_TEXT, RELAX_STEP_TEXT, SESSION, VOICE } fr
 import { REMINDER_CUES, cueText } from '../src/content/en/learn';
 import { PAIN_CHOICE, RELAX_ONLY_HOME } from '../src/content/en/screening';
 import { APP_QUESTION_LABEL, SESSION_LOG } from '../src/content/en/items';
-import { COMMON, DESKTOP, MILESTONES } from '../src/content/en/strings';
+import { COMMON, DESKTOP, HOME, MILESTONES, NEXT_NAME } from '../src/content/en/strings';
 import { getProfile } from '../src/data/repositories/profile';
 import { getHabitDay, saveSessionLog, setHabitDay } from '../src/data/repositories/sessions';
 import { getSettings } from '../src/data/repositories/settings';
 import { formatDuration, toLocalDate } from '../src/domain/dates';
 import { reminderCueIndex } from '../src/domain/learn';
 import { SessionRunner, type RunnerEvent } from '../src/domain/session/engine';
-import { durationS, relaxPlan, type SessionPlan, type TimelinePhase } from '../src/domain/session/plan';
+import { relaxPlan, type SessionPlan, type TimelinePhase } from '../src/domain/session/plan';
 import type { Completion, OffTick, Pain3 } from '../src/domain/types';
 import { useApp, useLoad } from '../src/features/app';
+import { loadSessionSummary } from '../src/features/homeService';
+import { SessionContents } from '../src/features/screens/SessionContents';
+import { WeekStrip, whenText } from '../src/features/screens/WeekStrip';
 import { reconcileReminders } from '../src/features/reminderService';
 import { reportPain } from '../src/features/safetyService';
 import { planToday, saveSession, type SaveSessionResult } from '../src/features/trainingService';
@@ -34,7 +39,7 @@ const mono = () => (globalThis.performance?.now ? globalThis.performance.now() :
 type Stage = 'ready' | 'running' | 'painAsk' | 'log' | 'done';
 
 export default function SessionScreen() {
-  const params = useLocalSearchParams<{ relax?: string; extra?: string }>();
+  const params = useLocalSearchParams<{ relax?: string; extra?: string; go?: string }>();
   const { db, bump } = useApp();
   const { data } = useLoad(async (d) => ({ today: await planToday(d), settings: await getSettings(d), profile: await getProfile(d) }), []);
   const [stage, setStage] = useState<Stage>('ready');
@@ -55,6 +60,17 @@ export default function SessionScreen() {
     } else if (t.kind === 'strength' && t.plan) setPlan(t.plan);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
+
+  const begin = useCallback(async (p: SessionPlan) => {
+    await feedback.prepare().catch(() => undefined);
+    runner.current = new SessionRunner(p);
+    startedAt.current = new Date();
+    setStage('running');
+  }, []);
+  // Today's Start already prepared the sound in its tap, so a strength session starts straight away.
+  useEffect(() => {
+    if (plan && stage === 'ready' && params.go === '1' && plan.templateKey === 'strength' && !extra) void begin(plan);
+  }, [plan, stage, params.go, extra, begin]);
 
   if (!data) return <Loading />;
   const t = data.today;
@@ -90,13 +106,8 @@ export default function SessionScreen() {
   };
 
   if (stage === 'ready') {
-    const est = durationS(plan);
-    const start = async () => {
-      await feedback.prepare().catch(() => undefined);
-      runner.current = new SessionRunner(plan);
-      startedAt.current = new Date();
-      setStage('running');
-    };
+    if (params.go === '1' && plan.templateKey === 'strength' && !extra) return <Loading />;
+    const start = () => begin(plan);
     return (
       <Screen
         title={plan.templateKey === 'relax_only' ? SESSION.relaxPractice : SESSION.start}
@@ -104,17 +115,10 @@ export default function SessionScreen() {
         footer={<Button label={SESSION.start} onPress={start} />}
       >
         <Keys map={{ Enter: () => void start() }} />
-        <H1>{plan.templateKey === 'relax_only' ? SESSION.relaxPractice : SESSION.positionName[plan.position]}</H1>
-        <P>{SESSION.positionHint[plan.position]}</P>
-        <P muted>{`${SESSION.estimated} ${formatDuration(est)}`}</P>
-        {plan.templateKey === 'strength' ? (
-          <Card>
-            <P>{`${BLOCK_NAME.hold}: ${plan.load.N} × ${plan.load.H} s`}</P>
-            <P>{`${BLOCK_NAME.flick}: ${plan.load.F}`}</P>
-            {plan.load.E ? <P>{`${BLOCK_NAME.endurance}: ${plan.load.enduranceReps} × ${plan.load.E} s`}</P> : null}
-          </Card>
-        ) : null}
-        {extra ? <Banner tone="soft" text="Extra session. It does not count toward today's plan." /> : null}
+        <Card>
+          <SessionContents plan={plan} />
+        </Card>
+        {extra ? <Banner tone="soft" text={SESSION.extraNote} /> : null}
       </Screen>
     );
   }
@@ -139,19 +143,47 @@ export default function SessionScreen() {
 
   if (stage === 'log' && saved) return <SessionLog sessionId={saved.id} completion={completion} onDone={() => setStage('done')} />;
 
+  return <Done completion={completion} saved={saved} extra={extra} strength={plan.templateKey === 'strength'} />;
+}
+
+/** H2: a calm summary (today, the week, progress, next session). No confetti and no sound; the tick respects reduced motion. */
+function Done({ completion, saved, extra, strength }: { completion: Completion; saved: SaveSessionResult | null; extra: boolean; strength: boolean }) {
+  const { data: s } = useLoad((d) => loadSessionSummary(d), []);
+  const close = () => router.replace('/');
+  const next = (() => {
+    if (!s || !strength || completion === 'stopped_pain') return null;
+    if (s.nextReminder) return SESSION.nextSession(whenText(s.nextReminder));
+    return s.dayDone ? SESSION.nextTomorrow : SESSION.nextLaterToday;
+  })();
+  const progress = (() => {
+    if (!s || !strength || s.levelMax == null) return null;
+    const lvl = SESSION.levelLine(s.level, s.levelMax);
+    if (!s.next || s.next === 'top') return lvl;
+    return `${lvl} · ${s.weeksToNext != null ? HOME.nextAfter(NEXT_NAME[s.next], s.weeksToNext) : HOME.next(NEXT_NAME[s.next])}`;
+  })();
   return (
-    <Screen title={SESSION.complete} headerShown={false} width="narrow" footer={<Button label={COMMON.done} onPress={() => router.replace('/')} />}>
-      <Keys map={{ Enter: () => router.replace('/'), Escape: () => router.replace('/') }} />
-      <View style={{ paddingTop: 32, gap: 16, alignItems: completion === 'complete' ? 'center' : 'stretch' }}>
-        {completion === 'complete' ? <Celebrate /> : null}
-        <H1>{completion === 'complete' ? SESSION.complete : SESSION.partial}</H1>
+    <Screen title={SESSION.complete} headerShown={false} width="narrow" footer={<Button label={COMMON.done} onPress={close} />}>
+      <Keys map={{ Enter: close, Escape: close }} />
+      <View style={{ paddingTop: 32, gap: 16 }}>
+        <View style={{ alignItems: 'center', gap: 16 }}>
+          {completion === 'complete' ? <Celebrate size={88} /> : null}
+          <H1>{completion === 'complete' ? SESSION.complete : SESSION.partial}</H1>
+        </View>
         {completion === 'stopped_pain' ? <P>{RELAX_ONLY_HOME}</P> : null}
+        {s && strength ? (
+          <Card>
+            {extra ? <P>{SESSION.extraNote}</P> : s.slotsTotal > 0 ? <H2>{SESSION.todayCount(s.slotsDone, s.slotsTotal)}</H2> : null}
+            <WeekStrip week={s.week} target={s.weekTarget} />
+            {progress ? <P muted>{progress}</P> : null}
+            {next ? <P muted>{next}</P> : null}
+          </Card>
+        ) : null}
         {saved?.milestones.map((m) => (
           <Card key={m} tone="soft">
             <P>{MILESTONES[m] ?? ''}</P>
           </Card>
         ))}
-        {saved?.changes.length ? <P muted>Next week, your plan goes up one step.</P> : null}
+        {saved?.changes.length ? <P muted>{SESSION.stepUp}</P> : null}
       </View>
     </Screen>
   );
@@ -197,6 +229,7 @@ function Runner({
   const reduced = useReducedMotion();
   const [, setTick] = useState(0);
   const [note, setNote] = useState<string | null>(null);
+  const [confirmEnd, setConfirmEnd] = useState(false);
   const finished = useRef(false);
 
   const handle = useCallback(
@@ -246,12 +279,26 @@ function Runner({
   const reminder = p && p.rep > 0 && p.kind === 'squeeze' ? (p.rep === 1 && p.block === 'hold' ? cue : REMINDER_CUES[reminderCueIndex(p.rep, REMINDER_CUES.length)]) : null;
   const totalLeft = Math.max(0, runner.totalS() - runner.elapsedMs(now) / 1000);
   const done = runner.totalS() > 0 ? 1 - totalLeft / runner.totalS() : 0;
-  const togglePause = () => (state === 'paused' ? runner.resume(mono()) : runner.pause(mono()));
-  // Esc pauses first; a second Esc while paused ends (so a stray key never throws a session away).
+  const togglePause = () => {
+    setConfirmEnd(false);
+    if (state === 'paused') runner.resume(mono());
+    else runner.pause(mono());
+  };
+  // H3: End session (tap or Esc) pauses first and asks; a second Esc or "End session" ends.
+  // A stray tap or key never throws a session away.
+  const askEnd = () => {
+    if (state !== 'paused') runner.pause(mono());
+    setConfirmEnd(true);
+  };
+  const endNow = () => handle(runner.stopEarly(mono(), 'user_stop'));
+  const keepGoing = () => {
+    setConfirmEnd(false);
+    if (runner.getState() === 'paused') runner.resume(mono());
+  };
   const stop = () => {
     if (inRelaxOut) handle(runner.skipRelaxOut(mono()));
-    else if (state !== 'paused') runner.pause(mono());
-    else handle(runner.stopEarly(mono(), 'user_stop'));
+    else if (confirmEnd) endNow();
+    else askEnd();
   };
   useHotkeys({ ' ': togglePause, Escape: stop }, !painAsk);
 
@@ -289,37 +336,46 @@ function Runner({
       headerShown={false}
       scroll={false}
       footer={
-        <>
-          {canWeak ? (
-            <Button
-              label={SESSION.gettingWeak}
-              kind="secondary"
-              onPress={() => {
-                handle(runner.gettingWeak(mono()));
-                setNote(SESSION.gettingWeakReply);
-              }}
-            />
-          ) : null}
-          {inRelaxOut ? <Button label={SESSION.skip} kind="quiet" onPress={() => handle(runner.skipRelaxOut(mono()))} /> : null}
-          <Row>
-            <Button
-              style={{ flex: 1 }}
-              label={state === 'paused' ? SESSION.resume : SESSION.pause}
-              kind="secondary"
-              onPress={togglePause}
-            />
-            <Button
-              style={{ flex: 1 }}
-              label={SESSION.pain}
-              kind="secondary"
-              onPress={() => {
-                handle(runner.stopEarly(mono(), 'user_stop'));
-                onPain();
-              }}
-            />
-          </Row>
-          {!inRelaxOut ? <Button label={SESSION.stop} kind="quiet" onPress={() => handle(runner.stopEarly(mono(), 'user_stop'))} /> : null}
-        </>
+        confirmEnd ? (
+          <>
+            <H2>{SESSION.endQuestion}</H2>
+            <P muted>{SESSION.endNote}</P>
+            <Button label={SESSION.keepGoing} onPress={keepGoing} />
+            <Button label={SESSION.stop} kind="secondary" onPress={endNow} />
+          </>
+        ) : (
+          <>
+            {canWeak ? (
+              <Button
+                label={SESSION.gettingWeak}
+                kind="secondary"
+                onPress={() => {
+                  handle(runner.gettingWeak(mono()));
+                  setNote(SESSION.gettingWeakReply);
+                }}
+              />
+            ) : null}
+            {inRelaxOut ? <Button label={SESSION.skip} kind="quiet" onPress={() => handle(runner.skipRelaxOut(mono()))} /> : null}
+            <Row>
+              <Button
+                style={{ flex: 1 }}
+                label={state === 'paused' ? SESSION.resume : SESSION.pause}
+                kind="secondary"
+                onPress={togglePause}
+              />
+              <Button
+                style={{ flex: 1 }}
+                label={SESSION.pain}
+                kind="secondary"
+                onPress={() => {
+                  handle(runner.stopEarly(mono(), 'user_stop'));
+                  onPain();
+                }}
+              />
+            </Row>
+            {!inRelaxOut ? <Button label={SESSION.stop} kind="quiet" onPress={askEnd} /> : null}
+          </>
+        )
       }
     >
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 }}>
@@ -411,9 +467,6 @@ function SessionLog({ sessionId, completion, onDone }: { sessionId: string; comp
         </>
       }
     >
-      <P small muted>
-        {APP_QUESTION_LABEL}
-      </P>
       <H2>{SESSION_LOG.feelQuestion}</H2>
       <Segments options={SESSION_LOG.feelOptions.map((o) => ({ value: o.value as number, label: o.label }))} value={feel} onChange={setFeel} />
       <H2>{SESSION_LOG.painQuestion}</H2>
@@ -443,6 +496,10 @@ function SessionLog({ sessionId, completion, onDone }: { sessionId: string; comp
           />
         </>
       ) : null}
+      {/* M8: LOG-003 keeps the label visible, but at the bottom so it does not lead the form. */}
+      <P small muted>
+        {APP_QUESTION_LABEL}
+      </P>
     </Screen>
   );
 }
