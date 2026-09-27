@@ -1,5 +1,6 @@
 import type { SqlDb } from '../sql';
 import * as m0001 from './0001_init';
+import * as m0002 from './0002_sync';
 
 export interface Migration {
   version: number;
@@ -8,7 +9,10 @@ export interface Migration {
 }
 
 /** Forward-only, numbered migrations (DATA-201). */
-export const MIGRATIONS: Migration[] = [{ version: 1, name: '0001_init', up: m0001.up }];
+export const MIGRATIONS: Migration[] = [
+  { version: 1, name: '0001_init', up: m0001.up },
+  { version: 2, name: '0002_sync', up: m0002.up },
+];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 

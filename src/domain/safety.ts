@@ -163,6 +163,15 @@ export function deriveReasons(prev: readonly QuestionKey[], answers: Answers, ti
   return FULL_ORDER.concat(['Q-P4', 'Q-G5']).filter((k) => out.has(k));
 }
 
+/**
+ * Safety questions the person skipped whose "yes" would stop or limit training (urgent, surgery or catheter, pain).
+ * A skip is not a "no": the outcome screen names them (UX audit C1, 2026-09-27).
+ */
+export function skippedSafety(answers: Answers): QuestionKey[] {
+  const keys: QuestionKey[] = [...URGENT, 'Q-S1', 'Q-S2', ...PAIN];
+  return keys.filter((k) => answers[k] === 'skipped');
+}
+
 /** Caution-card keys that should (re)appear after a screen (ONB-023, ONB-032). */
 export function cautionCards(reasons: readonly QuestionKey[]): QuestionKey[] {
   return reasons.filter((r) => CAUTION.includes(r));

@@ -107,7 +107,7 @@ export default function SettingsScreen() {
           onChange={(n) => set({ sessions_per_day_target: n })}
         />
         <P small muted>
-          Change your reminder plan to match in Reminders.
+          In Reminders, change your reminder plan to match.
         </P>
         <Label>{SETTINGS.weeklyTarget}</Label>
         <Stepper value={s.weekly_days_target} min={3} max={7} onChange={(n) => set({ weekly_days_target: n })} />

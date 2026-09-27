@@ -3,6 +3,9 @@ import initSqlJs from 'sql.js';
 import { migrate } from '../../src/data/migrate';
 import { ensureSingletons } from '../../src/data/init';
 import { openWebDb, WrongKeyError, type BlobStore, type SqlJsStatic } from '../../src/data/webSql';
+import { getSettings, updateSettings } from '../../src/data/repositories/settings';
+import { applyChangeSet, buildChangeSet, localNode } from '../../src/data/sync/changes';
+import { freshDb } from '../helpers/db';
 
 const KEY = 'ab'.repeat(32);
 const OTHER = 'cd'.repeat(32);
@@ -68,4 +71,21 @@ test('foreign keys stay on after a save', async () => {
   const db = await openWebDb(SQL, store, KEY, 'dc.db');
   await db.exec('CREATE TABLE a (id INTEGER PRIMARY KEY); CREATE TABLE b (a_id INTEGER REFERENCES a(id))');
   await expect(db.run('INSERT INTO b (a_id) VALUES (?)', [99])).rejects.toThrow();
+});
+
+test('the sync engine works on sql.js (Mac) against the phone database', async () => {
+  const { store } = memoryStore();
+  const mac = await openWebDb(SQL, store, KEY, 'sync.db');
+  await migrate(mac, '1.0.0');
+  await ensureSingletons(mac, true);
+  const phone = await freshDb();
+  expect(await localNode(mac)).toMatch(/^[0-9a-f]{8}$/);
+  await updateSettings(mac, { theme: 'dark' });
+  await mac.run("INSERT INTO milestone (key, reached_at, created_at) VALUES ('first_week', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z')");
+  const tomb = await mac.get<{ n: number }>("SELECT count(*) AS n FROM milestone WHERE hlc != ''");
+  expect(tomb?.n).toBe(1);
+  await applyChangeSet(phone, await buildChangeSet(mac, ''));
+  expect((await getSettings(phone)).theme).toBe('dark');
+  expect((await phone.all('SELECT key FROM milestone')).length).toBe(1);
+  await mac.close();
 });

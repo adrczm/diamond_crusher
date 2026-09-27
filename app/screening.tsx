@@ -20,13 +20,13 @@ export default function ScreeningScreen() {
   const { db, bump } = useApp();
   const { data: profile } = useLoad((d) => getProfile(d));
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ mode: SafetyMode; reasons: QuestionKey[]; cautions: QuestionKey[] } | null>(null);
+  const [result, setResult] = useState<{ mode: SafetyMode; reasons: QuestionKey[]; cautions: QuestionKey[]; skipped: QuestionKey[] } | null>(null);
   if (!profile) return <Loading />;
   const title = kind === 'periodic' ? HOME.shortScreenDue : HOME.somethingChanged;
   if (result) {
     return (
       <Screen title={title} footer={<Button label={COMMON.done} onPress={() => router.back()} />}>
-        <ScreeningOutcome mode={result.mode} reasons={result.reasons} cautions={result.cautions} />
+        <ScreeningOutcome mode={result.mode} reasons={result.reasons} cautions={result.cautions} skipped={result.skipped} anatomy={profile.anatomy ?? 'other_unspecified'} />
       </Screen>
     );
   }
@@ -42,7 +42,7 @@ export default function ScreeningScreen() {
           try {
             const r = await completeScreening(db, { kind, answers: a.answers, startedAt: a.startedAt, surgeryDate: a.surgeryDate, sourceRef: params.checkId ?? null });
             if (params.checkId && params.parts) await markPart(db, params.checkId, 'safety', params.parts.split(',') as BundlePart[]);
-            setResult({ mode: r.mode, reasons: r.reasons, cautions: r.newCautions });
+            setResult({ mode: r.mode, reasons: r.reasons, cautions: r.newCautions, skipped: r.skipped });
             reconcileReminders(db);
             bump();
           } finally {

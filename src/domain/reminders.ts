@@ -55,8 +55,8 @@ export const DEFAULT_TEXTS = ['Time for a few minutes', 'A few minutes now?', 'Q
 export const RELAX_TEXT = 'Time for a few calm minutes.';
 export const MONTHLY_TEXT = 'Your monthly check is ready';
 export const WEEKLY_TEXT = 'Your weekly summary is ready';
-export const KNACK_TEXT = 'Remember your quick one today';
-export const COMEBACK_TEXT = "Whenever you're ready, your few minutes are here.";
+export const KNACK_TEXT = 'Your small habit for today';
+export const COMEBACK_TEXT = 'Whenever you are ready, your few minutes are here.';
 export const APP_TITLE = 'Diamond Crusher';
 export const MAX_PENDING = 48;
 

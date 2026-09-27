@@ -1,7 +1,10 @@
 // Your data (07 PRIV-030 to PRIV-050): what is stored, backup file export and import, delete everything.
 import { useState } from 'react';
+import { router } from 'expo-router';
 import { COMMON, DATA } from '../src/content/en/strings';
+import { SYNC } from '../src/content/en/sync';
 import { getMeta } from '../src/data/repositories/misc';
+import { getPeer } from '../src/data/sync/changes';
 import { deleteEverything } from '../src/data/vault';
 import { formatShort, toLocalDate } from '../src/domain/dates';
 import { useApp, useLoad } from '../src/features/app';
@@ -10,7 +13,7 @@ import { Banner, Button, Card, Field, H2, Label, Loading, P, Screen } from '../s
 
 export default function DataScreen() {
   const { db, restart } = useApp();
-  const { data, reload } = useLoad(async (d) => ({ meta: await getMeta(d) }));
+  const { data, reload } = useLoad(async (d) => ({ meta: await getMeta(d), paired: !!(await getPeer(d)) }));
   const [mode, setMode] = useState<'view' | 'export' | 'import' | 'delete'>('view');
   const [word, setWord] = useState('');
   const [done, setDone] = useState<string | null>(null);
@@ -70,6 +73,11 @@ export default function DataScreen() {
         <P>{DATA.leaves}</P>
         <Label>{DATA.backupsTitle}</Label>
         <P>{DATA.backups}</P>
+      </Card>
+      <Card>
+        <Label>{SYNC.entryTitle}</Label>
+        <P>{SYNC.entryBody}</P>
+        <Button label={data.paired ? SYNC.entryButtonPaired : SYNC.entryButton} onPress={() => router.push('/sync')} />
       </Card>
       <Card>
         <P>{DATA.lastBackup(last)}</P>

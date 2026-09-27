@@ -41,7 +41,7 @@ export function cueText(key: string | null, anatomy: Anatomy): string {
 }
 
 /** LRN-015: rotated one per rep. */
-export const REMINDER_CUES = ['Keep breathing', 'Buttocks soft', 'Tummy above the belly button soft', "Lift in, don't push down", 'Let it go fully'];
+export const REMINDER_CUES = ['Keep breathing', 'Buttocks soft', 'Tummy above the belly button soft', 'Lift in. Do not push down.', 'Let it go fully'];
 
 export const LEARN = {
   title: 'Learn the squeeze',
@@ -64,18 +64,18 @@ export const LEARN = {
   mistakesTitle: 'Quick checklist',
   mistakesNote: 'A slight tightening low in your tummy is normal.',
   resultPass: 'Found it',
-  resultPassBody: 'You found the squeeze and let it go fully. Your training can start.',
+  resultPassBody: 'You found the squeeze and let it go fully. Now your training can start.',
   resultNotSure: 'Not sure yet',
-  resultNotSureBody: "That's common. Here are some things to try.",
+  resultNotSureBody: 'That is common. Try one of these tips.',
   resultPushDown: 'It looks like a push down',
-  resultPushDownBody: 'Some signs suggest pushing down rather than lifting in. Try again with the tips below before training.',
+  resultPushDownBody: 'Some signs suggest a push down, not a lift in. Before you train, try again with the tips below.',
   startAnyway: 'Start training anyway',
-  startAnywayNote: "We'll ask you to re-check your technique once a week.",
+  startAnywayNote: 'We will ask you to check your technique again once a week.',
   whichCue: 'Which cue worked best?',
   tipAnotherCue: 'Try another cue.',
   tipLieDown: 'Try lying down, knees bent and apart.',
   tipOtherCheck: 'Try the other self-check.',
-  tipTomorrow: 'Come back tomorrow and try again.',
+  tipTomorrow: 'Try again tomorrow. Muscles learn with practice.',
   recheckTitle: 'Quick technique check',
   recheckIntro: 'One squeeze with a quick check. It takes about a minute.',
 };
@@ -90,7 +90,7 @@ export const MIRROR_CHECK: Record<Anatomy, { text: string; todo: boolean }> = {
     todo: false,
   },
   female: {
-    text: "Use a hand mirror. As you squeeze, the back passage and vaginal entrance should lift up and inwards. If the entrance widens or bulges, you're pushing down.",
+    text: 'Use a hand mirror. As you squeeze, the back passage and vaginal entrance should lift up and inwards. If the entrance widens or bulges, that is a push down.',
     todo: true,
   },
 };
@@ -133,10 +133,10 @@ export const LEAK_QUESTION = 'Any leak of pee or wind?';
 
 export const STOP_TEST = {
   card:
-    "Optional, one time only: next time you pee, try to slow or stop the flow for a second to feel which muscles do it. Then let it flow and empty fully. Don't do this as an exercise. Doing it regularly can upset how your bladder empties.",
+    'Optional, one time only. Next time you pee, try to slow or stop the flow for a second. This lets you feel which muscles do it. Then let it flow and empty fully. Do not do this as an exercise. If you do it regularly, it can upset how your bladder empties.',
   done: 'Done',
   skip: 'Skip',
   resultQuestion: 'How did it go?',
   could: 'I could slow or stop it',
-  couldNot: "I couldn't slow or stop it at all",
+  couldNot: 'I could not slow or stop it at all',
 };

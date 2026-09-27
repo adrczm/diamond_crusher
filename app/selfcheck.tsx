@@ -183,11 +183,11 @@ export default function SelfCheck() {
   if (!data) return <Loading />;
   const anatomy = data.profile?.anatomy ?? 'other_unspecified';
   const cueOpts = { audio: data.settings.audio_mode, vibration: data.settings.vibration } as const;
-  const title = kind === 'baseline' ? 'Starting self-check' : SELF_CHECK.title;
+  const title = kind === 'baseline' ? 'First self-check' : SELF_CHECK.title;
   if (!strengthAllowed(data.safety.mode)) {
     return (
       <Screen title={title}>
-        <Banner text="The self-check isn't available while exercises are paused or set to relaxation only." />
+        <Banner text="The self-check is not available while exercises are paused or set to relaxation only." />
       </Screen>
     );
   }
@@ -446,7 +446,7 @@ export default function SelfCheck() {
       footer = needStanding ? (
         <>
           <Button
-            label="Do the standing check"
+            label="Start standing check"
             onPress={() => router.replace(`/selfcheck?position=standing${params.checkId ? `&checkId=${params.checkId}&parts=${params.parts ?? ''}` : ''}&kind=${params.kind ?? ''}`)}
           />
           <Button

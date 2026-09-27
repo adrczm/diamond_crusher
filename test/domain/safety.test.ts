@@ -58,3 +58,11 @@ describe('safety routing (spec 01)', () => {
     expect(preSurgeryAdvice('2026-01-10', '2026-01-01')).toBe('short_notice');
   });
 });
+
+describe('skipped safety questions (UX audit C1)', () => {
+  it('lists skipped urgent, surgery and pain questions, not skipped caution ones', () => {
+    const { skippedSafety } = require('../../src/domain/safety');
+    expect(skippedSafety({ 'Q-R1': 'skipped', 'Q-S1': 'skipped', 'Q-P2': 'skipped', 'Q-G1': 'skipped', 'Q-R2': 'no' })).toEqual(['Q-R1', 'Q-S1', 'Q-P2']);
+    expect(skippedSafety({ 'Q-R1': 'no' })).toEqual([]);
+  });
+});

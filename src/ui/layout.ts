@@ -51,5 +51,6 @@ export function activeNav(pathname: string): NavItem['key'] | null {
   if (hit) return hit.key;
   if (pathname === '/about') return 'settings';
   if (pathname === '/summary') return 'progress';
+  if (pathname === '/sync') return 'data';
   return null;
 }
