@@ -39,7 +39,7 @@ On a window wider than 900 points the app switches to a desktop layout:
 - Sessions and other guided steps open full-window without the sidebar, so nothing distracts mid-exercise. A finished
   session ends with a small celebration (still, if Reduce motion is on).
 - **Keyboard shortcuts** (press `?` to see them): `S` starts today's session, `1` to `8` jump to a section, `T` switches
-  appearance, `Space` pauses or resumes a session, `Esc` goes back or ends a session, `Enter` starts from the ready screen.
+  appearance, `Space` pauses or resumes a session, `Esc` goes back, or in a session pauses and then ends, `Enter` starts from the ready screen. The shortcuts panel has a switch to turn single-key shortcuts off.
 
 A narrow window keeps the phone layout. The research behind the design is in the project's
 `research/desktop-ux/desktop-ux-research.md`.

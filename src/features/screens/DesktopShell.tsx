@@ -5,7 +5,8 @@ import { useContext, useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { DESKTOP, HOME } from '../../content/en/strings';
 import { updateSettings, type Settings } from '../../data/repositories/settings';
-import { useHotkeys } from '../../ui/hotkeys';
+import { setShortcutsEnabled, shortcutsEnabled, useHotkeys } from '../../ui/hotkeys';
+import { ToggleRow } from '../../ui/kit';
 import { Icon, type IconName } from '../../ui/icons';
 import { activeNav, isFocusRoute, isSection, NAV, SIDEBAR_W, useDesktop } from '../../ui/layout';
 import { Text } from '../../ui/text';
@@ -254,6 +255,7 @@ function ThemeSwitch({ pref, onChange, dark }: { pref: Settings['theme']; onChan
 
 function ShortcutsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const c = useColors();
+  const [on, setOn] = useState(shortcutsEnabled());
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable
@@ -303,6 +305,15 @@ function ShortcutsPanel({ open, onClose }: { open: boolean; onClose: () => void 
               <Text style={[type('body-md'), { color: c.text, flex: 1 }]}>{s.what}</Text>
             </View>
           ))}
+          <ToggleRow
+            label={DESKTOP.shortcutsToggle}
+            hint={DESKTOP.shortcutsToggleHint}
+            value={on}
+            onChange={(v) => {
+              setShortcutsEnabled(v);
+              setOn(v);
+            }}
+          />
         </Pressable>
       </Pressable>
     </Modal>

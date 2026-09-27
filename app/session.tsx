@@ -247,7 +247,12 @@ function Runner({
   const totalLeft = Math.max(0, runner.totalS() - runner.elapsedMs(now) / 1000);
   const done = runner.totalS() > 0 ? 1 - totalLeft / runner.totalS() : 0;
   const togglePause = () => (state === 'paused' ? runner.resume(mono()) : runner.pause(mono()));
-  const stop = () => (inRelaxOut ? handle(runner.skipRelaxOut(mono())) : handle(runner.stopEarly(mono(), 'user_stop')));
+  // Esc pauses first; a second Esc while paused ends (so a stray key never throws a session away).
+  const stop = () => {
+    if (inRelaxOut) handle(runner.skipRelaxOut(mono()));
+    else if (state !== 'paused') runner.pause(mono());
+    else handle(runner.stopEarly(mono(), 'user_stop'));
+  };
   useHotkeys({ ' ': togglePause, Escape: stop }, !painAsk);
 
   // The circle swells on squeeze and settles on release (a spring, so it feels like a muscle, not a switch).

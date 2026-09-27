@@ -17,6 +17,7 @@
     <link rel="manifest" href="%WEB_PUBLIC_URL%/manifest.json" />
     <link rel="apple-touch-icon" href="%WEB_PUBLIC_URL%/icon.png" />
     <title>Diamond Crusher</title>
+    <script src="%WEB_PUBLIC_URL%/theme-boot.js"></script>
     <style id="expo-reset">
       html,
       body {
@@ -24,10 +25,13 @@
       }
       body {
         overflow: hidden;
+        background: transparent;
+      }
+      html {
         background: #f1f1f1;
       }
       @media (prefers-color-scheme: dark) {
-        body {
+        html {
           background: #1a1a1a;
         }
       }

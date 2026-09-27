@@ -10,7 +10,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider, type Theme } from '@react-navig
 import { router, Stack } from 'expo-router';
 import * as SystemUI from 'expo-system-ui';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AppState, Platform, View } from 'react-native';
 import { applyWebWording } from '../src/content/en/web';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -185,6 +185,7 @@ export default function RootLayout() {
 
 function Themed({ children }: { children: React.ReactNode }) {
   const c = useColors();
+  const pref = useContext(ThemePrefContext);
   const dark = useIsDark();
   // Navigation draws its own backgrounds behind headers and screens; give it the app's colours so nothing light shows
   // through in dark mode (or dark in light mode).
@@ -198,9 +199,16 @@ function Themed({ children }: { children: React.ReactNode }) {
       root.style.colorScheme = dark ? 'dark' : 'light';
       root.style.setProperty('--dc-focus', c.focus);
       document.body.style.background = c.bg;
+      try {
+        // Read by public/theme-boot.js on the next load, before the app starts.
+        if (pref === 'system') localStorage.removeItem('dc-theme');
+        else localStorage.setItem('dc-theme', pref);
+      } catch {
+        // Storage blocked.
+      }
       document.querySelector('meta[name="theme-color"]')?.setAttribute('content', c.bg);
     }
-  }, [c, dark]);
+  }, [c, dark, pref]);
   const nav: Theme = {
     ...base,
     colors: { ...base.colors, primary: c.link, background: c.bg, card: c.card, text: c.text, border: c.border, notification: c.danger },
