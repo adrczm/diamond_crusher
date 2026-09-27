@@ -1,0 +1,59 @@
+{
+  "moduleId": "app_monthly_sexual",
+  "name": "Monthly sexual check",
+  "version": 1,
+  "language": "en",
+  "validated": false,
+  "profiles": ["male"],
+  "goals": ["erection", "ejaculatory_control"],
+  "recall": { "text": "Over the past 4 weeks", "days": 28 },
+  "intervalDays": 28,
+  "instructions": "Answer for the past 4 weeks. Skip anything you prefer not to answer.",
+  "items": [
+    {
+      "itemId": "S1",
+      "text": "Over the past 4 weeks, how firm were your erections usually, at their firmest?",
+      "responseType": "single",
+      "goals": ["erection"],
+      "options": [
+        { "label": "Soft, no change", "value": 0 },
+        { "label": "A little fuller, still soft", "value": 1 },
+        { "label": "Partly firm", "value": 2 },
+        { "label": "Firm, but not fully", "value": 3 },
+        { "label": "Fully firm", "value": 4 },
+        { "label": "Not sure", "value": "not_sure" }
+      ],
+      "scored": false
+    },
+    {
+      "itemId": "S2",
+      "text": "Over the past 4 weeks, how much control did you usually feel over when you ejaculated?",
+      "responseType": "numeric",
+      "goals": ["ejaculatory_control"],
+      "options": [],
+      "scale": { "min": 0, "max": 10, "minLabel": "No control at all", "maxLabel": "Complete control" },
+      "scored": false
+    },
+    {
+      "itemId": "S3",
+      "text": "Over the past 4 weeks, how much did the timing of ejaculation bother you?",
+      "responseType": "numeric",
+      "goals": ["ejaculatory_control"],
+      "options": [],
+      "scale": { "min": 0, "max": 10, "minLabel": "Not at all", "maxLabel": "Very much" },
+      "scored": false
+    }
+  ],
+  "scoring": { "method": "none", "missingRule": "none" },
+  "licence": {
+    "holder": "Diamond Crusher (app-own item)",
+    "licenceType": "free-open",
+    "status": "granted",
+    "reference": null,
+    "grantedOn": null,
+    "permittedUse": "App-own question, written for this app.",
+    "conditions": "",
+    "copyrightNotice": "App question, not validated",
+    "reviewBy": null
+  }
+}

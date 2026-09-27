@@ -1,0 +1,117 @@
+// Colours, spacing, radius and type from Shopify's Polaris design system, in light and dark (spec 05 tone; ARCH polish: contrast).
+import { createContext, useContext } from 'react';
+import { useColorScheme, type TextStyle } from 'react-native';
+import { polaris } from './polaris';
+
+export interface Colors {
+  bg: string;
+  card: string;
+  text: string;
+  muted: string;
+  /** Brand fill: primary buttons, selected controls. */
+  primary: string;
+  onPrimary: string;
+  /** Quiet tinted surface (secondary cards, secondary buttons). */
+  soft: string;
+  border: string;
+  danger: string;
+  warn: string;
+  warnSoft: string;
+  good: string;
+  squeeze: string;
+  release: string;
+  link: string;
+  info: string;
+  infoSoft: string;
+  goodSoft: string;
+  dangerSoft: string;
+  selected: string;
+  inputBg: string;
+  inputBorder: string;
+  focus: string;
+}
+
+// Shopify Polaris tokens (generated into ./polaris.ts). Polaris's dark theme is still experimental and leaves some tokens
+// at their light values; those few are overridden below so text stays readable on dark surfaces.
+function fromPolaris(t: (typeof polaris)['light'] | (typeof polaris)['dark'], dark: boolean): Colors {
+  return {
+    bg: t['bg'],
+    card: t['bg-surface'],
+    text: t['text'],
+    muted: t['text-secondary'],
+    primary: t['bg-fill-brand'],
+    onPrimary: t['text-brand-on-bg-fill'],
+    soft: dark ? t['bg-surface-active'] : t['bg-surface-secondary'],
+    border: dark ? t['border-secondary'] : t['border'],
+    danger: t['bg-fill-critical'],
+    warn: t['text-warning'],
+    warnSoft: t['bg-surface-warning'],
+    good: dark ? '#29B28A' : t['bg-fill-success'],
+    squeeze: dark ? '#4B9CFF' : t['bg-fill-emphasis'],
+    release: t['bg-fill-info'],
+    link: dark ? '#6FB1FF' : t['text-link'],
+    info: t['text-info'],
+    infoSoft: t['bg-surface-info'],
+    goodSoft: t['bg-surface-success'],
+    dangerSoft: t['bg-surface-critical'],
+    selected: t['bg-surface-selected'],
+    inputBg: dark ? t['bg-surface'] : t['input-bg-surface'],
+    inputBorder: t['input-border'],
+    focus: t['border-focus'],
+  };
+}
+
+const light = fromPolaris(polaris.light, false);
+const dark = fromPolaris(polaris.dark, true);
+
+export type ThemePref = 'system' | 'light' | 'dark';
+
+export const ThemePrefContext = createContext<ThemePref>('system');
+
+export function useColors(): Colors {
+  const pref = useContext(ThemePrefContext);
+  const scheme = useColorScheme();
+  const mode = pref === 'system' ? (scheme === 'dark' ? 'dark' : 'light') : pref;
+  return mode === 'dark' ? dark : light;
+}
+
+export function useIsDark(): boolean {
+  const pref = useContext(ThemePrefContext);
+  const scheme = useColorScheme();
+  return pref === 'dark' || (pref === 'system' && scheme === 'dark');
+}
+
+/** Spacing in 8px steps (Polaris space-200 = 8px, space-400 = 16px). */
+export const space = (n: number) => n * polaris.space['200'];
+
+/** Polaris corner radii. */
+export const radius = {
+  sm: polaris.radius['100'],
+  md: polaris.radius['200'],
+  lg: polaris.radius['300'],
+  xl: polaris.radius['400'],
+  full: 999,
+};
+
+/** Inter, the Polaris typeface, in the four static weights the app loads (see app/_layout.tsx). */
+export const FONTS = {
+  regular: 'Inter_400Regular',
+  medium: 'Inter_500Medium',
+  semibold: 'Inter_600SemiBold',
+  bold: 'Inter_700Bold',
+} as const;
+
+/** Maps a numeric weight to the matching Inter file. Android ignores fontWeight on custom fonts. */
+export function fontFor(weight?: TextStyle['fontWeight'] | number): TextStyle {
+  const w = weight == null || weight === 'normal' ? 400 : weight === 'bold' ? 700 : Number(weight);
+  const family = w >= 700 ? FONTS.bold : w >= 600 ? FONTS.semibold : w >= 500 ? FONTS.medium : FONTS.regular;
+  return { fontFamily: family, fontWeight: 'normal' };
+}
+
+export type TypeVariant = keyof typeof polaris.typography;
+
+/** A Polaris text variant (light-mobile sizes: body 16/24, headings bold). */
+export function type(variant: TypeVariant): TextStyle {
+  const t = polaris.typography[variant];
+  return { fontSize: t.fontSize, lineHeight: t.lineHeight, letterSpacing: t.letterSpacing, ...fontFor(t.fontWeight) };
+}

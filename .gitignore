@@ -1,0 +1,29 @@
+node_modules/
+.expo/
+dist/
+web-build/
+android/
+ios/
+*.keystore
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+gradle.properties
+*.dcbk
+.env
+.env.*
+npm-debug.*
+*.orig.*
+coverage/
+*.apk
+*.aab
+.DS_Store
+
+# Copied from node_modules by scripts/copy-sqljs.js
+public/sql-wasm.js
+public/sql-wasm.wasm
+
+# Mac archive output
+/build/

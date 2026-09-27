@@ -1,0 +1,16 @@
+Diamond Crusher for Mac (Safari)
+
+1. Double-click "Start Diamond Crusher".
+   The first time, macOS may say it can't check the file. Open System Settings, then Privacy & Security, scroll
+   down and click "Open Anyway" next to "Start Diamond Crusher". Then double-click it again.
+2. Safari opens the app at http://localhost:47820/. Keep the small Terminal window open while you use it.
+   To make it feel like an app: in Safari choose File, then Add to Dock. Start this file first each time.
+3. Close the Terminal window when you're done.
+
+Your data stays in Safari on this Mac, encrypted. Nothing is sent anywhere: the app only talks to this computer.
+Keep this folder in the same place, and always use the same address, or Safari won't find your data.
+
+Updating: save a backup file in the app first (Settings, Your data, Save a backup file). Then replace this folder
+with the new one and start it as usual. Your data stays in Safari.
+
+Clearing Safari's website data erases the app's data, so save a backup file now and then.
