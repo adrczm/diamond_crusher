@@ -58,13 +58,25 @@ export const LEARN = {
   letGo: 'Let go fully. Feel it drop back and soften.',
   feltLetGo: 'Did you feel it let go?',
   checkTitle: 'Check the squeeze',
-  checkChoose: 'Choose a check. You can squeeze again while you check.',
-  mirrorLabel: 'Mirror check',
-  touchLabel: 'Fingertip check',
+  checkLying: 'Stay lying down. You can squeeze again while you check.',
+  useMirror: 'Use a mirror',
+  useFingertips: 'Use fingertips',
+  mirrorTitle: 'Mirror check (standing)',
+  mirrorIntro: 'This check is optional. You do it standing, so your next squeeze is also standing. Tap Squeeze again when you are in position.',
   mistakesTitle: 'Quick checklist',
+  offQuestion: 'Anything feel off?',
+  offNote: 'For example, you held your breath, used your buttocks or thighs, pushed out, or leaked.',
+  breatheSlowly: 'Breathe slowly',
+  letGoLabel: 'Let go',
+  unsure: 'Unsure',
+  attemptOf: (n: number) => `Attempt ${n} of up to 5`,
+  notAvailable: 'Learn the squeeze is not available while exercises are paused or set to relaxation only.',
+  diagramAlt: 'Diagram of the pelvis. The pelvic floor goes across the bottom like a hammock. During a squeeze, it lifts up and in.',
+  diagramCaption: 'A good squeeze lifts the pelvic floor up and in. It does not push down.',
+  diagramKey: 'Dashed line: at rest. Solid line: during a squeeze.',
   mistakesNote: 'A slight tightening low in your tummy is normal.',
   resultPass: 'Found it',
-  resultPassBody: 'You found the squeeze and let it go fully. Now your training can start.',
+  resultPassBody: 'You found the squeeze and let it go fully. Your training can start from your home screen.',
   resultNotSure: 'Not sure yet',
   resultNotSureBody: 'That is common. Try one of these tips.',
   resultPushDown: 'It looks like a push down',
@@ -131,12 +143,9 @@ export const LIFT_ANSWERS = [
 ] as const;
 export const LEAK_QUESTION = 'Any leak of pee or wind?';
 
+/** LRN-040, shown once as information only. It asks no result question: the test happens later (UX audit M9). */
 export const STOP_TEST = {
+  title: 'One optional test',
   card:
     'Optional, one time only. Next time you pee, try to slow or stop the flow for a second. This lets you feel which muscles do it. Then let it flow and empty fully. Do not do this as an exercise. If you do it regularly, it can upset how your bladder empties.',
-  done: 'Done',
-  skip: 'Skip',
-  resultQuestion: 'How did it go?',
-  could: 'I could slow or stop it',
-  couldNot: 'I could not slow or stop it at all',
 };

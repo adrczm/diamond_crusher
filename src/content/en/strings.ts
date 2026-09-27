@@ -27,7 +27,11 @@ export const COMMON = {
 
 export const ONBOARDING = {
   welcomeTitle: 'Welcome',
+  welcomeValue: 'Short daily sessions that train your pelvic floor, step by step.',
   welcomeBody: 'Pelvic floor training and tracking that stays on this phone. No account. Nothing leaves the phone unless you export it.',
+  welcomeTime: 'Setup takes about 3 minutes.',
+  stepOf: (n: number, total: number) => `Step ${n} of ${total}`,
+  disclaimerTitle: 'Before you start',
   start: 'Start',
   importBackup: 'Import a backup',
   understand: 'I understand',
@@ -53,12 +57,22 @@ export const ONBOARDING = {
     { value: null, label: 'Prefer not to say' },
   ],
   screeningTitle: 'A few safety questions',
+  finishTitle: 'All set',
+  finishNext: 'Your home screen shows what to do next. Start with Learn the squeeze. It takes about 5 minutes, lying down.',
+  finishBlocked: 'Your home screen shows what happens next.',
   lockTitle: 'Lock the app?',
   lockBody: 'The app can ask for your fingerprint, face or phone PIN each time it opens. The lock is off by default. You can change this in Settings at any time.',
   lockOn: 'Use the lock',
   lockOff: 'Skip the lock',
   lockUnavailable: 'This phone has no screen lock, so the app lock is not available. After you add a screen lock, you can use the app lock from Settings.',
   lockWarning: 'If you add a new fingerprint or face later, the lock may stop working. Keep a backup file so that you do not lose your data.',
+};
+
+/** Guided flows (Learn the squeeze, self-check): leaving part way (UX audit H8). */
+export const FLOW = {
+  leaveTitle: 'Leave?',
+  leaveBody: 'This step is not saved.',
+  leave: 'Leave',
 };
 
 export const PLAN = {
@@ -519,6 +533,8 @@ export const DESKTOP = {
     { keys: '?', what: 'Show these shortcuts' },
   ],
   sessionKeys: 'Space pauses · Esc twice ends',
+  flowKeys: 'Space or Enter continues',
+  tapKeys: 'Space or Enter taps the big button',
   shortcutsToggle: 'Use single-key shortcuts',
   shortcutsToggleHint: 'If you use speech input or other assistive tools, set this to off.',
   startKey: 'or press S',
