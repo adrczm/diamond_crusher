@@ -243,7 +243,7 @@ function Nav() {
             headerBackTitle: DESKTOP.back,
             contentStyle: { backgroundColor: c.bg },
             animation: desktop || tabRoot ? 'none' : 'slide_from_right',
-            ...(tabRoot ? { headerBackVisible: false } : null),
+            ...(tabRoot ? { headerBackVisible: false, headerLeft: () => null } : null),
           };
         }}
       />
