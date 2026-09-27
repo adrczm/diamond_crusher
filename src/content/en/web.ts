@@ -1,5 +1,5 @@
 // Wording for the web version (Safari on a Mac). Applied once at start-up on the web only; phones keep the main text.
-import { DATA, ONBOARDING, PLAN, UNREADABLE } from './strings';
+import { DATA, ONBOARDING, PLAN, SETTINGS, UNREADABLE } from './strings';
 
 export function applyWebWording() {
   Object.assign(ONBOARDING, {
@@ -25,6 +25,8 @@ export function applyWebWording() {
     deleteBody: 'This erases everything in the app in this browser and cancels all reminders. It can’t be undone.',
     updateNote: 'Before replacing the app folder with a newer download, save a backup file first.',
   });
+  // Appearance on a Mac follows the Mac's own setting, not a phone's.
+  SETTINGS.themeOptions[0] = { value: 'system', label: 'Match Mac' };
   Object.assign(UNREADABLE, {
     body: 'The data in this browser can’t be read, for example after website data was partly cleared.',
   });

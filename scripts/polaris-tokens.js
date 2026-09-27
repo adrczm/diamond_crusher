@@ -14,12 +14,14 @@ const COLORS = [
   'color-bg-surface-secondary',
   'color-bg-surface-selected',
   'color-bg-surface-active',
+  'color-bg-surface-hover',
   'color-bg-surface-info',
   'color-bg-surface-success',
   'color-bg-surface-warning',
   'color-bg-surface-caution',
   'color-bg-surface-critical',
   'color-bg-fill-brand',
+  'color-bg-fill-brand-hover',
   'color-bg-fill-brand-disabled',
   'color-bg-fill-secondary',
   'color-bg-fill-tertiary',
@@ -44,6 +46,9 @@ const COLORS = [
   'color-input-bg-surface',
   'color-input-border',
   'color-icon-secondary',
+  'color-nav-bg',
+  'color-nav-bg-surface-hover',
+  'color-nav-bg-surface-selected',
 ];
 
 function hex(rgba) {
@@ -85,12 +90,24 @@ const typography = Object.fromEntries(
   ]),
 );
 
+// Motion: durations in ms and the easing curves, for hover, page and celebration animations.
+const m = themes['light-mobile'].motion;
+const motion = {
+  duration: Object.fromEntries(['100', '150', '200', '300', '500'].map((d) => [d, parseInt(m[`motion-duration-${d}`], 10)])),
+  ease: m['motion-ease'],
+  easeOut: m['motion-ease-out'],
+  easeInOut: m['motion-ease-in-out'],
+};
+const breakpoints = Object.fromEntries(Object.entries(themes['light-mobile'].breakpoints).map(([k, v]) => [k.replace('breakpoints-', ''), px(v)]));
+
 const tokens = {
   light: colours('light-mobile'),
   dark: colours('dark-experimental'),
   space: pick('space', 'space-'),
   radius: pick('border', 'border-radius-'),
   typography,
+  motion,
+  breakpoints,
 };
 
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'node_modules', '@shopify', 'polaris-tokens', 'package.json'), 'utf8'));

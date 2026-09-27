@@ -8,6 +8,7 @@ import * as Crypto from 'expo-crypto';
 import Constants from 'expo-constants';
 import { DarkTheme, DefaultTheme, ThemeProvider, type Theme } from '@react-navigation/native';
 import { router, Stack } from 'expo-router';
+import * as SystemUI from 'expo-system-ui';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Platform, View } from 'react-native';
@@ -20,12 +21,14 @@ import { getSettings } from '../src/data/repositories/settings';
 import type { SqlDb } from '../src/data/sql';
 import { createFresh, startupRoute, type Bootstrap } from '../src/data/vault';
 import { AppContext, relockAllowed } from '../src/features/app';
+import { DesktopFrame } from '../src/features/screens/DesktopShell';
 import { LockScreen, NewerScreen, UnreadableScreen } from '../src/features/screens/gate';
 import { reconcileReminders } from '../src/features/reminderService';
 import { files } from '../src/platform/files';
 import { ACTION_DONE, ACTION_SNOOZE, lastResponse, onResponse, snooze, type Response } from '../src/platform/notifications';
 import { installCryptoPolyfill } from '../src/platform/random';
 import { Loading } from '../src/ui/kit';
+import { useDesktop } from '../src/ui/layout';
 import { FONTS, ThemePrefContext, useColors, useIsDark, type ThemePref } from '../src/ui/theme';
 
 installCryptoPolyfill();
@@ -186,6 +189,18 @@ function Themed({ children }: { children: React.ReactNode }) {
   // Navigation draws its own backgrounds behind headers and screens; give it the app's colours so nothing light shows
   // through in dark mode (or dark in light mode).
   const base = dark ? DarkTheme : DefaultTheme;
+  useEffect(() => {
+    // Behind the app: Android's window background (seen during rotation and keyboard), and on the web the page
+    // background, scrollbars and form controls, so the chosen appearance wins over the system's.
+    SystemUI.setBackgroundColorAsync(c.bg).catch(() => undefined);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const root = document.documentElement;
+      root.style.colorScheme = dark ? 'dark' : 'light';
+      root.style.setProperty('--dc-focus', c.focus);
+      document.body.style.background = c.bg;
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', c.bg);
+    }
+  }, [c, dark]);
   const nav: Theme = {
     ...base,
     colors: { ...base.colors, primary: c.link, background: c.bg, card: c.card, text: c.text, border: c.border, notification: c.danger },
@@ -202,16 +217,20 @@ function Themed({ children }: { children: React.ReactNode }) {
 
 function Nav() {
   const c = useColors();
+  // Wide windows (the Mac) get a sidebar and draw their own toolbar (see Screen); phones keep the native header.
+  const desktop = useDesktop();
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: c.card },
-        headerTintColor: c.text,
-        headerTitleStyle: { fontFamily: FONTS.semibold, fontSize: 17 },
-        headerShadowVisible: true,
-        contentStyle: { backgroundColor: c.bg },
-        animation: 'slide_from_right',
-      }}
-    />
+    <DesktopFrame>
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: c.card },
+          headerTintColor: c.text,
+          headerTitleStyle: { fontFamily: FONTS.semibold, fontSize: 17 },
+          headerShadowVisible: true,
+          contentStyle: { backgroundColor: c.bg },
+          animation: desktop ? 'none' : 'slide_from_right',
+        }}
+      />
+    </DesktopFrame>
   );
 }

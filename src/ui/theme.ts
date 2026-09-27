@@ -31,6 +31,15 @@ export interface Colors {
   inputBg: string;
   inputBorder: string;
   focus: string;
+  /** Pointer hover on cards, rows and secondary buttons (desktop). */
+  hover: string;
+  primaryHover: string;
+  /** Desktop sidebar: background, hovered item, selected item. */
+  nav: string;
+  navHover: string;
+  navSelected: string;
+  /** Celebration accent (session complete, full week). */
+  celebrate: string;
 }
 
 // Shopify Polaris tokens (generated into ./polaris.ts). Polaris's dark theme is still experimental and leaves the tinted
@@ -45,6 +54,11 @@ const DARK = {
   infoSoft: '#0F2C45',
   goodSoft: '#0F3A2C',
   dangerSoft: '#4A1119',
+  // Polaris's dark nav tokens are still the light values; the sidebar sits one step darker than the page.
+  nav: '#141414',
+  navHover: '#262626',
+  navSelected: '#333333',
+  hover: '#3A3A3A',
 };
 function fromPolaris(t: (typeof polaris)['light'] | (typeof polaris)['dark'], dark: boolean): Colors {
   return {
@@ -72,6 +86,12 @@ function fromPolaris(t: (typeof polaris)['light'] | (typeof polaris)['dark'], da
     inputBg: dark ? t['bg-surface'] : t['input-bg-surface'],
     inputBorder: t['input-border'],
     focus: dark ? '#6FB1FF' : t['border-focus'],
+    hover: dark ? DARK.hover : t['bg-surface-hover'],
+    primaryHover: t['bg-fill-brand-hover'],
+    nav: dark ? DARK.nav : t['nav-bg'],
+    navHover: dark ? DARK.navHover : t['nav-bg-surface-hover'],
+    navSelected: dark ? DARK.navSelected : t['nav-bg-surface-selected'],
+    celebrate: dark ? '#29B28A' : t['bg-fill-success'],
   };
 }
 
@@ -100,6 +120,9 @@ export function useIsDark(): boolean {
 
 /** Spacing in 8px steps (Polaris space-200 = 8px, space-400 = 16px). */
 export const space = (n: number) => n * polaris.space['200'];
+
+/** Polaris motion: durations (ms) and easing. */
+export const motion = polaris.motion;
 
 /** Polaris corner radii. */
 export const radius = {

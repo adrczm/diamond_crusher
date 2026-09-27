@@ -418,3 +418,46 @@ export const ABOUT = {
   licences: 'Questionnaires: the app’s own questions are not validated. Validated questionnaires are added only with the licence holder’s permission.',
   evidence: 'See "About the evidence" in the Learn library.',
 };
+
+/** Desktop layout (Mac): sidebar, toolbar and keyboard shortcuts. */
+export const DESKTOP = {
+  nav: {
+    home: 'Today',
+    progress: 'Progress',
+    log: 'Log',
+    check: 'Check-ins',
+    library: 'Learn library',
+    reminders: 'Reminders',
+    settings: 'Settings',
+    data: 'Backup and data',
+  },
+  navGroups: { train: 'Train', track: 'Track', app: 'App' },
+  start: 'Start session',
+  todayDone: 'Done for today',
+  back: 'Back',
+  close: 'Close',
+  theme: 'Appearance',
+  themeShort: { system: 'Auto', light: 'Light', dark: 'Dark' } as Record<string, string>,
+  shortcutsHint: 'Press ? for keyboard shortcuts',
+  shortcutsTitle: 'Keyboard shortcuts',
+  shortcuts: [
+    { keys: 'S', what: 'Start today’s session' },
+    { keys: '1 to 8', what: 'Go to a section in the sidebar' },
+    { keys: 'T', what: 'Switch light, dark or automatic appearance' },
+    { keys: 'Space', what: 'Pause or resume a running session' },
+    { keys: 'Esc', what: 'Go back, or close this panel' },
+    { keys: '?', what: 'Show these shortcuts' },
+  ],
+  sessionKeys: 'Space pauses · Esc stops',
+  startKey: 'or press S',
+  articles: 'Articles',
+  settingsNotes: {
+    profile: 'Used to choose your exercises and wording. It stays on this device.',
+    training: 'How often you train, and how sessions sound and feel.',
+    appearance: 'Light, dark, or follow the device. Both are tuned for easy reading.',
+    security: 'Who can open the app, and your data.',
+    more: 'Learning, re-checks and version details.',
+  },
+  more: 'More',
+  sessionProgress: (pct: number) => `${pct}% of this session done`,
+};

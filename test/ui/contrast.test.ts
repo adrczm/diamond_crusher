@@ -51,6 +51,17 @@ const PAIRS: [Key | '#FFFFFF', Key, number, string][] = [
   ['primary', 'card', LARGE, 'selected radio and row outline'],
   ['focus', 'inputBg', LARGE, 'focus ring'],
   ['good', 'card', LARGE, 'streak dots'],
+  ['text', 'hover', TEXT, 'hovered rows and cards (desktop)'],
+  ['muted', 'hover', TEXT, 'hints in hovered rows'],
+  ['onPrimary', 'primaryHover', TEXT, 'hovered primary button'],
+  ['text', 'nav', TEXT, 'sidebar items'],
+  ['muted', 'nav', TEXT, 'sidebar group labels, shortcut hints'],
+  ['text', 'navHover', TEXT, 'hovered sidebar item'],
+  ['text', 'navSelected', TEXT, 'current sidebar item'],
+  ['muted', 'navSelected', TEXT, 'shortcut digit on the current item'],
+  ['celebrate', 'card', LARGE, 'completion ring'],
+  ['focus', 'nav', LARGE, 'focus ring in the sidebar'],
+  ['celebrate', 'goodSoft', LARGE, 'completion mark'],
 ];
 
 describe.each(Object.entries(palettes))('%s theme', (_, c) => {
