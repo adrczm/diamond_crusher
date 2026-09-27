@@ -22,13 +22,14 @@ const config: ExpoConfig = {
     versionCode,
     allowBackup: false,
     adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#0f1720' },
-    permissions: ['android.permission.VIBRATE', 'android.permission.USE_BIOMETRIC', 'android.permission.POST_NOTIFICATIONS', 'android.permission.RECEIVE_BOOT_COMPLETED'],
+    permissions: ['android.permission.VIBRATE', 'android.permission.USE_BIOMETRIC', 'android.permission.POST_NOTIFICATIONS', 'android.permission.RECEIVE_BOOT_COMPLETED', 'android.permission.CAMERA'],
   },
   ios: {
     bundleIdentifier: 'app.diamondcrusher.trainer',
     supportsTablet: false,
     infoPlist: {
       NSFaceIDUsageDescription: 'Unlock the app with Face ID.',
+      NSCameraUsageDescription: 'Scan sync codes from your other device. No photos are saved.',
     },
   },
   web: {
@@ -47,6 +48,8 @@ const config: ExpoConfig = {
     ['expo-local-authentication', { faceIDPermission: 'Unlock the app with Face ID.' }],
     ['expo-notifications', { icon: './assets/notification-icon.png', color: '#303030' }],
     ['expo-audio', { recordAudioAndroid: false }],
+    // SYNC-040, SYNC-041: the camera only reads sync QR codes; ML Kit's barcode model is bundled, so no network.
+    ['expo-camera', { cameraPermission: 'Scan sync codes from your other device. No photos are saved.', microphonePermission: false, recordAudioAndroid: false }],
     ['expo-build-properties', { android: { enableProguardInReleaseBuilds: false } }],
     ['./plugins/withNoNetwork', { keepInternet: isDevBuild }],
     './plugins/withBackupRules',
