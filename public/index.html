@@ -10,11 +10,14 @@
     />
     <meta name="referrer" content="no-referrer" />
     <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#F1F1F1" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Diamond Crusher" />
     <link rel="manifest" href="%WEB_PUBLIC_URL%/manifest.json" />
     <link rel="apple-touch-icon" href="%WEB_PUBLIC_URL%/icon.png" />
     <title>Diamond Crusher</title>
+    <script src="%WEB_PUBLIC_URL%/theme-boot.js"></script>
     <style id="expo-reset">
       html,
       body {
@@ -22,10 +25,13 @@
       }
       body {
         overflow: hidden;
+        background: transparent;
+      }
+      html {
         background: #f1f1f1;
       }
       @media (prefers-color-scheme: dark) {
-        body {
+        html {
           background: #1a1a1a;
         }
       }
@@ -33,6 +39,35 @@
         display: flex;
         height: 100%;
         flex: 1;
+      }
+      /* Keyboard focus ring (WCAG 2.4.7); mouse clicks don't show it. The colour follows the theme (see _layout). */
+      *:focus {
+        outline: none;
+      }
+      *:focus-visible {
+        outline: 2px solid var(--dc-focus, #005bd3) !important;
+        outline-offset: 2px;
+        border-radius: 8px;
+      }
+      /* Gentle hover and press feedback on anything clickable (Polaris motion-duration-150, motion-ease). */
+      [role='button'],
+      [role='link'],
+      [role='radio'],
+      [role='checkbox'],
+      [role='switch'] {
+        transition: background-color 150ms cubic-bezier(0.25, 0.1, 0.25, 1), transform 150ms cubic-bezier(0.25, 0.1, 0.25, 1),
+          opacity 150ms cubic-bezier(0.25, 0.1, 0.25, 1), border-color 150ms cubic-bezier(0.25, 0.1, 0.25, 1);
+      }
+      ::selection {
+        background: #8cc3ff66;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          transition: none !important;
+          animation: none !important;
+        }
       }
     </style>
   </head>

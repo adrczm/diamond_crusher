@@ -2,13 +2,13 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, View } from 'react-native';
+import { Animated, AppState, Platform, View } from 'react-native';
 import { Text } from '../src/ui/text';
 import { BLOCK_NAME, INTENSITY, PHASE_TEXT, RELAX_STEP_TEXT, SESSION, VOICE } from '../src/content/en/exercise';
 import { REMINDER_CUES, cueText } from '../src/content/en/learn';
 import { PAIN_CHOICE, RELAX_ONLY_HOME } from '../src/content/en/screening';
 import { APP_QUESTION_LABEL, SESSION_LOG } from '../src/content/en/items';
-import { COMMON, MILESTONES } from '../src/content/en/strings';
+import { COMMON, DESKTOP, MILESTONES } from '../src/content/en/strings';
 import { getProfile } from '../src/data/repositories/profile';
 import { getHabitDay, saveSessionLog, setHabitDay } from '../src/data/repositories/sessions';
 import { getSettings } from '../src/data/repositories/settings';
@@ -23,6 +23,10 @@ import { reportPain } from '../src/features/safetyService';
 import { planToday, saveSession, type SaveSessionResult } from '../src/features/trainingService';
 import { feedback } from '../src/platform/feedback';
 import { Banner, Button, Card, H1, H2, Label, Loading, MultiChoice, P, Row, Screen, Segments, ToggleRow } from '../src/ui/kit';
+import { useHotkeys } from '../src/ui/hotkeys';
+import { isWeb, useDesktop } from '../src/ui/layout';
+import { useReducedMotion } from '../src/ui/motion';
+import { Celebrate, Ring } from '../src/ui/ring';
 import { useColors } from '../src/ui/theme';
 
 const mono = () => (globalThis.performance?.now ? globalThis.performance.now() : Date.now());
@@ -87,21 +91,19 @@ export default function SessionScreen() {
 
   if (stage === 'ready') {
     const est = durationS(plan);
+    const start = async () => {
+      await feedback.prepare().catch(() => undefined);
+      runner.current = new SessionRunner(plan);
+      startedAt.current = new Date();
+      setStage('running');
+    };
     return (
       <Screen
         title={plan.templateKey === 'relax_only' ? SESSION.relaxPractice : SESSION.start}
-        footer={
-          <Button
-            label={SESSION.start}
-            onPress={async () => {
-              await feedback.prepare().catch(() => undefined);
-              runner.current = new SessionRunner(plan);
-              startedAt.current = new Date();
-              setStage('running');
-            }}
-          />
-        }
+        width="narrow"
+        footer={<Button label={SESSION.start} onPress={start} />}
       >
+        <Keys map={{ Enter: () => void start() }} />
         <H1>{plan.templateKey === 'relax_only' ? SESSION.relaxPractice : SESSION.positionName[plan.position]}</H1>
         <P>{SESSION.positionHint[plan.position]}</P>
         <P muted>{`${SESSION.estimated} ${formatDuration(est)}`}</P>
@@ -138,8 +140,10 @@ export default function SessionScreen() {
   if (stage === 'log' && saved) return <SessionLog sessionId={saved.id} completion={completion} onDone={() => setStage('done')} />;
 
   return (
-    <Screen title={SESSION.complete} headerShown={false} footer={<Button label={COMMON.done} onPress={() => router.replace('/')} />}>
-      <View style={{ paddingTop: 32, gap: 16 }}>
+    <Screen title={SESSION.complete} headerShown={false} width="narrow" footer={<Button label={COMMON.done} onPress={() => router.replace('/')} />}>
+      <Keys map={{ Enter: () => router.replace('/'), Escape: () => router.replace('/') }} />
+      <View style={{ paddingTop: 32, gap: 16, alignItems: completion === 'complete' ? 'center' : 'stretch' }}>
+        {completion === 'complete' ? <Celebrate /> : null}
         <H1>{completion === 'complete' ? SESSION.complete : SESSION.partial}</H1>
         {completion === 'stopped_pain' ? <P>{RELAX_ONLY_HOME}</P> : null}
         {saved?.milestones.map((m) => (
@@ -189,6 +193,8 @@ function Runner({
 }) {
   useKeepAwake();
   const c = useColors();
+  const desktop = useDesktop();
+  const reduced = useReducedMotion();
   const [, setTick] = useState(0);
   const [note, setNote] = useState<string | null>(null);
   const finished = useRef(false);
@@ -239,6 +245,24 @@ function Runner({
   const canWeak = state === 'running' && (p?.block === 'hold' || p?.block === 'flick') && p.kind !== 'transition';
   const reminder = p && p.rep > 0 && p.kind === 'squeeze' ? (p.rep === 1 && p.block === 'hold' ? cue : REMINDER_CUES[reminderCueIndex(p.rep, REMINDER_CUES.length)]) : null;
   const totalLeft = Math.max(0, runner.totalS() - runner.elapsedMs(now) / 1000);
+  const done = runner.totalS() > 0 ? 1 - totalLeft / runner.totalS() : 0;
+  const togglePause = () => (state === 'paused' ? runner.resume(mono()) : runner.pause(mono()));
+  // Esc pauses first; a second Esc while paused ends (so a stray key never throws a session away).
+  const stop = () => {
+    if (inRelaxOut) handle(runner.skipRelaxOut(mono()));
+    else if (state !== 'paused') runner.pause(mono());
+    else handle(runner.stopEarly(mono(), 'user_stop'));
+  };
+  useHotkeys({ ' ': togglePause, Escape: stop }, !painAsk);
+
+  // The circle swells on squeeze and settles on release (a spring, so it feels like a muscle, not a switch).
+  const scale = useRef(new Animated.Value(0.85)).current;
+  useEffect(() => {
+    const to = squeezing ? 1 : 0.85;
+    if (reduced) scale.setValue(to);
+    else Animated.spring(scale, { toValue: to, friction: 7, tension: 60, useNativeDriver: Platform.OS !== 'web' }).start();
+  }, [squeezing, reduced, scale]);
+  const D = desktop ? 280 : 200;
 
   if (painAsk) {
     return (
@@ -282,7 +306,7 @@ function Runner({
               style={{ flex: 1 }}
               label={state === 'paused' ? SESSION.resume : SESSION.pause}
               kind="secondary"
-              onPress={() => (state === 'paused' ? runner.resume(mono()) : runner.pause(mono()))}
+              onPress={togglePause}
             />
             <Button
               style={{ flex: 1 }}
@@ -303,25 +327,32 @@ function Runner({
         <Text style={{ fontSize: 36, fontWeight: '700', color: squeezing ? c.squeeze : c.text, textAlign: 'center' }} accessibilityLiveRegion="polite">
           {state === 'paused' ? SESSION.paused : phaseTitle(p)}
         </Text>
-        <View
-          style={{
-            width: 200,
-            height: 200,
-            borderRadius: 100,
-            backgroundColor: squeezing ? c.squeeze : c.soft,
-            alignItems: 'center',
-            justifyContent: 'center',
-            transform: [{ scale: squeezing ? 1 : 0.85 }],
-          }}
-        >
-          <Text style={{ fontSize: 64, fontWeight: '700', color: squeezing ? c.onSqueeze : c.primary }}>{left}</Text>
-        </View>
+        <Ring value={done} size={D + 40} stroke={4} color={c.muted} track={c.border} label={DESKTOP.sessionProgress(Math.round(done * 100))}>
+          <Animated.View
+            style={{
+              width: D,
+              height: D,
+              borderRadius: D / 2,
+              backgroundColor: squeezing ? c.squeeze : c.soft,
+              alignItems: 'center',
+              justifyContent: 'center',
+              transform: [{ scale }],
+            }}
+          >
+            <Text style={{ fontSize: desktop ? 88 : 64, fontWeight: '700', color: squeezing ? c.onSqueeze : c.primary }}>{left}</Text>
+          </Animated.View>
+        </Ring>
         <H2>{repLabel(p)}</H2>
         {p?.kind === 'relax' ? <P center>{RELAX_STEP_TEXT[p.relaxStep ?? 'relax_in'].body}</P> : null}
         {p && p.kind === 'squeeze' && p.block !== 'relax' ? <P center muted>{INTENSITY[p.block]}</P> : null}
         {reminder ? <P center>{reminder}</P> : null}
         {note ? <P center muted>{note}</P> : null}
         <P small muted center>{`${formatDuration(Math.round(totalLeft))} left`}</P>
+        {desktop && isWeb ? (
+          <P small muted center>
+            {DESKTOP.sessionKeys}
+          </P>
+        ) : null}
       </View>
     </Screen>
   );
@@ -372,6 +403,7 @@ function SessionLog({ sessionId, completion, onDone }: { sessionId: string; comp
   return (
     <Screen
       title="How did it go?"
+      width="narrow"
       footer={
         <>
           <Button label={COMMON.save} onPress={save} busy={busy} />
@@ -413,4 +445,10 @@ function SessionLog({ sessionId, completion, onDone }: { sessionId: string; comp
       ) : null}
     </Screen>
   );
+}
+
+/** Keyboard shortcuts for one stage of the session (web only). */
+function Keys({ map }: { map: Record<string, () => void> }) {
+  useHotkeys(map);
+  return null;
 }

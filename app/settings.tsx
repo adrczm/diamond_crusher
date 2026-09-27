@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert } from '../src/platform/dialog';
 import { GOAL_LABEL } from '../src/content/en/exercise';
-import { COMMON, ONBOARDING, SETTINGS } from '../src/content/en/strings';
+import { COMMON, DESKTOP, ONBOARDING, SETTINGS } from '../src/content/en/strings';
 import { activeGoals, getProfile, setGoals, updateProfile } from '../src/data/repositories/profile';
 import { getSettings, updateSettings, type Settings } from '../src/data/repositories/settings';
 import { setLock, setLockTimeout } from '../src/data/vault';
@@ -11,7 +11,7 @@ import type { AgeBand, Anatomy, AudioMode, Goal } from '../src/domain/types';
 import { useApp, useLoad, withoutRelock } from '../src/features/app';
 import { reconcileReminders } from '../src/features/reminderService';
 import { auth } from '../src/platform/auth';
-import { Banner, Card, Choice, Field, H2, Label, LinkRow, Loading, MultiChoice, P, Screen, Segments, Stepper, ToggleRow } from '../src/ui/kit';
+import { Banner, Choice, Field, Label, LinkRow, Loading, MultiChoice, P, Screen, Section, Segments, Stepper, ToggleRow } from '../src/ui/kit';
 
 export default function SettingsScreen() {
   const { db, boot, setBoot, bump, appVersion } = useApp();
@@ -58,9 +58,8 @@ export default function SettingsScreen() {
   };
 
   return (
-    <Screen title={SETTINGS.title}>
-      <Card>
-        <H2>{SETTINGS.profile}</H2>
+    <Screen title={SETTINGS.title} width="medium">
+      <Section title={SETTINGS.profile} description={DESKTOP.settingsNotes.profile}>
         <Field
           label={SETTINGS.nickname}
           value={nick ?? p?.nickname ?? ''}
@@ -95,10 +94,9 @@ export default function SettingsScreen() {
             reload();
           }}
         />
-      </Card>
+      </Section>
 
-      <Card>
-        <H2>{SETTINGS.training}</H2>
+      <Section title={SETTINGS.training} description={DESKTOP.settingsNotes.training}>
         <Label>{SETTINGS.sessionsPerDay}</Label>
         <Segments
           options={[
@@ -133,16 +131,14 @@ export default function SettingsScreen() {
         <Segments options={SETTINGS.soundOptions.map((o) => ({ value: o.value as AudioMode, label: o.label }))} value={s.audio_mode} onChange={(v) => set({ audio_mode: v })} />
         <ToggleRow label={SETTINGS.vibration} value={s.vibration} onChange={(v) => set({ vibration: v })} />
         <ToggleRow label={SETTINGS.functionalCues} value={s.functional_cues_enabled} onChange={(v) => set({ functional_cues_enabled: v })} />
-        <Label>{SETTINGS.theme}</Label>
-        <Segments options={SETTINGS.themeOptions.map((o) => ({ value: o.value as Settings['theme'], label: o.label }))} value={s.theme} onChange={(v) => set({ theme: v })} />
-      </Card>
-
-      <Card>
         <LinkRow label={SETTINGS.reminders} onPress={() => router.push('/reminders')} />
-      </Card>
+      </Section>
 
-      <Card>
-        <H2>{SETTINGS.security}</H2>
+      <Section title={SETTINGS.theme} description={DESKTOP.settingsNotes.appearance}>
+        <Segments options={SETTINGS.themeOptions.map((o) => ({ value: o.value as Settings['theme'], label: o.label }))} value={s.theme} onChange={(v) => set({ theme: v })} />
+      </Section>
+
+      <Section title={SETTINGS.security} description={DESKTOP.settingsNotes.security}>
         {lockAvail ? (
           <ToggleRow label={SETTINGS.lock} value={boot.lock_enabled} onChange={toggleLock} />
         ) : (
@@ -165,14 +161,14 @@ export default function SettingsScreen() {
           </>
         ) : null}
         <LinkRow label={SETTINGS.data} onPress={() => router.push('/data')} />
-      </Card>
+      </Section>
 
-      <Card>
+      <Section title={DESKTOP.more} description={DESKTOP.settingsNotes.more}>
         <LinkRow label={SETTINGS.learn} onPress={() => router.push('/library')} />
         <LinkRow label={SETTINGS.relearn} onPress={() => router.push('/learn?mode=recheck')} />
         <LinkRow label={SETTINGS.somethingChanged} onPress={() => router.push('/screening?kind=something_changed')} />
         <LinkRow label={SETTINGS.about} onPress={() => router.push('/about')} detail={SETTINGS.version(appVersion)} />
-      </Card>
+      </Section>
     </Screen>
   );
 }

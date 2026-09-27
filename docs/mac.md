@@ -28,6 +28,22 @@ Start Diamond Crusher first each time, then use the Dock icon.
 - The server uses Perl, which comes with macOS. It only answers this Mac (127.0.0.1) and only serves the app folder.
 - Safari keeps your data for `http://localhost:47820`. Always start it with the launcher so the address stays the same.
 
+## Built for a big screen
+
+On a window wider than 900 points the app switches to a desktop layout:
+
+- A **sidebar** with every section, today's main action at the top, and an **Appearance** switch (Auto, Light, Dark)
+  at the bottom. Auto follows the Mac's own setting (System Settings → Appearance).
+- **Today** is a two-column dashboard; **Progress** shows its charts side by side; **Settings** puts each group's
+  explanation beside it; the **Learn library** shows the list and the article together.
+- Sessions and other guided steps open full-window without the sidebar, so nothing distracts mid-exercise. A finished
+  session ends with a small celebration (still, if Reduce motion is on).
+- **Keyboard shortcuts** (press `?` to see them): `S` starts today's session, `1` to `8` jump to a section, `T` switches
+  appearance, `Space` pauses or resumes a session, `Esc` goes back, or in a session pauses and then ends, `Enter` starts from the ready screen. The shortcuts panel has a switch to turn single-key shortcuts off.
+
+A narrow window keeps the phone layout. The research behind the design is in the project's
+`research/desktop-ux/desktop-ux-research.md`.
+
 ## What's different from the phone
 
 - **Reminders** only show while Diamond Crusher is open in Safari. Browsers can't wake a closed page. The phone app

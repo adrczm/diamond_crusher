@@ -1,9 +1,11 @@
 // Small UI kit styled after Shopify Polaris (cards, buttons, choice lists, banners), with large touch targets and
 // plain text, in light and dark (spec 05, 09 polish).
-import { Stack } from 'expo-router';
-import React, { useState, type ReactNode } from 'react';
+import { router, Stack, usePathname } from 'expo-router';
+import React, { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Platform,
   Pressable,
   ScrollView,
@@ -16,11 +18,22 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { DESKTOP } from '../content/en/strings';
+import { Icon } from './icons';
+import { isSection, useDesktop } from './layout';
+import { useReducedMotion } from './motion';
 import { Text } from './text';
-import { radius, space, type, useColors, useIsDark } from './theme';
+import { motion, radius, space, type, useColors, useIsDark } from './theme';
 
-/** Content column width on wide screens (web on a Mac). Phones use the full width. */
+/** Content column width on phones and narrow windows. */
 const MAX_WIDTH = 640;
+
+/** Page widths on the desktop layout: forms and guided steps stay readable, dashboards use the room. */
+export type PageWidth = 'narrow' | 'regular' | 'medium' | 'wide';
+const DESKTOP_WIDTH: Record<PageWidth, number> = { narrow: 640, regular: 760, medium: 960, wide: 1160 };
+
+/** Pointer state from react-native-web's Pressable (not in React Native's types). */
+export type PressState = { pressed: boolean; hovered?: boolean; focused?: boolean };
 
 /** Minimum touch target. Polaris buttons are smaller; the specs ask for large targets. */
 const TOUCH = 48;
@@ -31,43 +44,185 @@ export function Screen({
   scroll = true,
   footer,
   headerShown = true,
+  width = 'regular',
 }: {
   title?: string;
   children: ReactNode;
   scroll?: boolean;
   footer?: ReactNode;
   headerShown?: boolean;
+  /** Desktop only: how wide the page may grow. */
+  width?: PageWidth;
 }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const column: ViewStyle = { width: '100%', maxWidth: MAX_WIDTH, alignSelf: 'center' };
+  const desktop = useDesktop();
+  const maxWidth = desktop ? DESKTOP_WIDTH[width] : MAX_WIDTH;
+  const pad = desktop ? space(4) : space(2);
+  const column: ViewStyle = { width: '100%', maxWidth, alignSelf: 'center' };
+  const gap = desktop ? space(2.5) : space(2);
   const body = scroll ? (
     <ScrollView
-      contentContainerStyle={[column, { padding: space(2), paddingBottom: space(4) + (footer ? 0 : insets.bottom), gap: space(2) }]}
+      contentContainerStyle={[column, { padding: pad, paddingBottom: pad + space(2) + (footer ? 0 : insets.bottom), gap }]}
       keyboardShouldPersistTaps="handled"
     >
       {children}
     </ScrollView>
   ) : (
-    <View style={[column, { flex: 1, padding: space(2), gap: space(2) }]}>{children}</View>
+    <View style={[column, { flex: 1, padding: pad, gap }]}>{children}</View>
   );
   return (
-    <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: headerShown ? 0 : insets.top }}>
-      <Stack.Screen options={{ title: title ?? '', headerShown }} />
-      {body}
+    <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: headerShown || desktop ? 0 : insets.top }}>
+      <Stack.Screen options={{ title: title ?? '', headerShown: headerShown && !desktop }} />
+      {desktop && headerShown ? <Toolbar title={title ?? ''} /> : null}
+      <PageIn style={{ flex: 1 }}>{body}</PageIn>
       {footer ? (
         <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.border, backgroundColor: c.card }}>
-          <View style={[column, { padding: space(2), paddingBottom: space(2) + insets.bottom, gap: space(1) }]}>{footer}</View>
+          <View
+            style={[
+              column,
+              desktop
+                ? { paddingHorizontal: pad, paddingVertical: space(1.5), gap: space(1), flexDirection: 'row-reverse', alignItems: 'center', flexWrap: 'wrap' }
+                : { padding: space(2), paddingBottom: space(2) + insets.bottom, gap: space(1) },
+            ]}
+          >
+            {footer}
+          </View>
         </View>
       ) : null}
     </View>
   );
 }
 
+/** Desktop toolbar: the page title, with Back on pages below a sidebar section (macOS window toolbar). */
+function Toolbar({ title }: { title: string }) {
+  const c = useColors();
+  const pathname = usePathname();
+  const canBack = router.canGoBack();
+  // Below a section: Back. A guided flow opened directly (e.g. after a reload) has no history: Close goes home.
+  const action = isSection(pathname) ? null : canBack ? 'back' : 'close';
+  return (
+    <View
+      style={{
+        height: 56,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space(1),
+        paddingHorizontal: space(2),
+        backgroundColor: c.bg,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderColor: c.border,
+      }}
+    >
+      {action ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={action === 'back' ? DESKTOP.back : DESKTOP.close}
+          onPress={() => (action === 'back' ? router.back() : router.replace('/'))}
+          style={(s) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 2,
+            height: 36,
+            paddingLeft: 4,
+            paddingRight: space(1.25),
+            borderRadius: radius.md,
+            backgroundColor: (s as PressState).hovered ? c.hover : 'transparent',
+          })}
+        >
+          <Icon name="back" size={18} color={c.text} />
+          <Text style={[type('body-md'), { color: c.text }]}>{action === 'back' ? DESKTOP.back : DESKTOP.close}</Text>
+        </Pressable>
+      ) : null}
+      <Text accessibilityRole="header" numberOfLines={1} style={[type('heading-md'), { color: c.text, flex: 1 }]}>
+        {title}
+      </Text>
+    </View>
+  );
+}
+
+/** Pages ease in (Polaris motion-duration-200); nothing moves when Reduce motion is on. */
+function PageIn({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+  const reduced = useReducedMotion();
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(t, { toValue: 1, duration: motion.duration['200'], easing: Easing.bezier(0.25, 0.1, 0.25, 1), useNativeDriver: Platform.OS !== 'web' }).start();
+  }, [t]);
+  if (reduced) return <View style={style}>{children}</View>;
+  const translateY = t.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
+  return <Animated.View style={[style, { opacity: t, transform: [{ translateY }] }]}>{children}</Animated.View>;
+}
+
+/**
+ * Side-by-side columns on the desktop layout, stacked on phones. `ratio` gives each column's share, e.g. [2, 1].
+ */
+export function Columns({ children, ratio }: { children: ReactNode[]; ratio?: number[] }) {
+  const desktop = useDesktop();
+  const kids = React.Children.toArray(children).filter(Boolean);
+  if (!desktop) return <>{kids}</>;
+  return (
+    <View style={{ flexDirection: 'row', gap: space(2.5), alignItems: 'flex-start' }}>
+      {kids.map((k, i) => (
+        <View key={i} style={{ flex: ratio?.[i] ?? 1, minWidth: 0, gap: space(2.5) }}>
+          {k}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** A grid of equal cards: two across on desktop, one on phones. */
+export function Grid({ children }: { children: ReactNode }) {
+  const desktop = useDesktop();
+  const kids = React.Children.toArray(children).filter(Boolean);
+  if (!desktop) return <>{kids}</>;
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(2.5) }}>
+      {kids.map((k, i) => (
+        <View key={i} style={{ flexBasis: '47%', flexGrow: 1, minWidth: 320 }}>
+          {k}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * Polaris annotated section: on desktop the title and description sit in a left column beside the card, as in
+ * Shopify's settings pages; on phones it is a card with a heading.
+ */
+export function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+  const c = useColors();
+  const desktop = useDesktop();
+  if (!desktop) {
+    return (
+      <Card>
+        <H2>{title}</H2>
+        {description ? <P small muted>{description}</P> : null}
+        {children}
+      </Card>
+    );
+  }
+  return (
+    <View style={{ flexDirection: 'row', gap: space(4), alignItems: 'flex-start', paddingVertical: space(1) }}>
+      <View style={{ width: 240, gap: space(0.5), paddingTop: space(1) }}>
+        <Text accessibilityRole="header" style={[type('heading-md'), { color: c.text }]}>
+          {title}
+        </Text>
+        {description ? <Text style={[type('body-sm'), { color: c.muted }]}>{description}</Text> : null}
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Card>{children}</Card>
+      </View>
+    </View>
+  );
+}
+
 export function H1({ children }: { children: ReactNode }) {
   const c = useColors();
+  const desktop = useDesktop();
   return (
-    <Text accessibilityRole="header" style={[type('heading-xl'), { color: c.text }]}>
+    <Text accessibilityRole="header" style={[type(desktop ? 'heading-2xl' : 'heading-xl'), { color: c.text }]}>
       {children}
     </Text>
   );
@@ -123,16 +278,18 @@ export function Button({
       accessibilityState={{ disabled: !!disabled || !!busy }}
       disabled={disabled || busy}
       onPress={onPress}
-      style={({ pressed }) => [
+      style={(st) => [
         {
           minHeight: TOUCH,
+          minWidth: 120,
           borderRadius: radius.lg,
-          paddingHorizontal: space(2),
+          paddingHorizontal: space(2.5),
           paddingVertical: space(1),
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: bg,
-          opacity: disabled ? 0.45 : pressed ? 0.82 : 1,
+          backgroundColor: hoverBg(kind, bg, (st as PressState).hovered && !disabled, c),
+          opacity: disabled ? 0.45 : st.pressed ? 0.82 : 1,
+          transform: [{ scale: st.pressed && !disabled ? 0.98 : 1 }],
         },
         border,
         kind === 'primary' || kind === 'danger' ? shadow(1) : null,
@@ -142,6 +299,13 @@ export function Button({
       {busy ? <ActivityIndicator color={fg} /> : <Text style={[type('heading-md'), { color: fg, textAlign: 'center' }]}>{label}</Text>}
     </Pressable>
   );
+}
+
+function hoverBg(kind: ButtonKind, bg: string, hovered: boolean | undefined, c: ReturnType<typeof useColors>): string {
+  if (!hovered) return bg;
+  if (kind === 'primary') return c.primaryHover;
+  if (kind === 'secondary' || kind === 'quiet') return c.hover;
+  return bg;
 }
 
 /** Polaris card elevation (shadow-100 / shadow-200), approximated for native. */
@@ -174,7 +338,11 @@ export function Card({ children, onPress, tone = 'normal' }: { children: ReactNo
   ];
   if (!onPress) return <View style={style}>{inner}</View>;
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [style, { opacity: pressed ? 0.85 : 1 }]}>
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={(st) => [style, (st as PressState).hovered ? { backgroundColor: tone === 'normal' ? c.hover : c.selected } : null, { opacity: st.pressed ? 0.85 : 1 }]}
+    >
       {inner}
     </Pressable>
   );
@@ -258,18 +426,18 @@ function ChoiceRow({
       accessibilityRole={role}
       accessibilityState={role === 'radio' ? { selected } : { checked: selected }}
       onPress={onPress}
-      style={({ pressed }) => ({
+      style={(st) => ({
         minHeight: TOUCH + 4,
         borderRadius: radius.lg,
         borderWidth: selected ? 2 : 1,
-        borderColor: selected ? c.primary : c.border,
-        backgroundColor: selected ? c.selected : c.card,
+        borderColor: selected ? c.primary : (st as PressState).hovered ? c.inputBorder : c.border,
+        backgroundColor: selected ? c.selected : (st as PressState).hovered ? c.hover : c.card,
         paddingHorizontal: space(2) - (selected ? 1 : 0),
         paddingVertical: space(1.25),
         flexDirection: 'row',
         alignItems: 'center',
         gap: space(1.5),
-        opacity: pressed ? 0.85 : 1,
+        opacity: st.pressed ? 0.85 : 1,
       })}
     >
       {control}
@@ -338,17 +506,17 @@ export function Segments<T>({ options, value, onChange }: { options: readonly Op
             accessibilityRole="radio"
             accessibilityState={{ selected }}
             onPress={() => onChange(o.value)}
-            style={{
+            style={(st) => ({
               minHeight: TOUCH - 4,
               minWidth: TOUCH - 4,
               paddingHorizontal: space(1.5),
               borderRadius: radius.md,
               borderWidth: 1,
               borderColor: selected ? c.primary : c.inputBorder,
-              backgroundColor: selected ? c.primary : c.card,
+              backgroundColor: selected ? c.primary : (st as PressState).hovered ? c.hover : c.card,
               alignItems: 'center',
               justifyContent: 'center',
-            }}
+            })}
           >
             <Text style={[type('heading-md'), { color: selected ? c.onPrimary : c.text }]}>{o.label}</Text>
           </Pressable>
@@ -468,7 +636,17 @@ export function LinkRow({ label, onPress, detail }: { label: string; onPress: ()
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => ({ minHeight: TOUCH + 4, flexDirection: 'row', alignItems: 'center', gap: space(1), opacity: pressed ? 0.7 : 1 })}
+      style={(st) => ({
+        minHeight: TOUCH + 4,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space(1),
+        marginHorizontal: -space(1),
+        paddingHorizontal: space(1),
+        borderRadius: radius.md,
+        backgroundColor: (st as PressState).hovered ? c.hover : 'transparent',
+        opacity: st.pressed ? 0.7 : 1,
+      })}
     >
       <Text style={[type('body-md'), { flex: 1, color: c.text }]}>{label}</Text>
       {detail ? <Text style={[type('body-sm'), { color: c.muted }]}>{detail}</Text> : null}

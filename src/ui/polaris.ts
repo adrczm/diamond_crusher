@@ -7,12 +7,14 @@ export const polaris = {
     "bg-surface-secondary": "#F7F7F7",
     "bg-surface-selected": "#F1F1F1",
     "bg-surface-active": "#F3F3F3",
+    "bg-surface-hover": "#F7F7F7",
     "bg-surface-info": "#EAF4FF",
     "bg-surface-success": "#CDFED4",
     "bg-surface-warning": "#FFF1E3",
     "bg-surface-caution": "#FFF8DB",
     "bg-surface-critical": "#FEE8EB",
     "bg-fill-brand": "#303030",
+    "bg-fill-brand-hover": "#1A1A1A",
     "bg-fill-brand-disabled": "#0000002B",
     "bg-fill-secondary": "#F1F1F1",
     "bg-fill-tertiary": "#E3E3E3",
@@ -36,7 +38,10 @@ export const polaris = {
     "border-focus": "#005BD3",
     "input-bg-surface": "#FDFDFD",
     "input-border": "#8A8A8A",
-    "icon-secondary": "#8A8A8A"
+    "icon-secondary": "#8A8A8A",
+    "nav-bg": "#EBEBEB",
+    "nav-bg-surface-hover": "#F1F1F1",
+    "nav-bg-surface-selected": "#FAFAFA"
   },
   "dark": {
     "bg": "#1A1A1A",
@@ -44,12 +49,14 @@ export const polaris = {
     "bg-surface-secondary": "#F7F7F7",
     "bg-surface-selected": "#616161",
     "bg-surface-active": "#616161",
+    "bg-surface-hover": "#4A4A4A",
     "bg-surface-info": "#EAF4FF",
     "bg-surface-success": "#CDFED4",
     "bg-surface-warning": "#FFF1E3",
     "bg-surface-caution": "#FFF8DB",
     "bg-surface-critical": "#FEE8EB",
     "bg-fill-brand": "#FFFFFF",
+    "bg-fill-brand-hover": "#F3F3F3",
     "bg-fill-brand-disabled": "#FFFFFF38",
     "bg-fill-secondary": "#FFFFFF14",
     "bg-fill-tertiary": "#303030",
@@ -73,7 +80,10 @@ export const polaris = {
     "border-focus": "#005BD3",
     "input-bg-surface": "#FDFDFD",
     "input-border": "#8A8A8A",
-    "icon-secondary": "#B5B5B5"
+    "icon-secondary": "#B5B5B5",
+    "nav-bg": "#EBEBEB",
+    "nav-bg-surface-hover": "#F1F1F1",
+    "nav-bg-surface-selected": "#FAFAFA"
   },
   "space": {
     "0": 0,
@@ -160,5 +170,24 @@ export const polaris = {
       "fontWeight": 450,
       "letterSpacing": 0
     }
+  },
+  "motion": {
+    "duration": {
+      "100": 100,
+      "150": 150,
+      "200": 200,
+      "300": 300,
+      "500": 500
+    },
+    "ease": "cubic-bezier(0.25, 0.1, 0.25, 1)",
+    "easeOut": "cubic-bezier(0.19, 0.91, 0.38, 1)",
+    "easeInOut": "cubic-bezier(0.42, 0, 0.58, 1)"
+  },
+  "breakpoints": {
+    "xs": 0,
+    "sm": 490,
+    "md": 768,
+    "lg": 1040,
+    "xl": 1440
   }
 } as const;

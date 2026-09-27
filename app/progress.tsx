@@ -16,7 +16,7 @@ import { useLoad } from '../src/features/app';
 import { forTrend } from '../src/features/checkService';
 import { toDay } from '../src/features/trainingService';
 import { ChartOrTable, type Point } from '../src/ui/charts';
-import { Card, H2, Label, Loading, P, Screen, Segments } from '../src/ui/kit';
+import { Card, Columns, Grid, H2, Label, Loading, P, Screen, Segments } from '../src/ui/kit';
 
 function median(xs: number[]): number | null {
   if (!xs.length) return null;
@@ -117,7 +117,7 @@ export default function Progress() {
   const weekLevelChanges = data.changes.filter((c) => c.reason === 'progression' || c.reason === 'ceiling' || c.reason === 'restart_after_gap').slice(-8).reverse();
 
   return (
-    <Screen title={PROGRESS.title}>
+    <Screen title={PROGRESS.title} width="wide">
       <Segments
         options={[
           { value: '12w' as const, label: PROGRESS.range['12w'] },
@@ -131,12 +131,18 @@ export default function Progress() {
           <P>{message}</P>
         </Card>
       ) : null}
-      <Card>
-        <Label>{PROGRESS.trainingWeek}</Label>
-        <P>{`${consistency[consistency.length - 1].value} of ${target} days`}</P>
-        <Label>{PROGRESS.yourRecord}</Label>
-        <P>{PROGRESS.trend[overall]}</P>
-      </Card>
+      <Columns>
+        <Card>
+          <Label>{PROGRESS.trainingWeek}</Label>
+          <P>{`${consistency[consistency.length - 1].value} of ${target} days`}</P>
+        </Card>
+        <Card>
+          <Label>{PROGRESS.yourRecord}</Label>
+          <P>{PROGRESS.trend[overall]}</P>
+        </Card>
+      </Columns>
+
+      <Grid>
 
       <Card>
         <H2>{PROGRESS.consistency}</H2>
@@ -236,6 +242,7 @@ export default function Progress() {
           <P key={c.id}>{`${formatShort(toLocalDate(new Date(c.at)))} · ${LEVEL_NAME[c.variable]?.(c.after) ?? c.variable}`}</P>
         ))}
       </Card>
+      </Grid>
     </Screen>
   );
 }
