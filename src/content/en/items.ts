@@ -48,8 +48,8 @@ export const SELF_CHECK = {
   rest: 'Rest',
   signTitle: 'Step 1 of 6: Sign check',
   sign: {
-    male: 'Squeeze once and watch in a mirror, or rest your fingertips on the skin behind your scrotum. Did the base of your penis draw in and your scrotum lift (or did you feel a lift under your fingers)?',
-    female: 'Did your back passage and the entrance to your vagina lift and draw in?',
+    male: 'Squeeze once and watch in a mirror, or rest your fingertips on the skin behind your scrotum. Did the base of your penis pull back slightly and your scrotum lift (or did you feel a lift under your fingers)?',
+    female: 'Did your back passage and the entrance to your vagina lift up and inwards?',
     other_unspecified: 'Squeeze once and watch in a mirror, or rest your fingertips on the skin between your genitals and back passage. Did you see or feel a lift in and up?',
   } as Record<Anatomy, string>,
   signOptions: [

@@ -82,7 +82,7 @@ export const LEARN = {
 
 export const MIRROR_CHECK: Record<Anatomy, { text: string; todo: boolean }> = {
   male: {
-    text: 'Stand without clothes in front of a mirror. As you squeeze, watch: the base of your penis should draw in slightly and your testicles should lift.',
+    text: 'Stand without clothes in front of a mirror. As you squeeze, watch: the base of your penis should pull back slightly and your testicles should lift.',
     todo: false,
   },
   other_unspecified: {
@@ -90,7 +90,7 @@ export const MIRROR_CHECK: Record<Anatomy, { text: string; todo: boolean }> = {
     todo: false,
   },
   female: {
-    text: "Use a hand mirror. As you squeeze, the back passage and vaginal entrance should lift and draw in. If the entrance widens or bulges, you're pushing down.",
+    text: "Use a hand mirror. As you squeeze, the back passage and vaginal entrance should lift up and inwards. If the entrance widens or bulges, you're pushing down.",
     todo: true,
   },
 };

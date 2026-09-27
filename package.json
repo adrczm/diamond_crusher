@@ -9,7 +9,6 @@
     "prebuild": "expo prebuild --platform android --clean",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "lint": "eslint .",
     "check:content": "jest test/content",
     "ios": "expo run:ios"
   },
