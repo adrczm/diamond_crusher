@@ -1,4 +1,5 @@
-// Content checks (05 CNT-004, CNT-011, CNT-040; 08 MOT-020, REM-021; 02 LRN-013).
+// Content checks (05 CNT-004, CNT-011, CNT-040; 08 MOT-020, REM-021; 02 LRN-013; STE and voice rules from
+// research/ux-writing/style-guide.md sections a, b and e).
 import * as fs from 'fs';
 import * as path from 'path';
 import * as education from '../../src/content/en/education';
@@ -7,6 +8,7 @@ import * as items from '../../src/content/en/items';
 import * as learn from '../../src/content/en/learn';
 import * as screening from '../../src/content/en/screening';
 import * as strings from '../../src/content/en/strings';
+import { SYNC } from '../../src/content/en/sync';
 import * as reminders from '../../src/domain/reminders';
 import { MODULES } from '../../src/content/en/questionnaires';
 
@@ -44,6 +46,12 @@ function literals(dir: string): string[] {
   return out;
 }
 
+/** String literals in one source file (for web.ts, which must not be called: it changes the shared catalogue). */
+function fileLiterals(file: string): string[] {
+  const src = fs.readFileSync(file, 'utf8').replace(/^\s*(\/\/|\*).*$/gm, '');
+  return [...src.matchAll(/(['"`])((?:(?!\1)[^\\\n]|\\.)*)\1/g)].map((m) => m[2]).filter((t) => /\s/.test(t));
+}
+
 const root = path.join(__dirname, '../..');
 const nonEvidence = { ...education, EDUCATION: education.EDUCATION.filter((e) => e.id !== 'ED-11') };
 const catalogue = [
@@ -51,6 +59,12 @@ const catalogue = [
   ...literals(path.join(root, 'app')),
   ...literals(path.join(root, 'src/features')),
   ...collect(MODULES.filter((m) => !m.validated).map((m) => m.items)),
+];
+// Copy from the content catalogue only (no screen source), for the STE checks.
+const content = [
+  ...collect([nonEvidence, exercise, items, learn, screening, strings, SYNC]),
+  ...collect(MODULES.filter((m) => !m.validated).map((m) => m.items)),
+  ...fileLiterals(path.join(root, 'src/content/en/web.ts')),
 ];
 const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 
@@ -81,6 +95,23 @@ const ALLOWED = [/does not diagnose any condition/, /They are not a diagnosis\./
 const GUILT = [/streak lost/i, /you missed/i, /you failed/i, /don't give up/i, /don’t give up/i, /you broke/i, /\bbehind (on|with)\b/i, /fall(en)? behind/i];
 const BAD_CUES = [/pull your tummy in/i, /\bdraw(s)? in\b/i, /lift your bladder/i];
 const NOTIFY_BLOCK = /\b(kegel|pelvic|floor|penis|testicle\w*|scrot\w*|erection|ejaculat\w*|bladder|pee|leak|urin\w*|incontinen\w*|sex\w*|prostate|squeeze|clench|pain)\b/i;
+
+// STE checklist items 6, 16 and 29, the word list in section d and the emoji and "!" rules in section e.
+const CONTRACTION = /\b(\w+n['’]t|(i|you|we|they|it|that|there|what|here|let|he|she|who)['’](s|re|ve|ll|d|m))\b/i;
+const STE_BANNED = [/;/, /\b(ensure|verify|confirm|utilise|commence|facilitate|leverage|empower|please)\b/i];
+const VOICE_BANNED = [
+  /\bjourney\b/i,
+  /got this/i,
+  /\bcrush(es|ed|ing)?\b/i,
+  /beast/i,
+  /\bsmash/i,
+  /rockstar|superstar|\bchamp\b|\bbuddy\b|woohoo|\boops\b|uh-oh/i,
+  /let['’]s do this/i,
+  /\bstamina\b|\bbedroom\b|\bmanhood\b|down there|tough it out/i,
+  /\binvalid\b|input required|\bcompliance\b|\badherence\b/i,
+  /!!/,
+  /\p{Extended_Pictographic}/u,
+];
 
 function strip(s: string) {
   return ALLOWED.reduce((acc, r) => acc.replace(r, ''), s);
@@ -133,5 +164,46 @@ describe('wording checks', () => {
 
   it('labels every education screen with its findings (CNT-012)', () => {
     for (const e of education.EDUCATION) expect(e.findingIds.length).toBeGreaterThan(0);
+  });
+
+  it('uses no contractions (STE 4.2)', () => {
+    expect(content.filter((s) => CONTRACTION.test(s))).toEqual([]);
+  });
+
+  it('uses no semicolons or banned STE words (STE 8.1, "make sure" rule)', () => {
+    const hits = content.flatMap((s) => STE_BANNED.filter((r) => r.test(s)).map((r) => `${r} in: ${s.slice(0, 90)}`));
+    expect(hits).toEqual([]);
+  });
+
+  it('has no cheesy, innuendo or cold words, emoji or stacked "!" (style guide b, d, e)', () => {
+    const hits = content.flatMap((s) => VOICE_BANNED.filter((r) => r.test(s)).map((r) => `${r} in: ${s.slice(0, 90)}`));
+    expect(hits).toEqual([]);
+  });
+
+  it('keeps app and sync sentences to 25 words or fewer (STE 6.3)', () => {
+    const long = collect([strings, SYNC])
+      .concat(fileLiterals(path.join(root, 'src/content/en/web.ts')))
+      .flatMap((s) => s.split(/(?<=[.?!])\s+/))
+      .filter((sentence) => sentence.split(/\s+/).length > 25);
+    expect(long).toEqual([]);
+  });
+
+  it('keeps buttons to 3 words or fewer, with no end punctuation (style guide e)', () => {
+    const s = strings;
+    const buttons = [
+      ...Object.values(s.COMMON).filter((b) => b !== s.COMMON.loading),
+      s.ONBOARDING.start, s.ONBOARDING.importBackup, s.ONBOARDING.lockOn, s.ONBOARDING.lockOff,
+      s.PLAN.allowReminders, s.PLAN.noReminders, s.PLAN.sendTest, s.PLAN.openSettings, s.PLAN.reviewPlan,
+      s.HOME.startSession, s.WELCOME_BACK.easier, s.WELCOME_BACK.pickUp,
+      s.MAINTENANCE.switch, s.MAINTENANCE.keepBuilding, s.MAINTENANCE.topUpAccept, s.MAINTENANCE.topUpDecline,
+      s.BUNDLE.startPart, s.BUNDLE.keep, s.BUNDLE.review,
+      s.SETTINGS.resume, s.DATA.export, s.DATA.import, s.UNREADABLE.import, s.DATA.pickFile, s.DATA.unlockFile, s.DATA.deleteButton,
+      s.LOCK.unlock, s.LOCK.erase, s.UNREADABLE.fresh, s.DESKTOP.start,
+      SYNC.entryButton, SYNC.entryButtonPaired, SYNC.pairShow, SYNC.pairScan, SYNC.pairShowNext, SYNC.match, SYNC.noMatch,
+      SYNC.send, SYNC.receive, SYNC.sendEverything, SYNC.unpair, SYNC.sendNext, SYNC.sendDone, SYNC.receivedNext,
+      SYNC.cameraAllow, SYNC.cancel, SYNC.back,
+    ];
+    const bad = buttons.filter((b) => b.split(/\s+/).length > 3 || /[.!?:;,]$/.test(b));
+    expect(bad).toEqual([]);
   });
 });

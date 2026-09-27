@@ -114,7 +114,7 @@ export default function SessionScreen() {
             {plan.load.E ? <P>{`${BLOCK_NAME.endurance}: ${plan.load.enduranceReps} × ${plan.load.E} s`}</P> : null}
           </Card>
         ) : null}
-        {extra ? <Banner tone="soft" text="Extra session. It doesn't count toward today's plan." /> : null}
+        {extra ? <Banner tone="soft" text="Extra session. It does not count toward today's plan." /> : null}
       </Screen>
     );
   }
@@ -151,7 +151,7 @@ export default function SessionScreen() {
             <P>{MILESTONES[m] ?? ''}</P>
           </Card>
         ))}
-        {saved?.changes.length ? <P muted>Your plan has stepped up for next week.</P> : null}
+        {saved?.changes.length ? <P muted>Next week, your plan goes up one step.</P> : null}
       </View>
     </Screen>
   );

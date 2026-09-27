@@ -5,7 +5,7 @@ import type { RelaxStep } from '../../domain/session/plan';
 export const BLOCK_NAME = { relax: 'Relax', hold: 'Hold', flick: 'Quick squeeze', endurance: 'Steady hold' } as const;
 export const INTENSITY = {
   relax: 'Let everything soften',
-  hold: 'Squeeze hard and lift',
+  hold: 'Squeeze strongly and lift',
   flick: 'Quick, strong squeeze',
   endurance: 'Half strength, steady',
 } as const;
@@ -36,12 +36,12 @@ export const RELAX_STEP_TEXT: Record<RelaxStep, { title: string; body: string }>
     title: 'Body release',
     body: 'Notice and let go, one part at a time: your jaw, your shoulders, your belly, your buttocks, your pelvic floor.',
   },
-  quiet: { title: 'Quiet breathing', body: 'Just breathe quietly. Nothing to do.' },
+  quiet: { title: 'Quiet breathing', body: 'Breathe quietly. You have nothing else to do.' },
 };
 
 export const SESSION = {
   gettingWeak: 'Getting weak',
-  gettingWeakReply: 'Good. Stopping when the squeeze fades is the right call.',
+  gettingWeakReply: 'Good call. When the squeeze fades, that is the right time to stop.',
   pain: 'Pain',
   pause: 'Pause',
   resume: 'Resume',
@@ -51,16 +51,16 @@ export const SESSION = {
   estimated: 'About',
   start: 'Start',
   relaxPractice: 'Relax practice',
-  dayDone: "That's today's plan done. More isn't better for these muscles; see you tomorrow.",
-  extraStart: 'Start an extra session anyway',
-  extraBlocked: "Today's limit for strong holds is reached. Relax practice is still open.",
+  dayDone: "Today's plan is done. More is not better for these muscles. See you tomorrow.",
+  extraStart: 'Start extra session',
+  extraBlocked: "You reached today's limit for strong holds. Relax practice is still open.",
   somethingChanged: 'Something changed?',
   complete: 'Session complete',
   partial: 'Session saved',
   holdLabel: (rep: number, reps: number) => `Hold ${rep} of ${reps}`,
   flickLabel: (rep: number, reps: number) => `Quick squeeze ${rep} of ${reps}`,
   enduranceLabel: (rep: number, reps: number) => `Steady hold ${rep} of ${reps}`,
-  walkingOption: 'Do the steady holds while walking',
+  walkingOption: 'Do the steady holds as you walk',
   positionName: { lying: 'Lying down', sitting: 'Sitting', standing: 'Standing', moving: 'Walking', mixed: 'Mixed' },
   positionHint: {
     lying: 'Lie on your back, knees bent and apart.',
@@ -73,15 +73,15 @@ export const SESSION = {
 
 export const KNACK = {
   title: 'The knack',
-  body: "Just before you cough, sneeze, laugh hard or lift something, do a quick, firm squeeze and hold it through the effort. Then let go.",
+  body: 'Just before you cough, sneeze, laugh or lift something, do a quick, firm squeeze. Hold it through the effort. Then let go.',
   practice: 'Practise 3 times: squeeze, pretend to cough, let go.',
   practiceStep: ['Squeeze', 'Cough', 'Let go'],
 };
 
 export const AFTER_PEE = {
-  title: 'Squeeze after peeing',
-  body: "When you've finished peeing, do one firm squeeze to push out the last drops, then let go fully.",
-  note: 'Do this after the flow has stopped. It is not stopping the flow.',
+  title: 'Squeeze after you pee',
+  body: 'When you finish peeing, do one firm squeeze to push out the last drops. Then let go fully.',
+  note: 'Do this after the flow stops. It does not stop the flow.',
 };
 
 export function everydaySqueezes(anatomy: Anatomy): string[] {
@@ -116,7 +116,7 @@ export const ADD_ONS: AddOn[] = [
   {
     goal: 'erection',
     title: 'For erections',
-    items: ['During sex, tightening your pelvic floor in a steady rhythm may help keep your erection firm.'],
+    items: ['During sex, squeeze your pelvic floor in a steady rhythm. This may help keep your erection firm.'],
     profiles: ['male'],
     findingIds: ['B1.5'],
   },
@@ -125,8 +125,8 @@ export const ADD_ONS: AddOn[] = [
     title: 'For ejaculatory control',
     items: [
       'When penetration starts, hold a controlled squeeze for about 3 to 10 thrusts, then let go.',
-      'Stop-start: when you feel close, stop moving and consciously relax your pelvic floor until the urge passes. Then carry on.',
-      'Relaxing, not squeezing, is the key step in stop-start.',
+      'Stop-start: when you feel close, stop all movement. Relax your pelvic floor on purpose until the urge passes. Then continue.',
+      'In stop-start, the key step is to relax, not to squeeze.',
     ],
     profiles: ['male'],
     findingIds: ['B1.5', 'B4.1'],

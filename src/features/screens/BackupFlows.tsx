@@ -133,7 +133,7 @@ export function ImportFlow({ onDone, fresh = false }: { onDone: (imported: boole
     <View style={{ gap: 12 }}>
       <H2>{DATA.importTitle}</H2>
       <P muted>{DATA.importBody}</P>
-      <Button label={file ? 'File chosen. Choose another' : DATA.pickFile} kind="secondary" onPress={pick} disabled={busy} />
+      <Button label={file ? 'Choose another file' : DATA.pickFile} kind="secondary" onPress={pick} disabled={busy} />
       <Field label={DATA.passphrase} value={pass} onChangeText={setPass} secureTextEntry autoCapitalize="none" autoCorrect={false} />
       {busy ? <Banner tone="soft" text={`${DATA.working} ${Math.round(progress * 100)}%`} /> : null}
       {err ? <Banner text={err} /> : null}

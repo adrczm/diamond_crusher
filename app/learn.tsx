@@ -95,7 +95,7 @@ export default function Learn() {
   if (!allowed) {
     return (
       <Screen title={LEARN.title}>
-        <Banner text="Learn the squeeze isn't available while exercises are paused or set to relaxation only." />
+        <Banner text="Learn the squeeze is not available while exercises are paused or set to relaxation only." />
         <Button label={COMMON.back} onPress={() => router.back()} />
       </Screen>
     );
