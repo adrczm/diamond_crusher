@@ -20,3 +20,7 @@ coverage/
 *.apk
 *.aab
 .DS_Store
+
+# Copied from node_modules by scripts/copy-sqljs.js
+public/sql-wasm.js
+public/sql-wasm.wasm

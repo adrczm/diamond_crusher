@@ -1,7 +1,7 @@
 // First-run setup (01 ONB-001 to ONB-008; 08 REM-001 to REM-006; 07 PRIV-010).
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Linking, View } from 'react-native';
+import { Linking, Platform, View } from 'react-native';
 import { EDUCATION } from '../src/content/en/education';
 import { GOAL_LABEL } from '../src/content/en/exercise';
 import { OTHER_PROFILE_PHYSIO, TODO_BANNER } from '../src/content/en/screening';
@@ -245,7 +245,8 @@ export default function Onboarding() {
           ))}
         </>
       );
-      footer = <Button label={COMMON.continue} onPress={() => go('lock')} />;
+      // The app lock needs a phone's fingerprint, face or PIN; the web version skips it.
+      footer = <Button label={COMMON.continue} onPress={() => go(Platform.OS === 'web' ? 'plan' : 'lock')} />;
       break;
     }
     case 'lock':
@@ -346,7 +347,9 @@ export default function Onboarding() {
               {PLAN.testFix.map((t, i) => (
                 <P key={i}>{`• ${t}`}</P>
               ))}
-              <Button label={PLAN.openSettings} kind="secondary" onPress={() => withoutRelock(() => Linking.openSettings())} />
+              {Platform.OS !== 'web' ? (
+                <Button label={PLAN.openSettings} kind="secondary" onPress={() => withoutRelock(() => Linking.openSettings())} />
+              ) : null}
             </Card>
           ) : null}
         </>

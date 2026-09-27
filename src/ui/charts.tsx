@@ -1,8 +1,9 @@
 // Minimal SVG charts (06c PFB-010 to PFB-016): own-past comparison only, hollow points for flagged values.
 import { useState } from 'react';
-import { Text, View, useWindowDimensions } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
+import { Text } from './text';
 import Svg, { Circle, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
-import { useColors } from './theme';
+import { FONTS, useColors } from './theme';
 
 export interface Point {
   label: string;
@@ -34,10 +35,10 @@ export function LineChart({ points, max, accessibilityLabel }: { points: Point[]
     <View accessible accessibilityLabel={accessibilityLabel}>
       <Svg width={W} height={H}>
         <Line x1={PAD.l} y1={H - PAD.b} x2={W - PAD.r} y2={H - PAD.b} stroke={c.border} strokeWidth={1} />
-        <SvgText x={4} y={scaleY(top, top) + 4} fill={c.muted} fontSize={10}>
+        <SvgText x={4} y={scaleY(top, top) + 4} fill={c.muted} fontSize={11} fontFamily={FONTS.regular}>
           {Math.round(top)}
         </SvgText>
-        <SvgText x={4} y={H - PAD.b} fill={c.muted} fontSize={10}>
+        <SvgText x={4} y={H - PAD.b} fill={c.muted} fontSize={11} fontFamily={FONTS.regular}>
           0
         </SvgText>
         {line ? <Polyline points={line} fill="none" stroke={c.primary} strokeWidth={2} /> : null}
@@ -48,7 +49,7 @@ export function LineChart({ points, max, accessibilityLabel }: { points: Point[]
         )}
         {xy.length
           ? [xy[0], xy[xy.length - 1]].map((q, i) => (
-              <SvgText key={i} x={i === 0 ? q.x : q.x - 30} y={H - 6} fill={c.muted} fontSize={10}>
+              <SvgText key={i} x={i === 0 ? q.x : q.x - 30} y={H - 6} fill={c.muted} fontSize={11} fontFamily={FONTS.regular}>
                 {q.p.label}
               </SvgText>
             ))
@@ -68,7 +69,7 @@ export function BarChart({ points, target, max, accessibilityLabel }: { points: 
     <View accessible accessibilityLabel={accessibilityLabel}>
       <Svg width={W} height={H}>
         <Line x1={PAD.l} y1={H - PAD.b} x2={W - PAD.r} y2={H - PAD.b} stroke={c.border} strokeWidth={1} />
-        <SvgText x={4} y={scaleY(top, top) + 4} fill={c.muted} fontSize={10}>
+        <SvgText x={4} y={scaleY(top, top) + 4} fill={c.muted} fontSize={11} fontFamily={FONTS.regular}>
           {Math.round(top)}
         </SvgText>
         {points.map((p, i) => {
@@ -81,7 +82,7 @@ export function BarChart({ points, target, max, accessibilityLabel }: { points: 
         ) : null}
         {points.length
           ? [0, points.length - 1].map((i, k) => (
-              <SvgText key={k} x={k === 0 ? PAD.l : W - PAD.r - 30} y={H - 6} fill={c.muted} fontSize={10}>
+              <SvgText key={k} x={k === 0 ? PAD.l : W - PAD.r - 30} y={H - 6} fill={c.muted} fontSize={11} fontFamily={FONTS.regular}>
                 {points[i].label}
               </SvgText>
             ))
@@ -129,7 +130,7 @@ export function ChartOrTable({
       ) : (
         <BarChart points={points} target={target} max={max} accessibilityLabel={label} />
       )}
-      <Text accessibilityRole="button" onPress={() => setTable(!table)} style={{ color: c.primary, fontSize: 15, fontWeight: '600', paddingVertical: 6 }}>
+      <Text accessibilityRole="button" onPress={() => setTable(!table)} style={{ color: c.link, fontSize: 15, fontWeight: '600', paddingVertical: 6 }}>
         {table ? chartLabel : tableLabel}
       </Text>
     </View>

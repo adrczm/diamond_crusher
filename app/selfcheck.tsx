@@ -1,7 +1,8 @@
 // Monthly self-check (06a SC-001 to SC-033): six short steps, your own record, no verdict words.
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '../src/ui/text';
 import { APP_QUESTION_LABEL, SELF_CHECK } from '../src/content/en/items';
 import { COMMON, MAINTENANCE, MESSAGES } from '../src/content/en/strings';
 import { PAIN_CHOICE, RELAX_ONLY_HOME } from '../src/content/en/screening';

@@ -2,7 +2,8 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Text, View } from 'react-native';
+import { AppState, View } from 'react-native';
+import { Text } from '../src/ui/text';
 import { BLOCK_NAME, INTENSITY, PHASE_TEXT, RELAX_STEP_TEXT, SESSION, VOICE } from '../src/content/en/exercise';
 import { REMINDER_CUES, cueText } from '../src/content/en/learn';
 import { PAIN_CHOICE, RELAX_ONLY_HOME } from '../src/content/en/screening';

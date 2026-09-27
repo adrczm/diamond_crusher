@@ -1,0 +1,60 @@
+name: Mac web version
+
+# Builds the web version (for Safari on a Mac) on every push and pull request. Pushes to main also publish it with
+# GitHub Pages, once Pages is turned on for the repository (Settings, Pages, Source: GitHub Actions). See docs/mac.md.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build web version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Build
+        env:
+          # GitHub Pages serves the site at /<repository name>/.
+          DC_WEB_BASE: /${{ github.event.repository.name }}
+        run: npm run build:web
+      - name: Check the page loads nothing from other sites
+        run: |
+          if grep -rhoE "https?://[a-zA-Z0-9.-]+" dist/index.html | grep -v "^http://www.w3.org" ; then
+            echo "index.html must only load the site's own files (DATA-010)."; exit 1
+          fi
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+          retention-days: 30
+
+  deploy:
+    name: Publish to GitHub Pages (main only)
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # Pages may not be turned on yet; that shouldn't mark main as broken.
+    continue-on-error: true
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

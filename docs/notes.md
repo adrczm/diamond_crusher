@@ -31,3 +31,11 @@ Things the specs say to confirm on a real phone (07 and 09 open questions):
 - Reminder delivery with battery optimisation on (Samsung and some other phones stop reminders).
 - Screenshots are blocked in the app (FLAG_SECURE); the recent-apps preview is blank.
 - The database file is unreadable without the key (SQLCipher).
+
+## Design
+
+- **The look follows Shopify Polaris.** React Native can't use Polaris's React components, so the app uses Polaris's
+  design tokens (generated into `src/ui/polaris.ts` from `@shopify/polaris-tokens`) and the Inter typeface, with its own
+  components styled to match. Touch targets stay at 48 px or more, larger than Polaris's desktop sizes.
+- Polaris's dark theme is still experimental and leaves some colours at their light values. `src/ui/theme.ts` overrides
+  those few (link, success, emphasis, input and border colours) so text stays readable in dark mode.

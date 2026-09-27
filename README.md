@@ -9,19 +9,22 @@ release build has no internet permission. Every install starts empty: nothing pe
 Diamond Crusher is a training aid. It does not diagnose any condition and is not medical advice.
 
 - **Install on Android:** see [docs/install.md](docs/install.md).
+- **Use on a Mac (Safari):** see [docs/mac.md](docs/mac.md).
 - **Specs:** the build follows the project specs (00 to 10). Requirement IDs such as `ONB-012` or `PRG-006` appear in code comments.
 
 ## Stack
 
-React Native with Expo (SDK 54), expo-router, TypeScript. Data lives in an encrypted SQLite database (SQLCipher) whose
-key is kept in the phone's secure storage. Backup files are encrypted with AES-256-GCM using a passphrase (PBKDF2-SHA256).
+React Native with Expo (SDK 54), expo-router, TypeScript, and react-native-web for the Mac version. The look follows
+Shopify's Polaris design system: its tokens (colours, spacing, radius, type) are generated into `src/ui/polaris.ts`
+(`npm run tokens`), with the Inter typeface. Data lives in an encrypted SQLite database (SQLCipher) whose
+key is kept in the phone's secure storage. On the web, sql.js stands in for SQLCipher (see docs/mac.md). Backup files are encrypted with AES-256-GCM using a passphrase (PBKDF2-SHA256).
 
 ```
 app/            screens (expo-router)
 src/domain/     rules: safety routing, learn, sessions, progression, schedules, reminders (pure TypeScript, no React)
 src/data/       SQLite schema, migrations, repositories, backup file format, key handling
 src/features/   services that combine domain rules with the data layer, and shared screen parts
-src/platform/   notifications, secure storage, authentication, files, sound and vibration
+src/platform/   notifications, secure storage, authentication, files, sound and vibration (*.web.ts: browser versions)
 src/content/en/ all wording, education screens and questionnaire modules
 plugins/        Expo config plugins: no network, no cloud backup, secure window, release signing
 test/           Jest tests (Node): domain rules, data layer, content checks

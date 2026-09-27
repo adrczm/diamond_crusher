@@ -1,10 +1,16 @@
 // Startup routing (07 PRIV-040, 09 ARCH-034): first run, lock, unreadable data, newer data, ready.
+import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
+import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
+import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
+import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
+import { useFonts } from 'expo-font';
 import * as Crypto from 'expo-crypto';
 import Constants from 'expo-constants';
 import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, View } from 'react-native';
+import { AppState, Platform, View } from 'react-native';
+import { applyWebWording } from '../src/content/en/web';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { setUuidGenerator } from '../src/data/ids';
@@ -19,9 +25,10 @@ import { files } from '../src/platform/files';
 import { ACTION_DONE, ACTION_SNOOZE, lastResponse, onResponse, snooze, type Response } from '../src/platform/notifications';
 import { installCryptoPolyfill } from '../src/platform/random';
 import { Loading } from '../src/ui/kit';
-import { ThemePrefContext, useColors, useIsDark, type ThemePref } from '../src/ui/theme';
+import { FONTS, ThemePrefContext, useColors, useIsDark, type ThemePref } from '../src/ui/theme';
 
 installCryptoPolyfill();
+if (Platform.OS === 'web') applyWebWording();
 setUuidGenerator(() => Crypto.randomUUID());
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
@@ -38,6 +45,8 @@ export default function RootLayout() {
   const [version, setVersion] = useState(0);
   const [themePref, setThemePref] = useState<ThemePref>('system');
   const [runId, setRunId] = useState(0);
+  // Inter is bundled with the app, so this never touches the network.
+  const [fontsLoaded, fontError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
 
   useEffect(() => {
     let alive = true;
@@ -163,7 +172,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemePrefContext.Provider value={themePref}>
-          <Themed>{body}</Themed>
+          <Themed>{fontsLoaded || fontError ? body : <Loading />}</Themed>
         </ThemePrefContext.Provider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -186,9 +195,10 @@ function Nav() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: c.bg },
+        headerStyle: { backgroundColor: c.card },
         headerTintColor: c.text,
-        headerShadowVisible: false,
+        headerTitleStyle: { fontFamily: FONTS.semibold, fontSize: 17 },
+        headerShadowVisible: true,
         contentStyle: { backgroundColor: c.bg },
         animation: 'slide_from_right',
       }}

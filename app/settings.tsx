@@ -1,7 +1,7 @@
 // Settings (08, 07 PRIV-010 to PRIV-013, 03 audio): everything the user can change later.
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert } from '../src/platform/dialog';
 import { GOAL_LABEL } from '../src/content/en/exercise';
 import { COMMON, ONBOARDING, SETTINGS } from '../src/content/en/strings';
 import { activeGoals, getProfile, setGoals, updateProfile } from '../src/data/repositories/profile';

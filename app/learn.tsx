@@ -1,7 +1,8 @@
 // Learn the squeeze (spec 02): 3 to 5 guided attempts with a self-check and a mistakes checklist.
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../src/ui/text';
 import { EDUCATION } from '../src/content/en/education';
 import {
   CUES,

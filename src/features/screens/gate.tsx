@@ -1,6 +1,7 @@
 // Screens shown before the database is open: lock, unreadable data, data from a newer version (PRIV-040).
 import { useEffect, useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
+import { Alert } from '../../platform/dialog';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { APP_NAME, LOCK, UNREADABLE } from '../../content/en/strings';
 import type { SqlDb } from '../../data/sql';

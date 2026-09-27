@@ -1,7 +1,7 @@
 // Optional event log (06a §4): leaks, sexual activity and notes about a day. Every item is skippable.
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert } from '../src/platform/dialog';
 import { APP_QUESTION_LABEL, EVENTS } from '../src/content/en/items';
 import { COMMON } from '../src/content/en/strings';
 import {

@@ -1,7 +1,8 @@
 // Home: today's session, safety state, week dots, and anything due (08 MOT-001 to MOT-004, 01 §6).
 import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
+import { Alert } from '../src/platform/dialog';
 import { AFTER_PEE, KNACK, SESSION } from '../src/content/en/exercise';
 import { CAUTION_CARD, CLEARANCE, OUTCOME, RELAX_ONLY_HOME } from '../src/content/en/screening';
 import { COMMON, EXPECTATION, HOME, LEVEL_NAME, MAINTENANCE, NEXT_NAME, WELCOME_BACK } from '../src/content/en/strings';

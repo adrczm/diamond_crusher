@@ -1,6 +1,6 @@
 // Reminders settings (08 REM-001 to REM-024; 09 ARCH-041 to ARCH-049).
 import { useEffect, useState } from 'react';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import { COMMON, PLAN, SETTINGS } from '../src/content/en/strings';
 import { listReminders, listSlots, savePlan, type SlotPlan } from '../src/data/repositories/reminders';
 import { getSettings, updateSettings, type Settings } from '../src/data/repositories/settings';
@@ -19,9 +19,20 @@ export default function RemindersScreen() {
     const reminders = await listReminders(d);
     const plan: SlotPlan[] = slots.map((s) => {
       const r = reminders.find((x) => x.kind === 'session' && x.slot_no === s.slot_no);
-      return { slotNo: s.slot_no, anchorKey: s.anchor_key, anchorCustom: s.anchor_custom, timeLocal: r?.time_local ?? '09:00', weekdays: r?.weekdays ?? 127, enabled: r?.enabled ?? s.active };
+      return {
+        slotNo: s.slot_no,
+        anchorKey: s.anchor_key,
+        anchorCustom: s.anchor_custom,
+        timeLocal: r?.time_local ?? '09:00',
+        weekdays: r?.weekdays ?? 127,
+        enabled: r?.enabled ?? s.active,
+      };
     });
-    return { settings, plan: plan.length ? plan : defaultPlan(settings.sessions_per_day_target), perm: await getPermission().catch(() => 'undetermined' as const) };
+    return {
+      settings,
+      plan: plan.length ? plan : defaultPlan(settings.sessions_per_day_target),
+      perm: await getPermission().catch(() => 'undetermined' as const),
+    };
   });
   const [plan, setPlan] = useState<SlotPlan[] | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -45,16 +56,20 @@ export default function RemindersScreen() {
       {data.perm !== 'granted' ? (
         <Card tone="warn">
           <P>{PLAN.remindersOff}</P>
-          <Button
-            label={data.perm === 'denied' ? PLAN.openSettings : PLAN.allowReminders}
-            kind="secondary"
-            onPress={async () => {
-              if (data.perm === 'denied') await withoutRelock(() => Linking.openSettings());
-              else await withoutRelock(() => requestPermission());
-              await reconcileReminders(db);
-              reload();
-            }}
-          />
+          {Platform.OS === 'web' && data.perm === 'denied' ? (
+            <P>{PLAN.testFix[0]}</P>
+          ) : (
+            <Button
+              label={data.perm === 'denied' ? PLAN.openSettings : PLAN.allowReminders}
+              kind="secondary"
+              onPress={async () => {
+                if (data.perm === 'denied') await withoutRelock(() => Linking.openSettings());
+                else await withoutRelock(() => requestPermission());
+                await reconcileReminders(db);
+                reload();
+              }}
+            />
+          )}
         </Card>
       ) : null}
       <P small muted>
@@ -87,7 +102,10 @@ export default function RemindersScreen() {
       <Card>
         <Label>{SETTINGS.lockScreen}</Label>
         <Segments
-          options={SETTINGS.lockScreenOptions.map((o) => ({ value: o.value as Settings['lock_screen_mode'], label: o.label }))}
+          options={SETTINGS.lockScreenOptions.map((o) => ({
+            value: o.value as Settings['lock_screen_mode'],
+            label: o.label,
+          }))}
           value={s.lock_screen_mode}
           onChange={(v) => set({ lock_screen_mode: v })}
         />
@@ -97,22 +115,45 @@ export default function RemindersScreen() {
         <Label>{SETTINGS.pause}</Label>
         {paused ? (
           <>
-            <P>{s.reminders_paused_until ? SETTINGS.pausedUntil(formatShort(toLocalDate(new Date(s.reminders_paused_until)))) : SETTINGS.pausedIndef}</P>
-            <Button label={SETTINGS.resume} kind="secondary" onPress={() => set({ reminders_paused: false, reminders_paused_until: null })} />
+            <P>
+              {s.reminders_paused_until
+                ? SETTINGS.pausedUntil(formatShort(toLocalDate(new Date(s.reminders_paused_until))))
+                : SETTINGS.pausedIndef}
+            </P>
+            <Button
+              label={SETTINGS.resume}
+              kind="secondary"
+              onPress={() => set({ reminders_paused: false, reminders_paused_until: null })}
+            />
           </>
         ) : (
           <Segments
-            options={SETTINGS.pauseOptions.map((o) => ({ value: o.days, label: o.label }))}
+            options={SETTINGS.pauseOptions.map((o) => ({
+              value: o.days,
+              label: o.label,
+            }))}
             value={undefined}
             onChange={(days) =>
-              set({ reminders_paused: true, reminders_paused_until: days ? new Date(Date.now() + days * 86400000).toISOString() : null })
+              set({
+                reminders_paused: true,
+                reminders_paused_until: days ? new Date(Date.now() + days * 86400000).toISOString() : null,
+              })
             }
           />
         )}
       </Card>
 
       <Card>
-        <ToggleRow label={SETTINGS.knack} value={s.knack_nudge_enabled} onChange={(v) => set({ knack_nudge_enabled: v, knack_nudge_time: s.knack_nudge_time ?? '10:00' })} />
+        <ToggleRow
+          label={SETTINGS.knack}
+          value={s.knack_nudge_enabled}
+          onChange={(v) =>
+            set({
+              knack_nudge_enabled: v,
+              knack_nudge_time: s.knack_nudge_time ?? '10:00',
+            })
+          }
+        />
         {s.knack_nudge_enabled ? (
           <Field
             label={`${PLAN.time} (HH:MM)`}
@@ -125,7 +166,11 @@ export default function RemindersScreen() {
             }}
           />
         ) : null}
-        <ToggleRow label={SETTINGS.weeklySummaryNote} value={s.weekly_summary_notification} onChange={(v) => set({ weekly_summary_notification: v })} />
+        <ToggleRow
+          label={SETTINGS.weeklySummaryNote}
+          value={s.weekly_summary_notification}
+          onChange={(v) => set({ weekly_summary_notification: v })}
+        />
       </Card>
 
       {data.perm === 'granted' ? (
