@@ -235,7 +235,7 @@ function TodayCard({ m }: { m: HomeModel }) {
   if (t.kind === 'learn') {
     return (
       <Card>
-        <H2>{HOME.todayTitle}</H2>
+        <H2>{HOME.firstStep}</H2>
         <P>{HOME.learnHint}</P>
         <Button label={HOME.learnFirst} onPress={() => router.push('/learn')} />
         <P small muted>
@@ -247,7 +247,7 @@ function TodayCard({ m }: { m: HomeModel }) {
   if (t.kind === 'relax') {
     return (
       <Card>
-        <H2>{HOME.todayTitle}</H2>
+        <H2>{HOME.upNext}</H2>
         <Button label={HOME.relaxPractice} onPress={() => router.push('/session?relax=1')} />
       </Card>
     );
@@ -255,7 +255,7 @@ function TodayCard({ m }: { m: HomeModel }) {
   if (t.kind === 'day_done') {
     return (
       <Card>
-        <H2>{HOME.todayTitle}</H2>
+        <H2>{HOME.upNext}</H2>
         <P>{SESSION.dayDone}</P>
         {t.extraAllowed ? (
           <Button label={SESSION.extraStart} kind="secondary" onPress={() => router.push('/session?extra=1')} />
@@ -274,7 +274,7 @@ function TodayCard({ m }: { m: HomeModel }) {
   };
   return (
     <Card>
-      <H2>{HOME.todayTitle}</H2>
+      <H2>{HOME.upNext}</H2>
       <Label>{HOME.sessionOf(t.slotsDone + 1, t.slotsTotal)}</Label>
       {t.plan ? <SessionContents plan={t.plan} /> : null}
       <Button label={HOME.startSession} onPress={start} />
