@@ -11,7 +11,13 @@ import { clearQG5, raiseQG5 } from './safetyService';
 export interface AttemptRecord extends AttemptInput {
   startedAt: string;
   cueKey: string;
+  /** LRN-020: an attempt checked with the standing mirror check is a standing attempt. Default: the sitting's. */
+  position?: 'lying' | 'standing';
 }
+
+/** Days the baseline self-check stays on offer after training starts. Today offers it from the 3rd training day
+ * (UX audit C2), so the window must reach well past that. */
+export const BASELINE_OFFER_DAYS = 21;
 
 export interface SittingSaved {
   result: SittingResult;
@@ -27,7 +33,7 @@ async function startBuild(db: SqlDb, now: Date) {
   await updateProgramme(db, {
     phase: 'build',
     build_started_on: toLocalDate(now),
-    baseline_offer_until: addDays(toLocalDate(now), 14),
+    baseline_offer_until: addDays(toLocalDate(now), BASELINE_OFFER_DAYS),
   });
   await addLevelChange(db, { reason: 'initial', variable: 'none', before: null, after: null });
 }
@@ -53,7 +59,7 @@ export async function saveSitting(
         attempt_no: i + 1,
         kind,
         started_at: a.startedAt,
-        position,
+        position: a.position ?? position,
         cue_key: a.cueKey,
         check_mirror: a.checkMirror,
         check_touch: a.checkTouch,
@@ -109,8 +115,9 @@ export async function startAnyway(db: SqlDb, now = new Date()): Promise<void> {
   await startBuild(db, now);
 }
 
-export async function saveStopTest(db: SqlDb, result: 'could' | 'could_not' | 'skipped'): Promise<void> {
-  await updateProgramme(db, { stop_test_shown_at: nowIso(), stop_test_result: result });
+/** LRN-040: the stop test card was shown. It is information only (UX audit M9), so no result is stored (null). */
+export async function markStopTestShown(db: SqlDb): Promise<void> {
+  await updateProgramme(db, { stop_test_shown_at: nowIso(), stop_test_result: null });
 }
 
 export async function setPreferredCue(db: SqlDb, cueKey: string): Promise<void> {

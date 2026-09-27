@@ -1,0 +1,83 @@
+// Pictures for Learn the squeeze (UX audit H6): a plain pelvic floor diagram and the lift / let-go circle.
+import { useEffect, useRef } from 'react';
+import { Animated, Platform, View } from 'react-native';
+import Svg, { Ellipse, Path, Polyline } from 'react-native-svg';
+import { LEARN } from '../../content/en/learn';
+import { P } from '../../ui/kit';
+import { useDesktop } from '../../ui/layout';
+import { useReducedMotion } from '../../ui/motion';
+import { useColors } from '../../ui/theme';
+import { Text } from '../../ui/text';
+import { useCountdown } from '../../ui/useCountdown';
+
+/**
+ * A neutral outline of the pelvis with the pelvic floor as a hammock across the bottom: dashed at rest, solid and
+ * higher during a squeeze, with an arrow up. Shapes only, no body detail.
+ */
+export function PelvicFloorDiagram({ caption = true }: { caption?: boolean }) {
+  const c = useColors();
+  return (
+    <View style={{ alignItems: 'center', gap: 8 }}>
+      <View accessible accessibilityRole="image" accessibilityLabel={LEARN.diagramAlt}>
+        <Svg width={240} height={150} viewBox="0 0 240 150">
+          {/* Pelvis walls */}
+          <Path d="M30 14 C 28 70, 48 100, 70 112" stroke={c.muted} strokeWidth={3} fill="none" strokeLinecap="round" />
+          <Path d="M210 14 C 212 70, 192 100, 170 112" stroke={c.muted} strokeWidth={3} fill="none" strokeLinecap="round" />
+          {/* Bladder and bowel it supports */}
+          <Ellipse cx={120} cy={62} rx={34} ry={20} fill={c.soft} stroke={c.border} strokeWidth={2} />
+          {/* Pelvic floor at rest */}
+          <Path d="M70 112 Q 120 146, 170 112" stroke={c.muted} strokeWidth={2} strokeDasharray="6 6" fill="none" />
+          {/* Pelvic floor during a squeeze: lifted up and in */}
+          <Path d="M70 112 Q 120 110, 170 112" stroke={c.squeeze} strokeWidth={5} fill="none" strokeLinecap="round" />
+          {/* Lift arrow */}
+          <Path d="M120 142 L 120 96" stroke={c.primary} strokeWidth={3} strokeLinecap="round" />
+          <Polyline points="111,103 120,92 129,103" stroke={c.primary} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      </View>
+      {caption ? (
+        <>
+          <P center>{LEARN.diagramCaption}</P>
+          <P small muted center>
+            {LEARN.diagramKey}
+          </P>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * The session circle, reused: it swells on a squeeze and settles on the let-go (a spring, as in the session), with
+ * the seconds left inside. Still when Reduce motion is on.
+ */
+export function LiftCircle({ squeezing, seconds, label, onDone }: { squeezing: boolean; seconds: number; label: string; onDone: () => void }) {
+  const c = useColors();
+  const desktop = useDesktop();
+  const reduced = useReducedMotion();
+  const left = useCountdown(seconds, true, onDone);
+  const scale = useRef(new Animated.Value(squeezing ? 0.85 : 1)).current;
+  useEffect(() => {
+    const to = squeezing ? 1 : 0.85;
+    if (reduced) scale.setValue(to);
+    else Animated.spring(scale, { toValue: to, friction: 7, tension: 60, useNativeDriver: Platform.OS !== 'web' }).start();
+  }, [squeezing, reduced, scale]);
+  const D = desktop ? 220 : 180;
+  return (
+    <View style={{ alignItems: 'center', paddingVertical: 16, gap: 12 }} accessibilityLiveRegion="polite">
+      <Animated.View
+        style={{
+          width: D,
+          height: D,
+          borderRadius: D / 2,
+          backgroundColor: squeezing ? c.squeeze : c.soft,
+          alignItems: 'center',
+          justifyContent: 'center',
+          transform: [{ scale }],
+        }}
+      >
+        <Text style={{ fontSize: 64, fontWeight: '700', color: squeezing ? c.onSqueeze : c.primary }}>{left}</Text>
+      </Animated.View>
+      <Text style={{ fontSize: 20, color: c.muted, textAlign: 'center' }}>{label}</Text>
+    </View>
+  );
+}
