@@ -22,13 +22,14 @@ import type { SqlDb } from '../src/data/sql';
 import { createFresh, startupRoute, type Bootstrap } from '../src/data/vault';
 import { AppContext, relockAllowed } from '../src/features/app';
 import { DesktopFrame } from '../src/features/screens/DesktopShell';
+import { PhoneTabs } from '../src/features/screens/PhoneTabs';
 import { LockScreen, NewerScreen, UnreadableScreen } from '../src/features/screens/gate';
 import { reconcileReminders } from '../src/features/reminderService';
 import { files } from '../src/platform/files';
 import { ACTION_DONE, ACTION_SNOOZE, lastResponse, onResponse, snooze, type Response } from '../src/platform/notifications';
 import { installCryptoPolyfill } from '../src/platform/random';
 import { Loading } from '../src/ui/kit';
-import { useDesktop } from '../src/ui/layout';
+import { TAB_ROUTES, useDesktop } from '../src/ui/layout';
 import { FONTS, ThemePrefContext, useColors, useIsDark, type ThemePref } from '../src/ui/theme';
 
 installCryptoPolyfill();
@@ -225,20 +226,26 @@ function Themed({ children }: { children: React.ReactNode }) {
 
 function Nav() {
   const c = useColors();
-  // Wide windows (the Mac) get a sidebar and draw their own toolbar (see Screen); phones keep the native header.
+  // Wide windows (the Mac) get a sidebar and draw their own toolbar (see Screen); phones keep the native header and
+  // get a bottom tab bar. Tab roots have no back arrow and switch without a slide, like tabs.
   const desktop = useDesktop();
   return (
     <DesktopFrame>
       <Stack
-        screenOptions={{
-          headerStyle: { backgroundColor: c.card },
-          headerTintColor: c.text,
-          headerTitleStyle: { fontFamily: FONTS.semibold, fontSize: 17 },
-          headerShadowVisible: true,
-          contentStyle: { backgroundColor: c.bg },
-          animation: desktop ? 'none' : 'slide_from_right',
+        screenOptions={({ route }) => {
+          const tabRoot = !desktop && TAB_ROUTES.includes(route.name);
+          return {
+            headerStyle: { backgroundColor: c.card },
+            headerTintColor: c.text,
+            headerTitleStyle: { fontFamily: FONTS.semibold, fontSize: 17 },
+            headerShadowVisible: true,
+            contentStyle: { backgroundColor: c.bg },
+            animation: desktop || tabRoot ? 'none' : 'slide_from_right',
+            ...(tabRoot ? { headerBackVisible: false } : null),
+          };
         }}
       />
+      <PhoneTabs />
     </DesktopFrame>
   );
 }

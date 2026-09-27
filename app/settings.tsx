@@ -11,13 +11,15 @@ import type { AgeBand, Anatomy, AudioMode, Goal } from '../src/domain/types';
 import { useApp, useLoad, withoutRelock } from '../src/features/app';
 import { reconcileReminders } from '../src/features/reminderService';
 import { auth } from '../src/platform/auth';
-import { Banner, Choice, Field, Label, LinkRow, Loading, MultiChoice, P, Screen, Section, Segments, Stepper, ToggleRow } from '../src/ui/kit';
+import { Banner, Card, Choice, Field, Label, LinkRow, Loading, MultiChoice, P, Screen, Section, Segments, Stepper, ToggleRow } from '../src/ui/kit';
+import { useDesktop } from '../src/ui/layout';
 
 export default function SettingsScreen() {
   const { db, boot, setBoot, bump, appVersion } = useApp();
   const { data, reload } = useLoad(async (d) => ({ settings: await getSettings(d), profile: await getProfile(d), goals: await activeGoals(d) }));
   const [nick, setNick] = useState<string | null>(null);
   const [lockAvail, setLockAvail] = useState<boolean>(true);
+  const desktop = useDesktop();
   useEffect(() => {
     auth.available().then(setLockAvail).catch(() => setLockAvail(false));
   }, []);
@@ -59,6 +61,16 @@ export default function SettingsScreen() {
 
   return (
     <Screen title={SETTINGS.title} width="medium">
+      {/* Phones: this page is the More tab, so the sections without a tab come first (the desktop has the sidebar). */}
+      {!desktop ? (
+        <Card>
+          <LinkRow label={SETTINGS.checkIns} onPress={() => router.push('/check')} />
+          <LinkRow label={SETTINGS.reminders} onPress={() => router.push('/reminders')} />
+          <LinkRow label={SETTINGS.data} onPress={() => router.push('/data')} />
+          <LinkRow label={SETTINGS.sync} onPress={() => router.push('/sync')} />
+          <LinkRow label={SETTINGS.about} onPress={() => router.push('/about')} detail={SETTINGS.version(appVersion)} />
+        </Card>
+      ) : null}
       <Section title={SETTINGS.profile} description={DESKTOP.settingsNotes.profile}>
         <Field
           label={SETTINGS.nickname}

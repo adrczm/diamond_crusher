@@ -24,6 +24,7 @@ export function applyWebWording() {
     keepPhone: 'This Mac',
     deleteBody: 'This erases all app data in this browser and cancels all reminders. You cannot undo this.',
     updateNote: 'Save a backup file before you replace the app folder with a newer download.',
+    noBackupWarn: 'No backup file yet. If Safari clears its website data, you lose all your records.',
   });
   // Appearance on a Mac follows the Mac's own setting, not a phone's.
   SETTINGS.themeOptions[0] = { value: 'system', label: 'Match Mac' };

@@ -1,4 +1,4 @@
-// Line icons for the desktop sidebar and toolbar (24px grid, 2px stroke, round joins; drawn in the Polaris style).
+// Line icons for the desktop sidebar, the phone tab bar and the toolbar (24px grid, 2px stroke, round joins; drawn in the Polaris style).
 import Svg, { Circle, Path, Polygon, Polyline, Rect } from 'react-native-svg';
 
 export type IconName =
@@ -16,7 +16,10 @@ export type IconName =
   | 'play'
   | 'back'
   | 'keyboard'
-  | 'done';
+  | 'done'
+  | 'lock'
+  | 'more'
+  | 'close';
 
 export function Icon({ name, size = 20, color }: { name: IconName; size?: number; color: string }) {
   const p = { stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' };
@@ -123,6 +126,26 @@ export function Icon({ name, size = 20, color }: { name: IconName; size?: number
       break;
     case 'done':
       body = <Polyline points="20 6 9 17 4 12" {...p} />;
+      break;
+    case 'lock':
+      body = (
+        <>
+          <Rect x={4} y={11} width={16} height={10} rx={2} {...p} />
+          <Path d="M8 11V7a4 4 0 0 1 8 0v4" {...p} />
+        </>
+      );
+      break;
+    case 'more':
+      body = (
+        <>
+          <Circle cx={5} cy={12} r={1.5} fill={color} />
+          <Circle cx={12} cy={12} r={1.5} fill={color} />
+          <Circle cx={19} cy={12} r={1.5} fill={color} />
+        </>
+      );
+      break;
+    case 'close':
+      body = <Path d="M18 6 6 18M6 6l12 12" {...p} />;
       break;
   }
   return (

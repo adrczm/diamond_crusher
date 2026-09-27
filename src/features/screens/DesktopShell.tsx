@@ -1,10 +1,14 @@
-// Desktop frame for wide windows (the Mac version): a persistent sidebar with sections, today's main action and the
-// appearance switch, plus app-wide keyboard shortcuts and their help panel. Phones never render this.
+// Desktop frame for wide windows (the Mac version): a persistent sidebar with sections, today's main action, the
+// backup status and the appearance switch, plus app-wide keyboard shortcuts and their help panel. Phones never render
+// this (they get PhoneTabs instead).
 import { router, usePathname } from 'expo-router';
-import { useContext, useState, type ReactNode } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { DESKTOP, HOME } from '../../content/en/strings';
+import { getMeta } from '../../data/repositories/misc';
 import { updateSettings, type Settings } from '../../data/repositories/settings';
+import { backupAgeDays, backupState } from '../../domain/backup';
+import { toLocalDate } from '../../domain/dates';
 import { setShortcutsEnabled, shortcutsEnabled, useHotkeys } from '../../ui/hotkeys';
 import { ToggleRow } from '../../ui/kit';
 import { Icon, type IconName } from '../../ui/icons';
@@ -24,6 +28,15 @@ function useThemeSwitch() {
     bump();
   };
   return { pref, set, cycle: () => set(ORDER[(ORDER.indexOf(pref) + 1) % ORDER.length]) };
+}
+
+/** Days since the last backup file (null: never), on the web only, where the browser can lose the data (C3). */
+function useBackup() {
+  const { data } = useLoad(async (d) => (Platform.OS === 'web' ? ((await getMeta(d))?.last_export_at ?? '') : null));
+  if (data == null) return null;
+  const last = data ? toLocalDate(new Date(data)) : null;
+  const today = toLocalDate(new Date());
+  return { age: backupAgeDays(last, today), warn: backupState('web', last, today) !== 'ok' };
 }
 
 /** Where the sidebar's main button goes today, or null when there is nothing to start. */
@@ -47,6 +60,7 @@ export function DesktopFrame({ children }: { children: ReactNode }) {
   const theme = useThemeSwitch();
   const today = useTodayAction();
 
+  // While the shortcuts panel is open, only ? and Esc work, so nothing changes behind it.
   useHotkeys(
     {
       '?': () => setHelp((h) => !h),
@@ -54,11 +68,15 @@ export function DesktopFrame({ children }: { children: ReactNode }) {
         if (help) setHelp(false);
         else if (!isSection(pathname) && router.canGoBack()) router.back();
       },
-      t: () => void theme.cycle(),
-      s: () => {
-        if (today && !today.done) router.push(today.href);
-      },
-      ...Object.fromEntries(NAV.map((n, i) => [String(i + 1), () => router.navigate(n.href)])),
+      ...(help
+        ? {}
+        : {
+            t: () => void theme.cycle(),
+            s: () => {
+              if (today && !today.done) router.push(today.href);
+            },
+            ...Object.fromEntries(NAV.map((n, i) => [String(i + 1), () => router.navigate(n.href)])),
+          }),
     },
     showSidebar,
   );
@@ -87,6 +105,7 @@ function Sidebar({
   const dark = useIsDark();
   const active = activeNav(pathname);
   const groups = ['train', 'track', 'app'] as const;
+  const backup = useBackup();
   return (
     <View role="navigation" style={{ width: SIDEBAR_W, backgroundColor: c.nav, borderRightWidth: StyleSheet.hairlineWidth, borderColor: c.border }}>
       <ScrollView contentContainerStyle={{ padding: space(1.5), gap: space(2), flexGrow: 1 }}>
@@ -101,7 +120,7 @@ function Sidebar({
                   key={n.key}
                   icon={n.key as IconName}
                   label={DESKTOP.nav[n.key]}
-                  digit={i + 1}
+                  shortcut={i + 1}
                   selected={active === n.key}
                   onPress={() => router.navigate(n.href)}
                 />
@@ -111,6 +130,7 @@ function Sidebar({
         ))}
         <View style={{ flex: 1 }} />
         <View style={{ gap: space(1) }}>
+          {backup ? <BackupStatus age={backup.age} warn={backup.warn} selected={active === 'data'} /> : null}
           <Text style={[type('body-sm'), { color: c.muted, paddingHorizontal: space(1), fontWeight: '600' }]}>{DESKTOP.theme}</Text>
           <ThemeSwitch pref={theme.pref} onChange={theme.set} dark={dark} />
           <Pressable
@@ -182,10 +202,27 @@ function StartButton({ label, done, onPress }: { label: string; done: boolean; o
   );
 }
 
-function NavRow({ icon, label, digit, selected, onPress }: { icon: IconName; label: string; digit: number; selected: boolean; onPress: () => void }) {
+/** Sets a native browser tooltip and aria-keyshortcuts on a web element (react-native-web does not pass them on). */
+function webHint(title: string, keys: string) {
+  return (el: unknown) => {
+    const node = el as HTMLElement | null;
+    if (Platform.OS !== 'web' || !node?.setAttribute) return;
+    if (shortcutsEnabled()) {
+      node.setAttribute('title', title);
+      node.setAttribute('aria-keyshortcuts', keys);
+    } else {
+      node.removeAttribute('title');
+      node.removeAttribute('aria-keyshortcuts');
+    }
+  };
+}
+
+// M4: the shortcut digit shows only in the tooltip and the ? panel, as a key, so it never reads like a count.
+function NavRow({ icon, label, shortcut, selected, onPress }: { icon: IconName; label: string; shortcut: number; selected: boolean; onPress: () => void }) {
   const c = useColors();
   return (
     <Pressable
+      ref={webHint(DESKTOP.keyHint(shortcut), String(shortcut))}
       accessibilityRole="link"
       accessibilityState={{ selected }}
       onPress={onPress}
@@ -202,13 +239,32 @@ function NavRow({ icon, label, digit, selected, onPress }: { icon: IconName; lab
         };
       }}
     >
-      {(s) => (
-        <>
-          <Icon name={icon} size={18} color={selected ? c.text : c.muted} />
-          <Text style={[type('body-md'), { flex: 1, color: c.text }, selected ? { fontWeight: '600' } : null]}>{label}</Text>
-          {(s as { hovered?: boolean }).hovered || selected ? <Text style={[type('body-sm'), { color: c.muted }]}>{digit}</Text> : null}
-        </>
-      )}
+      <Icon name={icon} size={18} color={selected ? c.text : c.muted} />
+      <Text style={[type('body-md'), { flex: 1, color: c.text }, selected ? { fontWeight: '600' } : null]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** Calm, always-there backup status at the foot of the sidebar; amber only when there is no file or it is old (C3). */
+function BackupStatus({ age, warn, selected }: { age: number | null; warn: boolean; selected: boolean }) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityHint={DESKTOP.nav.data}
+      onPress={() => router.navigate('/data')}
+      style={(s) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space(1),
+        minHeight: 36,
+        paddingHorizontal: space(1),
+        borderRadius: radius.md,
+        backgroundColor: selected ? c.navSelected : (s as { hovered?: boolean }).hovered ? c.navHover : warn ? c.warnSoft : 'transparent',
+      })}
+    >
+      <Icon name="data" size={18} color={warn ? c.warn : c.muted} />
+      <Text style={[type('body-sm'), { color: warn ? c.warn : c.muted, flex: 1 }]}>{DESKTOP.lastBackup(age)}</Text>
     </Pressable>
   );
 }
@@ -253,19 +309,50 @@ function ThemeSwitch({ pref, onChange, dark }: { pref: Settings['theme']; onChan
   );
 }
 
+/** Keeps Tab and Shift+Tab inside the open panel, and puts focus on its Close button when it opens (M12). */
+function useFocusTrap(open: boolean, box: React.RefObject<View | null>, first: React.RefObject<View | null>) {
+  useEffect(() => {
+    if (!open || Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const start = setTimeout(() => (first.current as unknown as HTMLElement | null)?.focus?.(), 50);
+    const onKey = (e: KeyboardEvent) => {
+      const root = box.current as unknown as HTMLElement | null;
+      if (e.key !== 'Tab' || !root?.querySelectorAll) return;
+      const items = Array.from(root.querySelectorAll<HTMLElement>('[tabindex="0"], button, input, a[href]')).filter((el) => !el.hasAttribute('disabled'));
+      if (!items.length) return;
+      const i = items.indexOf(document.activeElement as HTMLElement);
+      const next = e.shiftKey ? (i <= 0 ? items.length - 1 : i - 1) : i === -1 || i === items.length - 1 ? 0 : i + 1;
+      e.preventDefault();
+      items[next].focus();
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      clearTimeout(start);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, [open, box, first]);
+}
+
 function ShortcutsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const c = useColors();
   const [on, setOn] = useState(shortcutsEnabled());
+  const box = useRef<View>(null);
+  const closeButton = useRef<View>(null);
+  useFocusTrap(open, box, closeButton);
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={DESKTOP.close}
-        onPress={onClose}
-        style={{ flex: 1, backgroundColor: '#00000066', alignItems: 'center', justifyContent: 'center', padding: space(3) }}
-      >
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: space(3) }}>
+        {/* The dimmed backdrop closes the panel on a click, but is not a Tab stop: the Close button does that job. */}
         <Pressable
-          onPress={(e) => e.stopPropagation()}
+          focusable={false}
+          accessible={false}
+          onPress={onClose}
+          style={[StyleSheet.absoluteFill, { backgroundColor: '#00000066' }]}
+        />
+        <View
+          ref={box}
+          role="dialog"
+          aria-modal
+          aria-label={DESKTOP.shortcutsTitle}
           accessibilityViewIsModal
           style={{
             width: '100%',
@@ -278,9 +365,27 @@ function ShortcutsPanel({ open, onClose }: { open: boolean; onClose: () => void 
             borderColor: c.border,
           }}
         >
-          <Text accessibilityRole="header" style={[type('heading-lg'), { color: c.text }]}>
-            {DESKTOP.shortcutsTitle}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(1) }}>
+            <Text accessibilityRole="header" style={[type('heading-lg'), { color: c.text, flex: 1 }]}>
+              {DESKTOP.shortcutsTitle}
+            </Text>
+            <Pressable
+              ref={closeButton}
+              accessibilityRole="button"
+              accessibilityLabel={DESKTOP.close}
+              onPress={onClose}
+              style={(s) => ({
+                width: 44,
+                height: 44,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: radius.md,
+                backgroundColor: (s as { hovered?: boolean }).hovered ? c.hover : 'transparent',
+              })}
+            >
+              <Icon name="close" size={20} color={c.text} />
+            </Pressable>
+          </View>
           {DESKTOP.shortcuts.map((s) => (
             <View key={s.keys} style={{ flexDirection: 'row', alignItems: 'center', gap: space(2) }}>
               <View style={{ minWidth: 72, alignItems: 'flex-start' }}>
@@ -314,8 +419,8 @@ function ShortcutsPanel({ open, onClose }: { open: boolean; onClose: () => void 
               setOn(v);
             }}
           />
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }

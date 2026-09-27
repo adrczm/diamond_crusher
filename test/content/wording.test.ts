@@ -196,7 +196,7 @@ describe('wording checks', () => {
       s.PLAN.allowReminders, s.PLAN.noReminders, s.PLAN.sendTest, s.PLAN.openSettings, s.PLAN.reviewPlan,
       s.HOME.startSession, s.WELCOME_BACK.easier, s.WELCOME_BACK.pickUp,
       s.MAINTENANCE.switch, s.MAINTENANCE.keepBuilding, s.MAINTENANCE.topUpAccept, s.MAINTENANCE.topUpDecline,
-      s.BUNDLE.startPart, s.BUNDLE.keep, s.BUNDLE.review,
+      s.BUNDLE.startPart, s.BUNDLE.keep, s.BUNDLE.review, s.BUNDLE.skip, s.BUNDLE.selfCheckNow,
       s.SETTINGS.resume, s.DATA.export, s.DATA.import, s.UNREADABLE.import, s.DATA.pickFile, s.DATA.unlockFile, s.DATA.deleteButton,
       s.LOCK.unlock, s.LOCK.erase, s.UNREADABLE.fresh, s.DESKTOP.start,
       SYNC.entryButton, SYNC.entryButtonPaired, SYNC.pairShow, SYNC.pairScan, SYNC.pairShowNext, SYNC.match, SYNC.noMatch,
