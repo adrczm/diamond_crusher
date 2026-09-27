@@ -314,7 +314,7 @@ function Runner({
             transform: [{ scale: squeezing ? 1 : 0.85 }],
           }}
         >
-          <Text style={{ fontSize: 64, fontWeight: '700', color: squeezing ? c.onPrimary : c.primary }}>{left}</Text>
+          <Text style={{ fontSize: 64, fontWeight: '700', color: squeezing ? c.onSqueeze : c.primary }}>{left}</Text>
         </View>
         <H2>{repLabel(p)}</H2>
         {p?.kind === 'relax' ? <P center>{RELAX_STEP_TEXT[p.relaxStep ?? 'relax_in'].body}</P> : null}

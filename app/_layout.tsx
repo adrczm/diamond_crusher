@@ -6,6 +6,7 @@ import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
 import { useFonts } from 'expo-font';
 import * as Crypto from 'expo-crypto';
 import Constants from 'expo-constants';
+import { DarkTheme, DefaultTheme, ThemeProvider, type Theme } from '@react-navigation/native';
 import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -182,11 +183,20 @@ export default function RootLayout() {
 function Themed({ children }: { children: React.ReactNode }) {
   const c = useColors();
   const dark = useIsDark();
+  // Navigation draws its own backgrounds behind headers and screens; give it the app's colours so nothing light shows
+  // through in dark mode (or dark in light mode).
+  const base = dark ? DarkTheme : DefaultTheme;
+  const nav: Theme = {
+    ...base,
+    colors: { ...base.colors, primary: c.link, background: c.bg, card: c.card, text: c.text, border: c.border, notification: c.danger },
+  };
   return (
-    <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <StatusBar style={dark ? 'light' : 'dark'} />
-      {children}
-    </View>
+    <ThemeProvider value={nav}>
+      <View style={{ flex: 1, backgroundColor: c.bg }}>
+        <StatusBar style={dark ? 'light' : 'dark'} />
+        {children}
+      </View>
+    </ThemeProvider>
   );
 }
 

@@ -34,7 +34,7 @@ function TapArea({ label, onPress }: { label: string; onPress: () => void }) {
       onPress={onPress}
       style={({ pressed }) => ({ minHeight: 220, borderRadius: 24, backgroundColor: pressed ? c.primary : c.soft, alignItems: 'center', justifyContent: 'center' })}
     >
-      <Text style={{ fontSize: 32, fontWeight: '700', color: c.text }}>{label}</Text>
+      {({ pressed }) => <Text style={{ fontSize: 32, fontWeight: '700', color: pressed ? c.onPrimary : c.text }}>{label}</Text>}
     </Pressable>
   );
 }

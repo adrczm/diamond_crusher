@@ -23,6 +23,11 @@ my $server = IO::Socket::INET->new(LocalAddr => '127.0.0.1', LocalPort => $port,
   or die "Could not start on port $port (is Diamond Crusher already running?): $!\n";
 print "Diamond Crusher is running at http://localhost:$port/\n";
 
+# A browser that stops a download midway must not stop the server, and each request runs in its own short-lived
+# process so an idle connection (browsers open spare ones) can't hold up the others.
+$SIG{PIPE} = 'IGNORE';
+$SIG{CHLD} = 'IGNORE';
+
 sub send_file {
   my ($c, $path, $head_only) = @_;
   my ($ext) = $path =~ /\.([A-Za-z0-9]+)$/;
@@ -39,7 +44,15 @@ sub send_file {
   return 1;
 }
 
-while (my $c = $server->accept) {
+while (1) {
+  my $c = $server->accept or next;
+  my $pid = fork;
+  if (!defined $pid || $pid) {
+    close $c;
+    next;
+  }
+  close $server;
+  alarm 30;
   binmode $c;
   my $line = <$c> // '';
   while (my $h = <$c>) { last if $h =~ /^\r?\n$/ }
@@ -47,7 +60,7 @@ while (my $c = $server->accept) {
   if (!$method) {
     print $c "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
     close $c;
-    next;
+    exit 0;
   }
   (my $p = $target) =~ s/[?#].*//;
   $p =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
@@ -58,4 +71,5 @@ while (my $c = $server->accept) {
   $file = "$root/index.html" unless defined $file && -f $file;
   send_file($c, $file, $method eq 'HEAD');
   close $c;
+  exit 0;
 }

@@ -19,6 +19,8 @@ export interface Colors {
   warnSoft: string;
   good: string;
   squeeze: string;
+  /** Text on the squeeze fill. */
+  onSqueeze: string;
   release: string;
   link: string;
   info: string;
@@ -31,8 +33,19 @@ export interface Colors {
   focus: string;
 }
 
-// Shopify Polaris tokens (generated into ./polaris.ts). Polaris's dark theme is still experimental and leaves some tokens
-// at their light values; those few are overridden below so text stays readable on dark surfaces.
+// Shopify Polaris tokens (generated into ./polaris.ts). Polaris's dark theme is still experimental and leaves the tinted
+// surfaces (warning, info, success, critical) and their text at light values, so light text landed on light tints.
+// Dark mode uses its own tints below; test/ui/contrast.test.ts checks every text and background pair the app draws.
+const DARK = {
+  soft: '#3A3A3A',
+  selected: '#454545',
+  warn: '#FFD68A',
+  warnSoft: '#3D2E0A',
+  info: '#B4DCFF',
+  infoSoft: '#0F2C45',
+  goodSoft: '#0F3A2C',
+  dangerSoft: '#4A1119',
+};
 function fromPolaris(t: (typeof polaris)['light'] | (typeof polaris)['dark'], dark: boolean): Colors {
   return {
     bg: t['bg'],
@@ -41,28 +54,32 @@ function fromPolaris(t: (typeof polaris)['light'] | (typeof polaris)['dark'], da
     muted: t['text-secondary'],
     primary: t['bg-fill-brand'],
     onPrimary: t['text-brand-on-bg-fill'],
-    soft: dark ? t['bg-surface-active'] : t['bg-surface-secondary'],
+    soft: dark ? DARK.soft : t['bg-surface-secondary'],
     border: dark ? t['border-secondary'] : t['border'],
     danger: t['bg-fill-critical'],
-    warn: t['text-warning'],
-    warnSoft: t['bg-surface-warning'],
+    warn: dark ? DARK.warn : t['text-warning'],
+    warnSoft: dark ? DARK.warnSoft : t['bg-surface-warning'],
     good: dark ? '#29B28A' : t['bg-fill-success'],
     squeeze: dark ? '#4B9CFF' : t['bg-fill-emphasis'],
+    onSqueeze: dark ? t['bg'] : t['text-brand-on-bg-fill'],
     release: t['bg-fill-info'],
     link: dark ? '#6FB1FF' : t['text-link'],
-    info: t['text-info'],
-    infoSoft: t['bg-surface-info'],
-    goodSoft: t['bg-surface-success'],
-    dangerSoft: t['bg-surface-critical'],
-    selected: t['bg-surface-selected'],
+    info: dark ? DARK.info : t['text-info'],
+    infoSoft: dark ? DARK.infoSoft : t['bg-surface-info'],
+    goodSoft: dark ? DARK.goodSoft : t['bg-surface-success'],
+    dangerSoft: dark ? DARK.dangerSoft : t['bg-surface-critical'],
+    selected: dark ? DARK.selected : t['bg-surface-selected'],
     inputBg: dark ? t['bg-surface'] : t['input-bg-surface'],
     inputBorder: t['input-border'],
-    focus: t['border-focus'],
+    focus: dark ? '#6FB1FF' : t['border-focus'],
   };
 }
 
 const light = fromPolaris(polaris.light, false);
 const dark = fromPolaris(polaris.dark, true);
+
+/** Both palettes, for the contrast test. */
+export const palettes = { light, dark };
 
 export type ThemePref = 'system' | 'light' | 'dark';
 
