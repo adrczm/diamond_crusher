@@ -1,0 +1,41 @@
+{
+  "moduleId": "app_global_change",
+  "name": "Global change",
+  "version": 1,
+  "language": "en",
+  "validated": false,
+  "profiles": ["male", "female", "other_unspecified"],
+  "goals": ["bladder_control", "ejaculatory_control", "erection", "long_term_health"],
+  "recall": { "text": "Compared with when you started using this app", "days": 84 },
+  "intervalDays": 84,
+  "instructions": "One question about how things are now compared with when you started.",
+  "items": [
+    {
+      "itemId": "G1",
+      "text": "Compared with when you started using this app, how are things with your pelvic floor now?",
+      "responseType": "single",
+      "options": [
+        { "label": "Much better", "value": 1 },
+        { "label": "Better", "value": 2 },
+        { "label": "A little better", "value": 3 },
+        { "label": "About the same", "value": 4 },
+        { "label": "A little worse", "value": 5 },
+        { "label": "Worse", "value": 6 },
+        { "label": "Much worse", "value": 7 }
+      ],
+      "scored": false
+    }
+  ],
+  "scoring": { "method": "none", "missingRule": "none" },
+  "licence": {
+    "holder": "Diamond Crusher (app-own item)",
+    "licenceType": "free-open",
+    "status": "granted",
+    "reference": null,
+    "grantedOn": null,
+    "permittedUse": "App-own question, written for this app.",
+    "conditions": "",
+    "copyrightNotice": "App question, not validated",
+    "reviewBy": null
+  }
+}
