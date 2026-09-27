@@ -664,22 +664,27 @@ export function Loading() {
   );
 }
 
-export function Dots({ filled, total, today }: { filled: boolean[]; total: number; today?: number }) {
+/** Week dots. With `labels`, each dot gets its day letter underneath and today's letter is bold (H9). */
+export function Dots({ filled, total, today, labels, label }: { filled: boolean[]; total: number; today?: number; labels?: string[]; label?: string }) {
   const c = useColors();
   return (
-    <View style={{ flexDirection: 'row', gap: 10 }} accessibilityLabel={`${filled.filter(Boolean).length} of ${total} days`}>
+    <View style={{ flexDirection: 'row', gap: 10 }} accessible accessibilityLabel={label ?? `${filled.filter(Boolean).length} of ${total} days`}>
       {filled.map((f, i) => (
-        <View
-          key={i}
-          style={{
-            width: 18,
-            height: 18,
-            borderRadius: 9,
-            backgroundColor: f ? c.good : 'transparent',
-            borderWidth: 2,
-            borderColor: i === today ? c.text : f ? c.good : c.border,
-          }}
-        />
+        <View key={i} style={{ alignItems: 'center', gap: 4 }}>
+          <View
+            style={{
+              width: 18,
+              height: 18,
+              borderRadius: 9,
+              backgroundColor: f ? c.good : 'transparent',
+              borderWidth: 2,
+              borderColor: i === today ? c.text : f ? c.good : c.border,
+            }}
+          />
+          {labels ? (
+            <Text style={[type('body-sm'), { color: i === today ? c.text : c.muted, fontWeight: i === today ? '700' : '400' }]}>{labels[i]}</Text>
+          ) : null}
+        </View>
       ))}
     </View>
   );

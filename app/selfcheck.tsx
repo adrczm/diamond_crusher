@@ -264,14 +264,14 @@ export default function SelfCheck() {
         <>
           <H1>{title}</H1>
           <P>{SELF_CHECK.intro}</P>
-          <P small muted>
-            {APP_QUESTION_LABEL}
-          </P>
           <H2>{SELF_CHECK.conditionsTitle}</H2>
           {q(SELF_CHECK.conditions.bladder, 'bladder')}
           {q(SELF_CHECK.conditions.notAfterSession, 'notAfter')}
           {q(position === 'standing' ? SELF_CHECK.conditions.samePositionStanding : SELF_CHECK.conditions.samePosition, 'same')}
           {all && (!cond.bladder || !cond.notAfter || !cond.same) ? <Banner tone="soft" text={SELF_CHECK.proceedAnyway} /> : null}
+          <P small muted>
+            {APP_QUESTION_LABEL}
+          </P>
         </>
       );
       footer = <Button label={COMMON.continue} disabled={!all} onPress={() => setStep('sign')} />;
