@@ -24,3 +24,6 @@ coverage/
 # Copied from node_modules by scripts/copy-sqljs.js
 public/sql-wasm.js
 public/sql-wasm.wasm
+
+# Mac archive output
+/build/

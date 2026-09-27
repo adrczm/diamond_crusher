@@ -23,7 +23,7 @@ export function applyWebWording() {
     replaceNote: 'Everything in this browser is replaced by the file.',
     keepPhone: 'This Mac',
     deleteBody: 'This erases everything in the app in this browser and cancels all reminders. It can’t be undone.',
-    updateNote: 'Updates arrive when you reload the page. Save a backup file now and then.',
+    updateNote: 'Before replacing the app folder with a newer download, save a backup file first.',
   });
   Object.assign(UNREADABLE, {
     body: 'The data in this browser can’t be read, for example after website data was partly cleared.',

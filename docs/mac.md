@@ -1,41 +1,48 @@
 # Using Diamond Crusher on a Mac (Safari)
 
-The web version is the same app, running in Safari. It needs no account and nothing is installed from the App Store.
-Your data stays in Safari on your Mac, encrypted, and is never sent anywhere.
+The Mac version is the same app, running in Safari from a folder on your Mac. It needs no account, no App Store and
+nothing to install. Your data stays in Safari on your Mac, encrypted, and is never sent anywhere.
 
-## 1. Turn on the web address (once)
+## 1. Download
 
-The site is published with GitHub Pages every time `main` changes.
+- **From Releases:** open the repository's **Releases** page and download the newest `diamond-crusher-mac-….zip`.
+- **From any build:** Actions → **Mac web version** → the newest run with a green tick → **Artifacts**. GitHub wraps it
+  in a second zip, so unzip twice.
 
-1. On GitHub, open the repository's **Settings** → **Pages**.
-2. Under **Build and deployment**, set **Source** to **GitHub Actions**.
-3. Re-run the latest **Mac web version** workflow on `main` (Actions → Mac web version → Run workflow).
+Unzip it and move the **Diamond Crusher** folder somewhere it can stay, such as your Applications or Documents folder.
 
-GitHub Pages needs a public repository, or a paid GitHub plan for a private one. The site only contains the app's code,
-which has nothing personal in it.
+## 2. Start it
 
-The address is `https://<your GitHub name>.github.io/diamond_crusher/`.
+1. Double-click **Start Diamond Crusher**.
+2. The first time, macOS says it can't check the file, because it didn't come from the App Store. Open
+   **System Settings** → **Privacy & Security**, scroll down, and click **Open Anyway** next to "Start Diamond
+   Crusher". Then double-click it again and confirm.
+3. Safari opens the app at `http://localhost:47820/`. A small Terminal window stays open while it runs; close it to stop.
 
-## 2. Open it and add it to the Dock
+To make it feel like an app, choose **File** → **Add to Dock** in Safari (macOS 14 Sonoma or newer). Double-click
+Start Diamond Crusher first each time, then use the Dock icon.
 
-1. Open the address in Safari.
-2. Choose **File** → **Add to Dock** (macOS 14 Sonoma or newer). Diamond Crusher then opens in its own window, like an app.
-3. When it asks, allow notifications if you want reminders.
+## How it works
+
+- The folder holds the app's files, a tiny web server (`app-server.pl`) and the launcher.
+- The server uses Perl, which comes with macOS. It only answers this Mac (127.0.0.1) and only serves the app folder.
+- Safari keeps your data for `http://localhost:47820`. Always start it with the launcher so the address stays the same.
 
 ## What's different from the phone
 
-- **Reminders** only show while Diamond Crusher is open, in a Safari tab or from the Dock. Browsers can't wake a closed
-  page. The phone app remains the one to rely on for reminders.
+- **Reminders** only show while Diamond Crusher is open in Safari. Browsers can't wake a closed page. The phone app
+  remains the one to rely on for reminders.
 - **No app lock.** Fingerprint and face unlock are phone only. Your Mac login protects Safari.
 - **Clearing Safari's website data erases the app's data.** Save a backup file now and then (Settings → Your data →
   Save a backup file). The same file opens on the phone, so you can also move between Mac and phone this way.
-- **Updates** arrive when you reload the page after a new version is published.
+- **Updating:** save a backup file first, then replace the Diamond Crusher folder with the new download. Your data stays
+  in Safari.
 - The Mac and the phone don't sync. Each keeps its own data, as the app has no server.
 
 ## How the web version stores data
 
-- The database is SQLite (sql.js, WebAssembly), saved after every change as one AES-256-GCM encrypted file in the
-  browser's IndexedDB.
+- The database is SQLite (sql.js, WebAssembly), saved after every change as one AES-256-GCM encrypted file in Safari's
+  IndexedDB.
 - Its key is itself encrypted with a key the browser keeps and won't hand out (a non-extractable WebCrypto key).
 - The page's security policy only lets it load its own files, so it can't send data to other sites.
 
@@ -43,6 +50,6 @@ The address is `https://<your GitHub name>.github.io/diamond_crusher/`.
 
 ```bash
 npm ci
-npm run web                                   # development server
-DC_WEB_BASE=/diamond_crusher npm run build:web   # static site in dist/
+npm run web          # development server
+npm run build:mac    # build/diamond-crusher-mac-<version>.zip
 ```

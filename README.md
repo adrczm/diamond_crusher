@@ -9,7 +9,7 @@ release build has no internet permission. Every install starts empty: nothing pe
 Diamond Crusher is a training aid. It does not diagnose any condition and is not medical advice.
 
 - **Install on Android:** see [docs/install.md](docs/install.md).
-- **Use on a Mac (Safari):** see [docs/mac.md](docs/mac.md).
+- **Use on a Mac (Safari):** download the Mac zip from Releases; see [docs/mac.md](docs/mac.md).
 - **Specs:** the build follows the project specs (00 to 10). Requirement IDs such as `ONB-012` or `PRG-006` appear in code comments.
 
 ## Stack
@@ -26,6 +26,7 @@ src/data/       SQLite schema, migrations, repositories, backup file format, key
 src/features/   services that combine domain rules with the data layer, and shared screen parts
 src/platform/   notifications, secure storage, authentication, files, sound and vibration (*.web.ts: browser versions)
 src/content/en/ all wording, education screens and questionnaire modules
+mac/            launcher and local server for the Mac download
 plugins/        Expo config plugins: no network, no cloud backup, secure window, release signing
 test/           Jest tests (Node): domain rules, data layer, content checks
 ```

@@ -1,7 +1,7 @@
 name: Mac web version
 
-# Builds the web version (for Safari on a Mac) on every push and pull request. Pushes to main also publish it with
-# GitHub Pages, once Pages is turned on for the repository (Settings, Pages, Source: GitHub Actions). See docs/mac.md.
+# Builds the web version for Safari on a Mac as a downloadable folder: the app files, a tiny local server that uses the
+# Mac's own Perl, and a double-click launcher (see docs/mac.md). Pushes to main also publish the zip as a GitHub Release.
 on:
   push:
     branches: [main]
@@ -13,11 +13,11 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
-    name: Build web version
+    name: Build Mac archive
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,33 +28,46 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - name: Build
-        env:
-          # GitHub Pages serves the site at /<repository name>/.
-          DC_WEB_BASE: /${{ github.event.repository.name }}
-        run: npm run build:web
+        run: npm run build:mac
       - name: Check the page loads nothing from other sites
         run: |
           if grep -rhoE "https?://[a-zA-Z0-9.-]+" dist/index.html | grep -v "^http://www.w3.org" ; then
-            echo "index.html must only load the site's own files (DATA-010)."; exit 1
+            echo "index.html must only load the app's own files (DATA-010)."; exit 1
           fi
-      - uses: actions/upload-pages-artifact@v3
+      - name: Check the local server serves the app
+        run: |
+          cd "build/Diamond Crusher"
+          perl ./app-server.pl 47820 ./app &
+          SERVER=$!
+          sleep 1
+          curl -sf http://127.0.0.1:47820/ | grep -q '<div id="root">'
+          curl -sf -o /dev/null http://127.0.0.1:47820/sql-wasm.wasm
+          curl -sf http://127.0.0.1:47820/settings | grep -q '<div id="root">'
+          if curl -s --path-as-is http://127.0.0.1:47820/../../../../etc/passwd | grep -q root:; then
+            echo "The server must only serve the app folder."; exit 1
+          fi
+          kill $SERVER
+      - name: Name the archive
+        id: name
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          FILE="diamond-crusher-mac-${VERSION}-build${{ github.run_number }}.zip"
+          mv "build/diamond-crusher-mac-${VERSION}.zip" "$FILE"
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      # The zip keeps the launcher's executable bit; GitHub wraps artifacts in another zip, so unzip twice.
+      - uses: actions/upload-artifact@v4
         with:
-          path: dist
+          name: ${{ steps.name.outputs.file }}
+          path: ${{ steps.name.outputs.file }}
           retention-days: 30
-
-  deploy:
-    name: Publish to GitHub Pages (main only)
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    # Pages may not be turned on yet; that shouldn't mark main as broken.
-    continue-on-error: true
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - id: deploy
-        uses: actions/deploy-pages@v4
+      - name: Publish a release (main only)
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mac-build-${{ github.run_number }}
+          name: Diamond Crusher for Mac ${{ steps.name.outputs.version }} (build ${{ github.run_number }})
+          body: |
+            Download the zip, unzip it, and double-click "Start Diamond Crusher". See docs/mac.md.
+            Save a backup file in the app before replacing an older folder.
+          files: ${{ steps.name.outputs.file }}

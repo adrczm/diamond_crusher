@@ -13,6 +13,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build:web": "expo export --platform web && node scripts/finish-web.js",
+    "build:mac": "npm run build:web && node scripts/package-mac.js",
     "tokens": "node scripts/polaris-tokens.js",
     "postinstall": "node scripts/copy-sqljs.js"
   },
