@@ -46,6 +46,18 @@ export function questionText(key: QuestionKey, anatomy: Anatomy): string {
   return q[anatomy] ?? q.male ?? '';
 }
 
+/** UX audit M10: "Something changed?" first asks what changed, then only the related safety questions. */
+export const CHANGE_TOPICS = {
+  question: 'What changed?',
+  note: 'Choose all that apply. The app then asks the urgent safety questions and the questions about this change.',
+  options: [
+    { value: 'pain', label: 'Pain' },
+    { value: 'leaks', label: 'Leaks, or how I pee or poo' },
+    { value: 'surgery_health', label: 'Surgery or a new health problem' },
+    { value: 'other', label: 'Something else, or I am not sure', hint: 'The app asks all the safety questions.' },
+  ],
+} as const;
+
 export const SURGERY_DATE_PROMPT = 'If you know the date, add it here. You can skip this.';
 
 export const OUTCOME = {

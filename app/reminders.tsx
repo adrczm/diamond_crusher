@@ -9,7 +9,8 @@ import { useApp, useLoad, withoutRelock } from '../src/features/app';
 import { reconcileReminders } from '../src/features/reminderService';
 import { defaultPlan, PlanEditor, planValid, resizePlan } from '../src/features/screens/PlanEditor';
 import { getPermission, requestPermission, sendTest } from '../src/platform/notifications';
-import { Banner, Button, Card, Field, H2, Label, Loading, P, Screen, Segments, ToggleRow } from '../src/ui/kit';
+import { Banner, Button, Card, H2, Label, Loading, P, Row, Screen, Segments, ToggleRow } from '../src/ui/kit';
+import { TimeField } from '../src/ui/TimeField';
 
 export default function RemindersScreen() {
   const { db, bump } = useApp();
@@ -37,10 +38,22 @@ export default function RemindersScreen() {
   const [plan, setPlan] = useState<SlotPlan[] | null>(null);
   const [dirty, setDirty] = useState(false);
   const [tested, setTested] = useState(false);
+  // The knack time saves a moment after the last step, not on every tap of the stepper.
   const [knackTime, setKnackTime] = useState<string | null>(null);
   useEffect(() => {
     if (data && !dirty) setPlan(resizePlan(data.plan, data.settings.sessions_per_day_target));
   }, [data, dirty]);
+  useEffect(() => {
+    if (!knackTime) return;
+    const t = setTimeout(async () => {
+      await updateSettings(db, { knack_nudge_time: knackTime });
+      await reconcileReminders(db);
+      bump();
+      reload();
+    }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [knackTime]);
   if (!data || !plan) return <Loading />;
   const s = data.settings;
   const set = async (patch: Partial<Settings>) => {
@@ -49,10 +62,20 @@ export default function RemindersScreen() {
     bump();
     reload();
   };
+  const web = Platform.OS === 'web';
   const paused = s.reminders_paused && (!s.reminders_paused_until || new Date(s.reminders_paused_until) > new Date());
 
   return (
     <Screen title={SETTINGS.reminders}>
+      {web ? (
+        // UX audit M11: a browser tab cannot wake up to remind, so say so before asking for permission.
+        <Card tone="soft">
+          <H2>{PLAN.webTitle}</H2>
+          <P>{PLAN.webBody}</P>
+          <Label>{PLAN.phoneTitle}</Label>
+          <P>{PLAN.phoneBody}</P>
+        </Card>
+      ) : null}
       {data.perm !== 'granted' ? (
         <Card tone="warn">
           <P>{PLAN.remindersOff}</P>
@@ -72,9 +95,11 @@ export default function RemindersScreen() {
           )}
         </Card>
       ) : null}
-      <P small muted>
-        {PLAN.mayBeLate}
-      </P>
+      {web ? null : (
+        <P small muted>
+          {PLAN.mayBeLate}
+        </P>
+      )}
 
       <H2>{PLAN.title}</H2>
       <PlanEditor
@@ -127,19 +152,22 @@ export default function RemindersScreen() {
             />
           </>
         ) : (
-          <Segments
-            options={SETTINGS.pauseOptions.map((o) => ({
-              value: o.days,
-              label: o.label,
-            }))}
-            value={undefined}
-            onChange={(days) =>
-              set({
-                reminders_paused: true,
-                reminders_paused_until: days ? new Date(Date.now() + days * 86400000).toISOString() : null,
-              })
-            }
-          />
+          // Actions, not a choice to keep (UX audit M2): buttons, not radio buttons.
+          <Row>
+            {SETTINGS.pauseOptions.map((o) => (
+              <Button
+                key={o.days}
+                label={o.label}
+                kind="secondary"
+                onPress={() =>
+                  set({
+                    reminders_paused: true,
+                    reminders_paused_until: o.days ? new Date(Date.now() + o.days * 86400000).toISOString() : null,
+                  })
+                }
+              />
+            ))}
+          </Row>
         )}
       </Card>
 
@@ -155,16 +183,7 @@ export default function RemindersScreen() {
           }
         />
         {s.knack_nudge_enabled ? (
-          <Field
-            label={`${PLAN.time} (HH:MM)`}
-            value={knackTime ?? s.knack_nudge_time ?? '10:00'}
-            maxLength={5}
-            keyboardType="numbers-and-punctuation"
-            onChangeText={setKnackTime}
-            onEndEditing={() => {
-              if (knackTime && /^([01]\d|2[0-3]):[0-5]\d$/.test(knackTime)) void set({ knack_nudge_time: knackTime });
-            }}
-          />
+          <TimeField label={PLAN.time} value={knackTime ?? s.knack_nudge_time ?? '10:00'} onChange={setKnackTime} />
         ) : null}
         <ToggleRow
           label={SETTINGS.weeklySummaryNote}

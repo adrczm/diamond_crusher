@@ -1,4 +1,16 @@
-import { deriveReasons, isVisible, modeFromReasons, painRouteTriggered, preSurgeryAdvice, questionsFor } from '../../src/domain/safety';
+import {
+  deriveReasons,
+  isVisible,
+  modeFromReasons,
+  painRouteTriggered,
+  preSurgeryAdvice,
+  questionsFor,
+  questionsForChange,
+  skippedSafety,
+  URGENT,
+  type Answers,
+  type QuestionKey,
+} from '../../src/domain/safety';
 
 describe('safety routing (spec 01)', () => {
   it('orders modes Stop > Wait > Relax-only > Caution > Start (ONB-012)', () => {
@@ -64,5 +76,56 @@ describe('skipped safety questions (UX audit C1)', () => {
     const { skippedSafety } = require('../../src/domain/safety');
     expect(skippedSafety({ 'Q-R1': 'skipped', 'Q-S1': 'skipped', 'Q-P2': 'skipped', 'Q-G1': 'skipped', 'Q-R2': 'no' })).toEqual(['Q-R1', 'Q-S1', 'Q-P2']);
     expect(skippedSafety({ 'Q-R1': 'no' })).toEqual([]);
+  });
+});
+
+describe('"Something changed?" asks only about the change (UX audit M10)', () => {
+  const allNo = (keys: QuestionKey[]): Answers => Object.fromEntries(keys.map((k) => [k, 'no']));
+
+  it('always asks the urgent questions first, then the questions for the change', () => {
+    const pain = questionsForChange(['pain'], 'male');
+    expect(pain.slice(0, 4)).toEqual(URGENT);
+    expect(pain).toEqual(['Q-R1', 'Q-R2', 'Q-R3', 'Q-R4', 'Q-P1', 'Q-P2', 'Q-P3']);
+    expect(questionsForChange(['pain'], 'female')).toContain('Q-F3');
+    expect(questionsForChange(['leaks'], 'male')).toEqual(['Q-R1', 'Q-R2', 'Q-R3', 'Q-R4', 'Q-P3', 'Q-G1', 'Q-G3']);
+    const surgery = questionsForChange(['surgery_health'], 'male');
+    expect(surgery).toEqual(expect.arrayContaining(['Q-S1', 'Q-S2', 'Q-S2b', 'Q-S3', 'Q-G2', 'Q-G4']));
+    expect(surgery).not.toContain('Q-P1');
+  });
+
+  it('joins topics without repeats and runs the full screen for "other" or nothing', () => {
+    const both = questionsForChange(['pain', 'leaks'], 'male');
+    expect(new Set(both).size).toBe(both.length);
+    expect(both.filter((k) => k === 'Q-P3')).toHaveLength(1);
+    expect(questionsForChange(['other'], 'male')).toEqual(questionsFor('full', 'male'));
+    expect(questionsForChange(['pain', 'other'], 'female')).toEqual(questionsFor('full', 'female'));
+    expect(questionsForChange([], 'male')).toEqual(questionsFor('full', 'male'));
+  });
+
+  it('keeps earlier reasons for questions it did not ask, and still acts on the ones it did', () => {
+    // A catheter wait and a leak caution from before stay after a pain-only check with all "no".
+    const noPain = allNo(questionsForChange(['pain'], 'male'));
+    const after = deriveReasons(['Q-S1', 'Q-G1'], noPain);
+    expect(after).toEqual(['Q-S1', 'Q-G1']);
+    expect(modeFromReasons(after)).toBe('blocked_until_cleared');
+    // A new pain "yes" in the subset routes to relax-only, as in the full screen.
+    expect(modeFromReasons(deriveReasons([], { ...noPain, 'Q-P2': 'yes' }))).toBe('relax_only');
+    // An urgent "yes" in the subset still stops training.
+    expect(modeFromReasons(deriveReasons([], { ...noPain, 'Q-R3': 'yes' }))).toBe('blocked_urgent');
+    // A surgery-only check with "no" clears an old catheter reason, as the full screen does.
+    const noSurgery = allNo(questionsForChange(['surgery_health'], 'male'));
+    expect(modeFromReasons(deriveReasons(['Q-S1'], noSurgery))).toBe('normal');
+  });
+
+  it('does not count questions it did not ask as skipped', () => {
+    const answers = allNo(questionsForChange(['leaks'], 'male'));
+    expect(skippedSafety(answers)).toEqual([]);
+    expect(skippedSafety({ ...answers, 'Q-R2': 'skipped' })).toEqual(['Q-R2']);
+  });
+
+  it('asks the catheter follow-up only after a yes, as in the full screen', () => {
+    const q = questionsForChange(['surgery_health'], 'male');
+    expect(q.filter((k) => isVisible(k, {}))).not.toContain('Q-S2b');
+    expect(q.filter((k) => isVisible(k, { 'Q-S2': 'yes' }))).toContain('Q-S2b');
   });
 });

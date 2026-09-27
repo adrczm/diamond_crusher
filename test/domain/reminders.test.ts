@@ -1,5 +1,5 @@
 import { addDays, atLocalTime } from '../../src/domain/dates';
-import { planNotifications, type PlanInput } from '../../src/domain/reminders';
+import { nextReminderAt, planNotifications, type PlanInput } from '../../src/domain/reminders';
 
 const today = '2026-03-02'; // a Monday
 const base = (over: Partial<PlanInput> = {}): PlanInput => ({
@@ -56,5 +56,35 @@ describe('reminder plan (08)', () => {
 
   it('respects a pause', () => {
     expect(planNotifications(base({ paused: true }))).toEqual([]);
+  });
+});
+
+describe('next reminder (UX audit M11)', () => {
+  const plan = [
+    { timeLocal: '07:45', weekdays: 127, enabled: true },
+    { timeLocal: '12:30', weekdays: 127, enabled: true },
+    { timeLocal: '22:30', weekdays: 1, enabled: true }, // Mondays only
+  ];
+  it('gives the next slot later today', () => {
+    expect(nextReminderAt(plan, atLocalTime(today, '09:00'))).toEqual(atLocalTime(today, '12:30'));
+    expect(nextReminderAt(plan, atLocalTime(today, '12:31'))).toEqual(atLocalTime(today, '22:30'));
+  });
+  it('moves to the first slot tomorrow after the last one today, and skips days not in the plan', () => {
+    expect(nextReminderAt(plan, atLocalTime(today, '23:00'))).toEqual(atLocalTime(addDays(today, 1), '07:45'));
+    const mondays = [{ timeLocal: '22:30', weekdays: 1, enabled: true }];
+    expect(nextReminderAt(mondays, atLocalTime(today, '23:00'))).toEqual(atLocalTime(addDays(today, 7), '22:30'));
+  });
+  it('ignores switched-off slots and returns null with nothing to remind', () => {
+    expect(nextReminderAt([{ ...plan[1], enabled: false }], atLocalTime(today, '09:00'))).toBeNull();
+    expect(nextReminderAt([{ ...plan[1], weekdays: 0 }], atLocalTime(today, '09:00'))).toBeNull();
+    expect(nextReminderAt([], atLocalTime(today, '09:00'))).toBeNull();
+  });
+  it('follows a pause and a blocked safety mode (REM-017)', () => {
+    const now = atLocalTime(today, '09:00');
+    expect(nextReminderAt(plan, now, { paused: true, pausedUntil: null })).toBeNull();
+    const until = atLocalTime(addDays(today, 2), '10:00');
+    expect(nextReminderAt(plan, now, { paused: true, pausedUntil: until })).toEqual(atLocalTime(addDays(today, 2), '12:30'));
+    expect(nextReminderAt(plan, now, { mode: 'blocked_urgent' })).toBeNull();
+    expect(nextReminderAt(plan, now, { mode: 'relax_only' })).toEqual(atLocalTime(today, '12:30'));
   });
 });

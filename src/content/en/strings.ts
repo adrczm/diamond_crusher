@@ -100,6 +100,23 @@ export const PLAN = {
   remindersOff: 'Reminders are off',
   customTextWarning: 'This text can show on your lock screen, where other people can read it.',
   daysShort: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+  daysLong: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+  sessionLabel: (n: number) => `Session ${n}`,
+  timeLine: (time: string) => `Reminder at ${time}`,
+  change: 'Change',
+  changeLabel: (n: number) => `Change session ${n}`,
+  hour: 'Hour',
+  minutes: 'Minutes',
+  hourEarlier: '1 hour earlier',
+  hourLater: '1 hour later',
+  minutesEarlier: '5 minutes earlier',
+  minutesLater: '5 minutes later',
+  nextReminder: (time: string) => `Next reminder ${time}`,
+  // Web only (UX audit M11): a browser can show reminders only while the app is open.
+  webTitle: 'Reminders on a Mac',
+  webBody: 'On a Mac, reminders show only while Diamond Crusher is open in Safari or in the Dock. If you close the tab, no reminder comes.',
+  phoneTitle: 'Set reminders on your phone',
+  phoneBody: 'Your phone can remind you when the app is closed. On your phone, open Diamond Crusher, then go to Settings and Reminders.',
 };
 
 export const HOME = {
@@ -234,6 +251,11 @@ export const PROGRESS = {
   table: 'Show as table',
   chart: 'Show as chart',
   noData: 'Nothing to show yet.',
+  // UX audit M5: in place of an empty chart.
+  consistencyEmptyTitle: 'Your chart starts after 2 weeks',
+  consistencyEmpty: 'Each day you train adds to it. Until then, this week shows at the top.',
+  leaksEmptyTitle: 'No leaks logged',
+  leaksEmpty: 'If you log a leak, it shows here. Logging is optional.',
   range: { since_baseline: 'Since start', '12w': '12 weeks', '12m': '12 months' } as Record<string, string>,
   summaries: 'Weekly summaries',
   history: 'History',

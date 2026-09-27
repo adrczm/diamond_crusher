@@ -15,7 +15,7 @@ import { MODULES } from '../src/content/en/questionnaires';
 import { useLoad } from '../src/features/app';
 import { forTrend } from '../src/features/checkService';
 import { toDay } from '../src/features/trainingService';
-import { ChartOrTable, type Point } from '../src/ui/charts';
+import { ChartEmpty, ChartOrTable, type Point } from '../src/ui/charts';
 import { Card, Columns, Grid, H2, Label, Loading, P, Screen, Segments } from '../src/ui/kit';
 
 function median(xs: number[]): number | null {
@@ -52,6 +52,9 @@ export default function Progress() {
   const weekStarts: LocalDate[] = Array.from({ length: weeks }, (_, i) => addDays(thisWeek, -7 * (weeks - 1 - i)));
   const from = weekStarts[0];
   const byDate = groupByDate(data.sessions.map(toDay));
+  // UX audit M5: below 2 weeks of training, a chart of 12 weeks is only an empty axis.
+  const firstTrained = [...byDate.keys()].sort()[0];
+  const earlyDays = !firstTrained || diffDays(firstTrained, today) < 14;
   const target = data.prog.phase === 'maintenance' ? data.settings.maintenance_days_target ?? data.settings.weekly_days_target : data.settings.weekly_days_target;
   const consistency: Point[] = weekStarts.map((w) => {
     let n = 0;
@@ -149,7 +152,11 @@ export default function Progress() {
         <P small muted>
           {PROGRESS.consistencySub}
         </P>
-        <ChartOrTable kind="bar" points={consistency} target={target} max={7} label={PROGRESS.consistency} tableLabel={PROGRESS.table} chartLabel={PROGRESS.chart} />
+        {earlyDays ? (
+          <ChartEmpty title={PROGRESS.consistencyEmptyTitle} body={PROGRESS.consistencyEmpty} />
+        ) : (
+          <ChartOrTable kind="bar" points={consistency} target={target} max={7} label={PROGRESS.consistency} tableLabel={PROGRESS.table} chartLabel={PROGRESS.chart} />
+        )}
       </Card>
 
       <Card>
@@ -193,7 +200,11 @@ export default function Progress() {
         <P small muted>
           {PROGRESS.leaksSub}
         </P>
-        <ChartOrTable kind="bar" points={leaks} label={PROGRESS.leaks} tableLabel={PROGRESS.table} chartLabel={PROGRESS.chart} />
+        {leaks.some((p) => (p.value ?? 0) > 0) ? (
+          <ChartOrTable kind="bar" points={leaks} label={PROGRESS.leaks} tableLabel={PROGRESS.table} chartLabel={PROGRESS.chart} />
+        ) : (
+          <ChartEmpty title={PROGRESS.leaksEmptyTitle} body={PROGRESS.leaksEmpty} />
+        )}
       </Card>
 
       {male && (data.goals.includes('erection') || data.goals.includes('ejaculatory_control')) ? (

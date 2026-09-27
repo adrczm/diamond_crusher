@@ -76,6 +76,28 @@ export function questionsFor(size: ScreenSize, anatomy: Anatomy): QuestionKey[] 
   return order.filter((k) => appliesTo(k, anatomy));
 }
 
+/** What the person says changed, on "Something changed?" (UX audit M10). */
+export type ChangeTopic = 'pain' | 'leaks' | 'surgery_health' | 'other';
+
+/** Questions per change topic. The urgent questions (Q-R1 to Q-R4) are always asked as well. */
+const CHANGE_QUESTIONS: Record<Exclude<ChangeTopic, 'other'>, QuestionKey[]> = {
+  pain: ['Q-P1', 'Q-P2', 'Q-P3', 'Q-F3'],
+  leaks: ['Q-G1', 'Q-G3', 'Q-P3', 'Q-F1'],
+  surgery_health: ['Q-S1', 'Q-S2', 'Q-S2b', 'Q-S3', 'Q-G2', 'Q-G4', 'Q-F1', 'Q-F2'],
+};
+
+/**
+ * Questions for "Something changed?" (ONB-031, narrowed by UX audit M10): the urgent questions, then only the ones
+ * about what changed, in the full-screen order. "Other", or no answer, gives the full screen. Questions not asked
+ * keep their earlier result (see deriveReasons) and do not count as skipped.
+ */
+export function questionsForChange(topics: readonly ChangeTopic[], anatomy: Anatomy): QuestionKey[] {
+  const full = questionsFor('full', anatomy);
+  if (topics.length === 0 || topics.includes('other')) return full;
+  const keys = new Set<QuestionKey>([...URGENT, ...topics.flatMap((t) => CHANGE_QUESTIONS[t as Exclude<ChangeTopic, 'other'>])]);
+  return full.filter((k) => keys.has(k));
+}
+
 /** Whether a question should be shown given the answers so far (Q-S2b depends on Q-S2). */
 export function isVisible(key: QuestionKey, answers: Answers): boolean {
   if (key === 'Q-S2b') return answers['Q-S2'] === 'yes';
