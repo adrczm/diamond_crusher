@@ -53,7 +53,7 @@ export default function Library() {
   ) : null;
   if (desktop && e) {
     return (
-      <Screen title="Learn library" width="wide">
+      <Screen title={DESKTOP.nav.library} width="wide">
         <View style={{ flexDirection: 'row', gap: space(4), alignItems: 'flex-start' }}>
           <View style={{ width: 280, gap: 2 }} accessibilityRole="menu">
             <Text style={[type('heading-sm'), { color: c.muted, paddingHorizontal: space(1.5), marginBottom: space(1) }]}>{DESKTOP.articles}</Text>
@@ -86,7 +86,7 @@ export default function Library() {
   }
   if (e) return <Screen title={e.title}>{article}</Screen>;
   return (
-    <Screen title="Learn library">
+    <Screen title={DESKTOP.nav.library}>
       <Card>
         {screens.map((s) => (
           <LinkRow key={s.id} label={s.title} onPress={() => router.push(`/library?id=${s.id}`)} />

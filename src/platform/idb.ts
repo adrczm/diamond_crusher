@@ -41,11 +41,21 @@ export const idb = {
     await tx('readwrite', (s) => void s.delete(key));
   },
   /** Asks the browser not to evict this site's data under storage pressure (Safari honours this for Dock web apps). */
-  async persist(): Promise<void> {
+  async persist(): Promise<boolean | null> {
     try {
-      await navigator.storage?.persist?.();
+      return (await navigator.storage?.persist?.()) ?? null;
     } catch {
       // Not supported: data stays, but the browser may evict it if space runs out.
+      return null;
+    }
+  },
+  /** Whether the browser agreed to keep this site's data (shown on the Data page). Null when it does not say. */
+  async persisted(): Promise<boolean | null> {
+    try {
+      if (typeof navigator === 'undefined' || !navigator.storage?.persisted) return null;
+      return await navigator.storage.persisted();
+    } catch {
+      return null;
     }
   },
 };

@@ -45,6 +45,7 @@ export type NewSelfCheck = Omit<SelfCheckRow, 'id' | 'local_date' | 'tz_offset_m
 export interface SelfCheckOutcome {
   id: string;
   previous: SelfCheckRow | null;
+  /** Best of all checks in this position, for the result screen; null on the first check in that position. */
   best: Record<Measure, number | null>;
   personalBest: boolean;
   changes: Change[];
@@ -122,7 +123,9 @@ export async function saveSelfCheck(db: SqlDb, c: NewSelfCheck, now = new Date()
   });
   if (isPb) await reachMilestone(db, `pr:${id}`, id);
   const relaxOnly = c.pain ? await reportPain(db, c.pain, `self_check:${id}`, toLocalDate(now)) : false;
-  return { id, previous, best, personalBest: isPb, changes, confirmedDrop: drop, topUpOffer, relaxOnly, trends };
+  // UX audit M5: a first check has no best to compare with, so the result shows no "best" (not "best 0").
+  const shownBest = prevBest.length ? best : ({ longest_hold: null, repeated_holds: null, quick_flicks: null } as Record<Measure, number | null>);
+  return { id, previous, best: shownBest, personalBest: isPb, changes, confirmedDrop: drop, topUpOffer, relaxOnly, trends };
 }
 
 export async function acceptTopUp(db: SqlDb): Promise<void> {

@@ -1,15 +1,17 @@
 // Monthly self-check (06a SC-001 to SC-033): six short steps, your own record, no verdict words.
+// UX audit H8: Close on phones; on desktop, Space or Enter taps the big button and runs Start or Continue.
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from '../src/ui/text';
 import { APP_QUESTION_LABEL, SELF_CHECK } from '../src/content/en/items';
-import { COMMON, MAINTENANCE, MESSAGES } from '../src/content/en/strings';
+import { COMMON, DESKTOP, MAINTENANCE, MESSAGES } from '../src/content/en/strings';
 import { PAIN_CHOICE, RELAX_ONLY_HOME } from '../src/content/en/screening';
 import { listSelfChecks } from '../src/data/repositories/checks';
 import { getProfile } from '../src/data/repositories/profile';
 import { getProgramme } from '../src/data/repositories/programme';
 import { getSafetyState } from '../src/data/repositories/safety';
+import { listSessionLogs } from '../src/data/repositories/sessions';
 import { getSettings } from '../src/data/repositories/settings';
 import { strengthAllowed } from '../src/domain/safety';
 import { LONGEST_HOLD_CAP_S, QUICK_CAP, REPEATED_CAP, repeatedHoldLength, techniqueFlag, type Tri } from '../src/domain/selfcheck';
@@ -17,25 +19,37 @@ import type { Pain3 } from '../src/domain/types';
 import { useApp, useLoad } from '../src/features/app';
 import { acceptTopUp, markPart, saveSelfCheck, type BundlePart, type SelfCheckOutcome } from '../src/features/checkService';
 import { reconcileReminders } from '../src/features/reminderService';
+import { confirmLeave, FlowScreen, HotAction, leaveFlow } from '../src/features/screens/GuidedFlow';
 import { feedback } from '../src/platform/feedback';
 import { Banner, Button, Card, Choice, H1, H2, Label, Loading, P, Screen, Segments } from '../src/ui/kit';
+import { isWeb, useDesktop } from '../src/ui/layout';
 import { useColors } from '../src/ui/theme';
 
 const mono = () => (globalThis.performance?.now ? globalThis.performance.now() : Date.now());
 
 type Step = 'conditions' | 'sign' | 'longest' | 'repeated' | 'quick' | 'technique' | 'pain' | 'result';
 
+/** The big timed tap target. On desktop, Space or Enter taps it too, so the person need not aim a pointer mid-hold. */
 function TapArea({ label, onPress }: { label: string; onPress: () => void }) {
   const c = useColors();
+  const desktop = useDesktop();
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => ({ minHeight: 220, borderRadius: 24, backgroundColor: pressed ? c.primary : c.soft, alignItems: 'center', justifyContent: 'center' })}
-    >
-      {({ pressed }) => <Text style={{ fontSize: 32, fontWeight: '700', color: pressed ? c.onPrimary : c.text }}>{label}</Text>}
-    </Pressable>
+    <>
+      <HotAction run={onPress} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        onPress={onPress}
+        style={({ pressed }) => ({ minHeight: 220, borderRadius: 24, backgroundColor: pressed ? c.primary : c.soft, alignItems: 'center', justifyContent: 'center' })}
+      >
+        {({ pressed }) => <Text style={{ fontSize: 32, fontWeight: '700', color: pressed ? c.onPrimary : c.text }}>{label}</Text>}
+      </Pressable>
+      {desktop && isWeb ? (
+        <P small muted center>
+          {DESKTOP.tapKeys}
+        </P>
+      ) : null}
+    </>
   );
 }
 
@@ -162,6 +176,7 @@ export default function SelfCheck() {
     safety: await getSafetyState(d),
     settings: await getSettings(d),
     checks: await listSelfChecks(d),
+    hasSession: (await listSessionLogs(d)).length > 0,
   }));
   const [step, setStep] = useState<Step>('conditions');
   const [cond, setCond] = useState<{ bladder?: boolean; notAfter?: boolean; same?: boolean }>({});
@@ -251,6 +266,9 @@ export default function SelfCheck() {
 
   let body: React.ReactNode = null;
   let footer: React.ReactNode = null;
+  // Desktop: the action Space or Enter runs while no timer is running (Start or Continue). A running timer's big
+  // button has its own binding (TapArea).
+  let hot: (() => void) | null = null;
   switch (step) {
     case 'conditions': {
       const q = (label: string, key: 'bladder' | 'notAfter' | 'same') => (
@@ -259,22 +277,32 @@ export default function SelfCheck() {
           <Segments options={yn} value={cond[key]} onChange={(v) => setCond({ ...cond, [key]: v })} />
         </Card>
       );
-      const all = cond.bladder !== undefined && cond.notAfter !== undefined && cond.same !== undefined;
+      // With no training session or no self-check in this position yet, "since your last session" and "same position as
+      // last time" have nothing to compare with, so they are not asked (UX audit C2) and count as met.
+      const askNotAfter = data.hasSession;
+      const askSame = data.checks.some((ch) => ch.position === position);
+      const all = cond.bladder !== undefined && (!askNotAfter || cond.notAfter !== undefined) && (!askSame || cond.same !== undefined);
+      const unmet = cond.bladder === false || (askNotAfter && cond.notAfter === false) || (askSame && cond.same === false);
       body = (
         <>
           <H1>{title}</H1>
           <P>{SELF_CHECK.intro}</P>
+          <H2>{SELF_CHECK.conditionsTitle}</H2>
+          {q(SELF_CHECK.conditions.bladder, 'bladder')}
+          {askNotAfter ? q(SELF_CHECK.conditions.notAfterSession, 'notAfter') : null}
+          {askSame ? q(position === 'standing' ? SELF_CHECK.conditions.samePositionStanding : SELF_CHECK.conditions.samePosition, 'same') : null}
+          {all && unmet ? <Banner tone="soft" text={SELF_CHECK.proceedAnyway} /> : null}
           <P small muted>
             {APP_QUESTION_LABEL}
           </P>
-          <H2>{SELF_CHECK.conditionsTitle}</H2>
-          {q(SELF_CHECK.conditions.bladder, 'bladder')}
-          {q(SELF_CHECK.conditions.notAfterSession, 'notAfter')}
-          {q(position === 'standing' ? SELF_CHECK.conditions.samePositionStanding : SELF_CHECK.conditions.samePosition, 'same')}
-          {all && (!cond.bladder || !cond.notAfter || !cond.same) ? <Banner tone="soft" text={SELF_CHECK.proceedAnyway} /> : null}
         </>
       );
-      footer = <Button label={COMMON.continue} disabled={!all} onPress={() => setStep('sign')} />;
+      const next = () => {
+        setCond({ ...cond, notAfter: askNotAfter ? cond.notAfter : true, same: askSame ? cond.same : true });
+        setStep('sign');
+      };
+      footer = <Button label={COMMON.continue} disabled={!all} onPress={next} />;
+      if (all) hot = next;
       break;
     }
     case 'sign':
@@ -290,6 +318,7 @@ export default function SelfCheck() {
         </>
       );
       footer = <Button label={COMMON.continue} disabled={!sign || !bulge} onPress={() => setStep('longest')} />;
+      if (sign && bulge) hot = () => setStep('longest');
       break;
     case 'longest':
       body = (
@@ -324,6 +353,7 @@ export default function SelfCheck() {
           {longest <= 1 && retry === null ? <Button label="Try again" kind="secondary" onPress={() => setRunning(true)} /> : null}
         </>
       );
+      if (!running) hot = longest === null ? () => setRunning(true) : () => setStep('repeated');
       break;
     case 'repeated':
       body = (
@@ -352,6 +382,7 @@ export default function SelfCheck() {
       ) : (
         <Button label={COMMON.continue} onPress={() => setStep('quick')} />
       );
+      if (!running) hot = repeated === null ? () => setRunning(true) : () => setStep('quick');
       break;
     case 'quick':
       body = (
@@ -379,6 +410,7 @@ export default function SelfCheck() {
       ) : (
         <Button label={COMMON.continue} onPress={() => setStep('technique')} />
       );
+      if (!running) hot = quick === null ? () => setRunning(true) : () => setStep('technique');
       break;
     case 'technique':
       body = (
@@ -393,6 +425,7 @@ export default function SelfCheck() {
         </>
       );
       footer = <Button label={COMMON.continue} disabled={SELF_CHECK.technique.some((q) => !tech[q.key])} onPress={() => setStep('pain')} />;
+      if (!SELF_CHECK.technique.some((q) => !tech[q.key])) hot = () => setStep('pain');
       break;
     case 'pain':
       body = (
@@ -403,6 +436,7 @@ export default function SelfCheck() {
         </>
       );
       footer = <Button label={COMMON.save} disabled={!pain} busy={busy} onPress={save} />;
+      if (pain && !busy) hot = save;
       break;
     case 'result': {
       if (!out) break;
@@ -465,9 +499,10 @@ export default function SelfCheck() {
       break;
     }
   }
+  // Nothing is saved before the pain step, so leaving asks first (H8). After the result, Close just leaves.
   return (
-    <Screen title={title} footer={footer}>
+    <FlowScreen title={title} actions={footer} hotkey={hot} onClose={step === 'result' ? leaveFlow : () => confirmLeave()}>
       {body}
-    </Screen>
+    </FlowScreen>
   );
 }

@@ -1,19 +1,27 @@
-// Your data (07 PRIV-030 to PRIV-050): what is stored, backup file export and import, delete everything.
+// Backup and data (07 PRIV-030 to PRIV-050): what is stored, backup file export and import, delete everything.
+// A missing or old backup shows as a warning, and the web shows if the browser keeps the data (UX audit C3).
 import { useState } from 'react';
+import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { COMMON, DATA } from '../src/content/en/strings';
 import { SYNC } from '../src/content/en/sync';
 import { getMeta } from '../src/data/repositories/misc';
 import { getPeer } from '../src/data/sync/changes';
 import { deleteEverything } from '../src/data/vault';
+import { backupAgeDays, backupState } from '../src/domain/backup';
 import { formatShort, toLocalDate } from '../src/domain/dates';
 import { useApp, useLoad } from '../src/features/app';
 import { ExportFlow, ImportFlow } from '../src/features/screens/BackupFlows';
+import { idb } from '../src/platform/idb';
 import { Banner, Button, Card, Field, H2, Label, Loading, P, Screen } from '../src/ui/kit';
 
 export default function DataScreen() {
-  const { db, restart } = useApp();
-  const { data, reload } = useLoad(async (d) => ({ meta: await getMeta(d), paired: !!(await getPeer(d)) }));
+  const { db, restart, bump } = useApp();
+  const { data, reload } = useLoad(async (d) => ({
+    meta: await getMeta(d),
+    paired: !!(await getPeer(d)),
+    persisted: Platform.OS === 'web' ? await idb.persisted() : null,
+  }));
   const [mode, setMode] = useState<'view' | 'export' | 'import' | 'delete'>('view');
   const [word, setWord] = useState('');
   const [done, setDone] = useState<string | null>(null);
@@ -23,6 +31,8 @@ export default function DataScreen() {
       <Screen title={DATA.title}>
         <ExportFlow
           onDone={() => {
+            // bump() also updates the backup status in the desktop sidebar.
+            bump();
             reload();
             setMode('view');
           }}
@@ -60,10 +70,29 @@ export default function DataScreen() {
         <Button label={COMMON.cancel} kind="quiet" onPress={() => setMode('view')} />
       </Screen>
     );
-  const last = data.meta?.last_export_at ? formatShort(toLocalDate(new Date(data.meta.last_export_at))) : null;
+  const lastOn = data.meta?.last_export_at ? toLocalDate(new Date(data.meta.last_export_at)) : null;
+  const last = lastOn ? formatShort(lastOn) : null;
+  const today = toLocalDate(new Date());
+  const state = backupState(Platform.OS === 'web' ? 'web' : 'native', lastOn, today);
   return (
     <Screen title={DATA.title}>
       {done ? <Banner tone="soft" text={done} /> : null}
+      {state === 'never' ? <Banner text={DATA.noBackupWarn} /> : null}
+      {state === 'stale' ? <Banner text={DATA.staleWarn(backupAgeDays(lastOn, today) ?? 0)} /> : null}
+      <Card>
+        <P>{DATA.lastBackup(last)}</P>
+        <P small muted>
+          {DATA.updateNote}
+        </P>
+        <Button label={DATA.export} onPress={() => setMode('export')} />
+        <Button label={DATA.import} kind="secondary" onPress={() => setMode('import')} />
+      </Card>
+      {Platform.OS === 'web' ? (
+        <Card tone={data.persisted ? 'normal' : 'warn'}>
+          <Label>{DATA.storageTitle}</Label>
+          <P>{data.persisted ? DATA.storageKept : data.persisted === false ? DATA.storageNotKept : DATA.storageUnknown}</P>
+        </Card>
+      ) : null}
       <Card>
         <Label>{DATA.whatTitle}</Label>
         <P>{DATA.what}</P>
@@ -78,14 +107,6 @@ export default function DataScreen() {
         <Label>{SYNC.entryTitle}</Label>
         <P>{SYNC.entryBody}</P>
         <Button label={data.paired ? SYNC.entryButtonPaired : SYNC.entryButton} onPress={() => router.push('/sync')} />
-      </Card>
-      <Card>
-        <P>{DATA.lastBackup(last)}</P>
-        <P small muted>
-          {DATA.updateNote}
-        </P>
-        <Button label={DATA.export} onPress={() => setMode('export')} />
-        <Button label={DATA.import} kind="secondary" onPress={() => setMode('import')} />
       </Card>
       <Button label={DATA.deleteAll} kind="quiet" onPress={() => setMode('delete')} />
     </Screen>

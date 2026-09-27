@@ -1,5 +1,6 @@
 // Rolling 7-day reminder plan (08 REM-012 to REM-017, MOT-021, MOT-022; 09 ARCH-046, ARCH-047).
-import { addDays, atLocalTime, diffDays, isoWeekday, type LocalDate } from './dates';
+import { HHMM } from './clock';
+import { addDays, atLocalTime, diffDays, isoWeekday, toLocalDate, type LocalDate } from './dates';
 import type { SafetyMode } from './types';
 import { isBlocked } from './safety';
 
@@ -170,3 +171,33 @@ export const ANCHOR_TIMES: Record<string, string> = {
 };
 
 export const ALL_DAYS = 127;
+
+/**
+ * The next session reminder time from the plan, for a "Next reminder 12:30" line (UX audit M11). It follows the plan
+ * (enabled slots, times and days), a pause and a blocked safety mode (REM-017), not the back-off or today's done
+ * sessions (REM-016, MOT-021). Null when no reminder is due: no slot or day, paused with no end date, or blocked.
+ */
+export function nextReminderAt(
+  plan: readonly { timeLocal: string; weekdays: number; enabled: boolean }[],
+  now: Date,
+  opts: { paused?: boolean; pausedUntil?: Date | null; mode?: SafetyMode } = {}
+): Date | null {
+  if (opts.mode && isBlocked(opts.mode)) return null;
+  const pause = { paused: !!opts.paused, pausedUntil: opts.pausedUntil ?? null };
+  if (pause.paused && pause.pausedUntil == null) return null;
+  const slots = plan.filter((s) => s.enabled && s.weekdays > 0 && HHMM.test(s.timeLocal));
+  const today = toLocalDate(now);
+  // Up to 8 days ahead: a pause ends, then the same weekday next week can still be the next slot.
+  const horizon = pause.paused && pause.pausedUntil ? Math.max(0, diffDays(today, toLocalDate(pause.pausedUntil))) + 8 : 8;
+  let best: Date | null = null;
+  for (let i = 0; i < horizon && !best; i++) {
+    const day = addDays(today, i);
+    for (const s of slots) {
+      if (!(s.weekdays & weekdayBit(day))) continue;
+      const at = atLocalTime(day, s.timeLocal);
+      if (at <= now || (pause.paused && pause.pausedUntil && at < pause.pausedUntil)) continue;
+      if (!best || at < best) best = at;
+    }
+  }
+  return best;
+}

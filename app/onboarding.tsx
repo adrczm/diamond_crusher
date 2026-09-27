@@ -1,94 +1,117 @@
-// First-run setup (01 ONB-001 to ONB-008; 08 REM-001 to REM-006; 07 PRIV-010).
+// First-run setup (01 ONB-001 to ONB-008; 07 PRIV-040).
+// UX audit C2: only what gates safety, then Today. "What to expect", the app lock and the reminder plan are Today cards
+// later. H1: resumes at the saved step (profile.onboarding_step), Back on every step, "Step X of N". M7: welcome shows
+// the brand, the value and the time; on desktop the step is a centred card with its actions under it.
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Linking, Platform, View } from 'react-native';
-import { EDUCATION } from '../src/content/en/education';
+import { View } from 'react-native';
 import { GOAL_LABEL } from '../src/content/en/exercise';
 import { OTHER_PROFILE_PHYSIO, TODO_BANNER } from '../src/content/en/screening';
-import { APP_NAME, COMMON, DISCLAIMER, DISCLAIMER_VERSION, ONBOARDING, PLAN } from '../src/content/en/strings';
-import { getProfile, setGoals, updateProfile } from '../src/data/repositories/profile';
-import { savePlan, type SlotPlan } from '../src/data/repositories/reminders';
-import { updateSettings } from '../src/data/repositories/settings';
+import { APP_NAME, COMMON, DISCLAIMER, DISCLAIMER_VERSION, ONBOARDING } from '../src/content/en/strings';
+import { activeGoals, getProfile, setGoals, updateProfile } from '../src/data/repositories/profile';
+import { answersForRun, getSafetyState } from '../src/data/repositories/safety';
 import { nowIso } from '../src/data/sql';
-import { setLock } from '../src/data/vault';
-import { isBlocked } from '../src/domain/safety';
+import { isBlocked, skippedSafety } from '../src/domain/safety';
 import type { AgeBand, Anatomy, Goal, SafetyMode } from '../src/domain/types';
 import type { QuestionKey } from '../src/domain/safety';
-import { useApp, withoutRelock } from '../src/features/app';
+import { useApp } from '../src/features/app';
 import { reconcileReminders } from '../src/features/reminderService';
+import { COUNTED_STEPS, resumeAt, stepIndex, type OnboardingStep } from '../src/features/onboardingSteps';
 import { completeScreening } from '../src/features/safetyService';
 import { ImportFlow } from '../src/features/screens/BackupFlows';
-import { defaultPlan, PlanEditor, planValid, resizePlan } from '../src/features/screens/PlanEditor';
+import { FlowScreen, StepProgress } from '../src/features/screens/GuidedFlow';
 import { ScreeningFlow, ScreeningOutcome } from '../src/features/screens/ScreeningFlow';
-import { auth } from '../src/platform/auth';
-import { requestPermission, sendTest } from '../src/platform/notifications';
-import { Banner, Button, Card, Choice, H1, H2, MultiChoice, P, Screen, Segments } from '../src/ui/kit';
+import { Banner, Button, Choice, H1, Loading, MultiChoice, P } from '../src/ui/kit';
+import { useColors } from '../src/ui/theme';
+import { Text } from '../src/ui/text';
 
-type Step =
-  | 'welcome'
-  | 'import'
-  | 'disclaimer'
-  | 'adult'
-  | 'anatomy'
-  | 'goals'
-  | 'age'
-  | 'screening'
-  | 'outcome'
-  | 'expect'
-  | 'lock'
-  | 'plan'
-  | 'permission'
-  | 'test'
-  | 'finish';
+type Step = OnboardingStep | 'import';
+
+type Outcome = { mode: SafetyMode; reasons: QuestionKey[]; cautions: QuestionKey[]; skipped: QuestionKey[] };
+const cautionsOf = (reasons: readonly QuestionKey[]) => reasons.filter((k) => k.startsWith('Q-G') || k === 'Q-F1' || k === 'Q-F2');
 
 export default function Onboarding() {
-  const { db, boot, setBoot, bump } = useApp();
-  const [step, setStep] = useState<Step>('welcome');
+  const { db, bump } = useApp();
+  const c = useColors();
+  const [step, setStep] = useState<Step | null>(null);
   const [notAdult, setNotAdult] = useState(false);
   const [anatomy, setAnatomy] = useState<Anatomy | undefined>();
   const [goals, setGoalsState] = useState<Goal[]>([]);
   const [age, setAge] = useState<AgeBand | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
-  const [outcome, setOutcome] = useState<{ mode: SafetyMode; reasons: QuestionKey[]; cautions: QuestionKey[]; skipped: QuestionKey[] } | null>(null);
-  const [lockAvailable, setLockAvailable] = useState<boolean | null>(null);
-  const [perDay, setPerDay] = useState(3);
-  const [plan, setPlan] = useState<SlotPlan[]>(defaultPlan(3));
-  const [testState, setTestState] = useState<'idle' | 'sent' | 'no'>('idle');
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
 
+  // H1: open at the saved step, with the answers given so far.
   useEffect(() => {
-    auth
-      .available()
-      .then(setLockAvailable)
-      .catch(() => setLockAvailable(false));
-  }, []);
+    let alive = true;
+    (async () => {
+      const p = await getProfile(db);
+      const g = await activeGoals(db);
+      const safety = await getSafetyState(db);
+      if (p?.anatomy) setAnatomy(p.anatomy);
+      if (g.length) setGoalsState(g);
+      if (p && p.onboarding_step > stepIndex('age')) setAge(p.age_band);
+      const s = resumeAt(p?.onboarding_step ?? 0, {
+        disclaimer: !!p?.disclaimer_ack_at,
+        adult: !!p?.adult_confirmed_at,
+        anatomy: !!p?.anatomy,
+        goals: g.length > 0,
+        screened: !!safety.set_by_run_id,
+      });
+      if (safety.set_by_run_id && (s === 'outcome' || s === 'finish')) {
+        const answers = await answersForRun(db, safety.set_by_run_id);
+        if (alive) setOutcome({ mode: safety.mode, reasons: safety.reasons, cautions: cautionsOf(safety.reasons), skipped: skippedSafety(answers) });
+      }
+      if (alive) setStep(s);
+    })().catch(() => alive && setStep('welcome'));
+    return () => {
+      alive = false;
+    };
+  }, [db]);
+
+  // Save the resume point on every step change.
+  useEffect(() => {
+    if (!step || step === 'import') return;
+    updateProfile(db, { onboarding_step: stepIndex(step) }).catch(() => undefined);
+  }, [db, step]);
+
+  if (!step) return <Loading />;
 
   const go = (s: Step) => setStep(s);
 
   const finish = async () => {
-    await updateProfile(db, { onboarding_completed_at: nowIso(), expectations_ack_at: nowIso(), onboarding_step: 99 });
+    // "What to expect" (ED-07) is now a Today card, so expectations_ack_at stays empty until the person opens it.
+    await updateProfile(db, { onboarding_completed_at: nowIso(), onboarding_step: 99 });
     reconcileReminders(db);
     bump();
-    router.replace(outcome && isBlocked(outcome.mode) ? '/' : '/learn');
+    // Today shows Learn the squeeze as its main card (or the paused state when training is blocked).
+    router.replace('/');
   };
 
-  const title = APP_NAME;
+  const back = (s: Step) => <Button label={COMMON.back} kind="quiet" onPress={() => go(s)} disabled={busy} />;
+
   let body: React.ReactNode = null;
-  let footer: React.ReactNode = null;
+  let actions: React.ReactNode = null;
+  let hot: (() => void) | null = null;
 
   switch (step) {
     case 'welcome':
       body = (
         <>
+          <Text style={{ fontSize: 17, fontWeight: '700', color: c.primary, letterSpacing: 0.3 }}>{APP_NAME}</Text>
           <H1>{ONBOARDING.welcomeTitle}</H1>
-          <P>{ONBOARDING.welcomeBody}</P>
+          <P>{ONBOARDING.welcomeValue}</P>
+          <P muted>{ONBOARDING.welcomeBody}</P>
+          <P muted>{ONBOARDING.welcomeTime}</P>
         </>
       );
-      footer = (
+      actions = (
         <>
           <Button label={ONBOARDING.start} onPress={() => go('disclaimer')} />
           <Button label={ONBOARDING.importBackup} kind="quiet" onPress={() => go('import')} />
         </>
       );
+      hot = () => go('disclaimer');
       break;
     case 'import':
       body = (
@@ -105,23 +128,26 @@ export default function Onboarding() {
         />
       );
       break;
-    case 'disclaimer':
+    case 'disclaimer': {
+      const next = async () => {
+        await updateProfile(db, { disclaimer_ack_version: DISCLAIMER_VERSION, disclaimer_ack_at: nowIso() });
+        go('adult');
+      };
       body = (
         <>
-          <H1>Before you start</H1>
+          <H1>{ONBOARDING.disclaimerTitle}</H1>
           <P>{DISCLAIMER}</P>
         </>
       );
-      footer = (
-        <Button
-          label={ONBOARDING.understand}
-          onPress={async () => {
-            await updateProfile(db, { disclaimer_ack_version: DISCLAIMER_VERSION, disclaimer_ack_at: nowIso(), onboarding_step: 1 });
-            go('adult');
-          }}
-        />
+      actions = (
+        <>
+          <Button label={ONBOARDING.understand} onPress={next} />
+          {back('welcome')}
+        </>
       );
+      hot = next;
       break;
+    }
     case 'adult':
       body = (
         <>
@@ -129,20 +155,26 @@ export default function Onboarding() {
           {notAdult ? <Banner text={ONBOARDING.notAdult} /> : null}
         </>
       );
-      footer = (
+      actions = (
         <>
           <Button
             label={COMMON.yes}
             onPress={async () => {
-              await updateProfile(db, { adult_confirmed_at: nowIso(), onboarding_step: 2 });
+              await updateProfile(db, { adult_confirmed_at: nowIso() });
+              setNotAdult(false);
               go('anatomy');
             }}
           />
           <Button label={COMMON.no} kind="secondary" onPress={() => setNotAdult(true)} />
+          {back('disclaimer')}
         </>
       );
       break;
-    case 'anatomy':
+    case 'anatomy': {
+      const next = async () => {
+        await updateProfile(db, { anatomy: anatomy ?? null });
+        go('goals');
+      };
       body = (
         <>
           <H1>{ONBOARDING.anatomyQuestion}</H1>
@@ -151,46 +183,52 @@ export default function Onboarding() {
             options={ONBOARDING.anatomyOptions.map((o) => ({ value: o.value as Anatomy, label: o.label }))}
             value={anatomy}
             onChange={(a) => {
+              if (a !== anatomy) setGoalsState([]);
               setAnatomy(a);
-              setGoalsState([]);
             }}
           />
           {anatomy === 'female' ? <Banner text={TODO_BANNER} /> : null}
           {anatomy === 'other_unspecified' ? <Banner tone="soft" text={OTHER_PROFILE_PHYSIO} /> : null}
         </>
       );
-      footer = (
-        <Button
-          label={COMMON.continue}
-          disabled={!anatomy}
-          onPress={async () => {
-            await updateProfile(db, { anatomy: anatomy ?? null, onboarding_step: 3 });
-            go('goals');
-          }}
-        />
+      actions = (
+        <>
+          <Button label={COMMON.continue} disabled={!anatomy} onPress={next} />
+          {back('adult')}
+        </>
       );
+      if (anatomy) hot = next;
       break;
-    case 'goals':
+    }
+    case 'goals': {
+      const options = GOAL_LABEL[anatomy ?? 'other_unspecified'];
+      // Goals from another anatomy (the answer changed after a Back) do not apply.
+      const chosen = goals.filter((g) => options.some((o) => o.goal === g));
+      const next = async () => {
+        await setGoals(db, chosen);
+        go('age');
+      };
       body = (
         <>
           <H1>{ONBOARDING.goalsQuestion}</H1>
           <P muted>{ONBOARDING.goalsNote}</P>
-          <MultiChoice options={GOAL_LABEL[anatomy ?? 'other_unspecified'].map((g) => ({ value: g.goal, label: g.label }))} values={goals} onChange={setGoalsState} />
+          <MultiChoice options={options.map((g) => ({ value: g.goal, label: g.label }))} values={chosen} onChange={setGoalsState} />
         </>
       );
-      footer = (
-        <Button
-          label={COMMON.continue}
-          disabled={goals.length === 0}
-          onPress={async () => {
-            await setGoals(db, goals);
-            await updateProfile(db, { onboarding_step: 4 });
-            go('age');
-          }}
-        />
+      actions = (
+        <>
+          <Button label={COMMON.continue} disabled={chosen.length === 0} onPress={next} />
+          {back('anatomy')}
+        </>
       );
+      if (chosen.length) hot = next;
       break;
-    case 'age':
+    }
+    case 'age': {
+      const next = async () => {
+        await updateProfile(db, { age_band: age ?? null });
+        go('screening');
+      };
       body = (
         <>
           <H1>{ONBOARDING.ageQuestion}</H1>
@@ -198,16 +236,15 @@ export default function Onboarding() {
           <Choice options={ONBOARDING.ageOptions.map((o) => ({ value: o.value as AgeBand | null, label: o.label }))} value={age} onChange={setAge} />
         </>
       );
-      footer = (
-        <Button
-          label={COMMON.continue}
-          onPress={async () => {
-            await updateProfile(db, { age_band: age ?? null, onboarding_step: 5 });
-            go('screening');
-          }}
-        />
+      actions = (
+        <>
+          <Button label={COMMON.continue} onPress={next} />
+          {back('goals')}
+        </>
       );
+      hot = next;
       break;
+    }
     case 'screening':
       body = (
         <>
@@ -220,8 +257,7 @@ export default function Onboarding() {
               setBusy(true);
               try {
                 const r = await completeScreening(db, { kind: 'onboarding', answers: a.answers, startedAt: a.startedAt, surgeryDate: a.surgeryDate });
-                setOutcome({ mode: r.mode, reasons: r.reasons, cautions: r.reasons.filter((k) => k.startsWith('Q-G') || k === 'Q-F1' || k === 'Q-F2'), skipped: r.skipped });
-                await updateProfile(db, { onboarding_step: 6 });
+                setOutcome({ mode: r.mode, reasons: r.reasons, cautions: cautionsOf(r.reasons), skipped: r.skipped });
                 go('outcome');
               } finally {
                 setBusy(false);
@@ -230,181 +266,48 @@ export default function Onboarding() {
           />
         </>
       );
+      actions = back('age');
       break;
     case 'outcome':
-      body = outcome ? <ScreeningOutcome mode={outcome.mode} reasons={outcome.reasons} cautions={outcome.cautions} skipped={outcome.skipped} anatomy={anatomy} /> : null;
-      // UX audit H7: after "get medical help today", skip the training and reminder setup.
-      footer = <Button label={COMMON.continue} onPress={() => go(outcome?.mode === 'blocked_urgent' ? 'finish' : 'expect')} />;
-      break;
-    case 'expect': {
-      const ed = EDUCATION.find((e) => e.id === 'ED-07');
-      body = (
+      body = outcome ? (
+        <ScreeningOutcome mode={outcome.mode} reasons={outcome.reasons} cautions={outcome.cautions} skipped={outcome.skipped} anatomy={anatomy} />
+      ) : null;
+      // UX audit H7 and C2: every outcome goes straight on to Today. Plan and reminder setup come later, as Today cards.
+      actions = (
         <>
-          <H1>{ed?.title ?? ''}</H1>
-          {ed?.body.map((b, i) => (
-            <P key={i}>{b}</P>
-          ))}
+          <Button label={COMMON.continue} onPress={() => go('finish')} />
+          {back('screening')}
         </>
       );
-      // The app lock needs a phone's fingerprint, face or PIN; the web version skips it.
-      footer = <Button label={COMMON.continue} onPress={() => go(Platform.OS === 'web' ? 'plan' : 'lock')} />;
-      break;
-    }
-    case 'lock':
-      body = (
-        <>
-          <H1>{ONBOARDING.lockTitle}</H1>
-          <P>{ONBOARDING.lockBody}</P>
-          {lockAvailable === false ? <Banner text={ONBOARDING.lockUnavailable} /> : <P muted>{ONBOARDING.lockWarning}</P>}
-        </>
-      );
-      footer = (
-        <>
-          {lockAvailable ? (
-            <Button
-              label={ONBOARDING.lockOn}
-              busy={busy}
-              onPress={async () => {
-                setBusy(true);
-                try {
-                  setBoot(await withoutRelock(() => setLock(db, boot, true)));
-                  go('plan');
-                } catch {
-                  // Cancelled or failed: stay here, lock off.
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            />
-          ) : null}
-          <Button label={ONBOARDING.lockOff} kind={lockAvailable ? 'quiet' : 'primary'} onPress={() => go('plan')} disabled={busy} />
-        </>
-      );
-      break;
-    case 'plan':
-      body = (
-        <>
-          <H1>{PLAN.title}</H1>
-          <P muted>{PLAN.intro}</P>
-          <H2>{PLAN.sessionsPerDay}</H2>
-          <Segments
-            options={[
-              { value: 2, label: '2' },
-              { value: 3, label: '3' },
-            ]}
-            value={perDay}
-            onChange={(n) => {
-              setPerDay(n);
-              setPlan(resizePlan(plan, n));
-            }}
-          />
-          <PlanEditor plan={plan} onChange={setPlan} minutes={5} />
-        </>
-      );
-      footer = (
-        <Button
-          label={COMMON.continue}
-          disabled={!planValid(plan)}
-          onPress={async () => {
-            await updateSettings(db, { sessions_per_day_target: perDay });
-            await savePlan(db, plan);
-            await updateProfile(db, { onboarding_step: 9 });
-            go('permission');
-          }}
-        />
-      );
-      break;
-    case 'permission':
-      body = (
-        <>
-          <H1>Reminders</H1>
-          <P>{PLAN.permissionWhy}</P>
-          <P muted>{PLAN.mayBeLate}</P>
-        </>
-      );
-      footer = (
-        <>
-          <Button
-            label={PLAN.allowReminders}
-            onPress={async () => {
-              const p = await withoutRelock(() => requestPermission());
-              await updateSettings(db, { notification_permission: p });
-              go(p === 'granted' ? 'test' : 'finish');
-            }}
-          />
-          <Button label={PLAN.noReminders} kind="quiet" onPress={() => go('finish')} />
-        </>
-      );
-      break;
-    case 'test':
-      body = (
-        <>
-          <H1>{PLAN.testTitle}</H1>
-          <P>{PLAN.testBody}</P>
-          {testState === 'sent' ? <H2>{PLAN.testQuestion}</H2> : null}
-          {testState === 'no' ? (
-            <Card tone="warn">
-              <H2>{PLAN.testFixTitle}</H2>
-              {PLAN.testFix.map((t, i) => (
-                <P key={i}>{`• ${t}`}</P>
-              ))}
-              {Platform.OS !== 'web' ? (
-                <Button label={PLAN.openSettings} kind="secondary" onPress={() => withoutRelock(() => Linking.openSettings())} />
-              ) : null}
-            </Card>
-          ) : null}
-        </>
-      );
-      footer =
-        testState === 'sent' ? (
-          <>
-            <Button
-              label={COMMON.yes}
-              onPress={async () => {
-                await updateSettings(db, { last_delivery_test_at: nowIso(), last_delivery_test_result: 'seen' });
-                go('finish');
-              }}
-            />
-            <Button
-              label={COMMON.no}
-              kind="secondary"
-              onPress={async () => {
-                await updateSettings(db, { last_delivery_test_at: nowIso(), last_delivery_test_result: 'not_seen' });
-                setTestState('no');
-              }}
-            />
-          </>
-        ) : (
-          <>
-            <Button
-              label={PLAN.sendTest}
-              onPress={async () => {
-                await sendTest();
-                setTestState('sent');
-              }}
-            />
-            <Button label={COMMON.skip} kind="quiet" onPress={() => go('finish')} />
-          </>
-        );
+      hot = () => go('finish');
       break;
     case 'finish':
       body = (
         <>
-          <H1>All set</H1>
-          <P>
-            {outcome && isBlocked(outcome.mode)
-              ? 'Your home screen shows what happens next.'
-              : 'Next: learn the squeeze. It takes about 5 minutes, lying down.'}
-          </P>
+          <H1>{ONBOARDING.finishTitle}</H1>
+          <P>{outcome && isBlocked(outcome.mode) ? ONBOARDING.finishBlocked : ONBOARDING.finishNext}</P>
         </>
       );
-      footer = <Button label={COMMON.continue} onPress={finish} />;
+      actions = (
+        <>
+          <Button label={COMMON.continue} onPress={finish} />
+          {back('outcome')}
+        </>
+      );
+      hot = finish;
       break;
   }
 
+  const n = step === 'import' ? -1 : COUNTED_STEPS.indexOf(step);
   return (
-    <Screen title={title} footer={footer} headerShown={false}>
+    <FlowScreen
+      title={APP_NAME}
+      headerShown={false}
+      top={n >= 0 ? <StepProgress step={n + 1} total={COUNTED_STEPS.length} label={ONBOARDING.stepOf(n + 1, COUNTED_STEPS.length)} /> : null}
+      actions={actions}
+      hotkey={hot}
+    >
       <View style={{ gap: 16, paddingTop: 16 }}>{body}</View>
-    </Screen>
+    </FlowScreen>
   );
 }

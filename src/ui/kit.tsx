@@ -1,7 +1,7 @@
 // Small UI kit styled after Shopify Polaris (cards, buttons, choice lists, banners), with large touch targets and
 // plain text, in light and dark (spec 05, 09 polish).
 import { router, Stack, usePathname } from 'expo-router';
-import React, { useEffect, useRef, useState, type ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -10,7 +10,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   TextInput,
   View,
   type StyleProp,
@@ -37,6 +36,9 @@ export type PressState = { pressed: boolean; hovered?: boolean; focused?: boolea
 
 /** Minimum touch target. Polaris buttons are smaller; the specs ask for large targets. */
 const TOUCH = 48;
+
+/** The title the native header shows on this screen, or null when there is none (desktop, or header hidden). */
+const HeaderTitle = createContext<string | null>(null);
 
 export function Screen({
   title,
@@ -71,26 +73,29 @@ export function Screen({
   ) : (
     <View style={[column, { flex: 1, padding: pad, gap }]}>{children}</View>
   );
+  const nativeHeader = headerShown && !desktop;
   return (
-    <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: headerShown || desktop ? 0 : insets.top }}>
-      <Stack.Screen options={{ title: title ?? '', headerShown: headerShown && !desktop }} />
-      {desktop && headerShown ? <Toolbar title={title ?? ''} /> : null}
-      <PageIn style={{ flex: 1 }}>{body}</PageIn>
-      {footer ? (
-        <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.border, backgroundColor: c.card }}>
-          <View
-            style={[
-              column,
-              desktop
-                ? { paddingHorizontal: pad, paddingVertical: space(1.5), gap: space(1), flexDirection: 'row-reverse', alignItems: 'center', flexWrap: 'wrap' }
-                : { padding: space(2), paddingBottom: space(2) + insets.bottom, gap: space(1) },
-            ]}
-          >
-            {footer}
+    <HeaderTitle.Provider value={nativeHeader ? title ?? '' : null}>
+      <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: headerShown || desktop ? 0 : insets.top }}>
+        <Stack.Screen options={{ title: title ?? '', headerShown: nativeHeader }} />
+        {desktop && headerShown ? <Toolbar title={title ?? ''} /> : null}
+        <PageIn style={{ flex: 1 }}>{body}</PageIn>
+        {footer ? (
+          <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.border, backgroundColor: c.card }}>
+            <View
+              style={[
+                column,
+                desktop
+                  ? { paddingHorizontal: pad, paddingVertical: space(1.5), gap: space(1), flexDirection: 'row-reverse', alignItems: 'center', flexWrap: 'wrap' }
+                  : { padding: space(2), paddingBottom: space(2) + insets.bottom, gap: space(1) },
+              ]}
+            >
+              {footer}
+            </View>
           </View>
-        </View>
-      ) : null}
-    </View>
+        ) : null}
+      </View>
+    </HeaderTitle.Provider>
   );
 }
 
@@ -218,9 +223,12 @@ export function Section({ title, description, children }: { title: string; descr
   );
 }
 
+/** Page heading. Left out when the native header above already shows the same text (UX audit M3). */
 export function H1({ children }: { children: ReactNode }) {
   const c = useColors();
   const desktop = useDesktop();
+  const header = useContext(HeaderTitle);
+  if (header != null && typeof children === 'string' && children.trim() === header.trim()) return null;
   return (
     <Text accessibilityRole="header" style={[type(desktop ? 'heading-2xl' : 'heading-xl'), { color: c.text }]}>
       {children}
@@ -260,6 +268,7 @@ export function Button({
   disabled,
   busy,
   style,
+  accessibilityLabel,
 }: {
   label: string;
   onPress: () => void;
@@ -267,6 +276,8 @@ export function Button({
   disabled?: boolean;
   busy?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** Longer name for screen readers when the visible label needs its context (e.g. "Change session 1"). */
+  accessibilityLabel?: string;
 }) {
   const c = useColors();
   const bg = kind === 'primary' ? c.primary : kind === 'danger' ? c.danger : kind === 'secondary' ? c.card : 'transparent';
@@ -275,6 +286,7 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: !!disabled || !!busy }}
       disabled={disabled || busy}
       onPress={onPress}
@@ -497,7 +509,7 @@ export function MultiChoice<T>({ options, values, onChange }: { options: readonl
 export function Segments<T>({ options, value, onChange }: { options: readonly Option<T>[]; value: T | undefined; onChange: (v: T) => void }) {
   const c = useColors();
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(1) }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(1) }} accessibilityRole="radiogroup">
       {options.map((o, i) => {
         const selected = value === o.value;
         return (
@@ -526,22 +538,49 @@ export function Segments<T>({ options, value, onChange }: { options: readonly Op
   );
 }
 
+/**
+ * A labelled switch. The whole row is the target (UX audit M1): tap the label or the switch. The track is drawn here, not
+ * with the platform Switch, so the off colour meets 3:1 (controlOff) and there is one focus stop on the web.
+ */
 export function ToggleRow({ label, value, onChange, hint }: { label: string; value: boolean; onChange: (v: boolean) => void; hint?: string }) {
   const c = useColors();
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: TOUCH + 4, gap: space(1) }}>
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityHint={hint}
+      accessibilityState={{ checked: value }}
+      onPress={() => onChange(!value)}
+      style={(st) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        minHeight: TOUCH + 4,
+        gap: space(1),
+        marginHorizontal: -space(1),
+        paddingHorizontal: space(1),
+        borderRadius: radius.md,
+        backgroundColor: (st as PressState).hovered ? c.hover : 'transparent',
+        opacity: st.pressed ? 0.85 : 1,
+      })}
+    >
       <View style={{ flex: 1 }}>
         <Text style={[type('body-md'), { color: c.text }]}>{label}</Text>
         {hint ? <Text style={[type('body-sm'), { color: c.muted }]}>{hint}</Text> : null}
       </View>
-      <Switch
-        accessibilityLabel={label}
-        value={value}
-        onValueChange={onChange}
-        trackColor={{ true: c.good, false: c.border }}
-        thumbColor={Platform.OS === 'android' ? '#FFFFFF' : undefined}
-      />
-    </View>
+      <View
+        style={{
+          width: 48,
+          height: 28,
+          borderRadius: 14,
+          padding: 3,
+          backgroundColor: value ? c.good : c.controlOff,
+          alignItems: value ? 'flex-end' : 'flex-start',
+          justifyContent: 'center',
+        }}
+      >
+        <View style={[{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFFFFF' }, shadow(1)]} />
+      </View>
+    </Pressable>
   );
 }
 
@@ -664,22 +703,27 @@ export function Loading() {
   );
 }
 
-export function Dots({ filled, total, today }: { filled: boolean[]; total: number; today?: number }) {
+/** Week dots. With `labels`, each dot gets its day letter underneath and today's letter is bold (H9). */
+export function Dots({ filled, total, today, labels, label }: { filled: boolean[]; total: number; today?: number; labels?: string[]; label?: string }) {
   const c = useColors();
   return (
-    <View style={{ flexDirection: 'row', gap: 10 }} accessibilityLabel={`${filled.filter(Boolean).length} of ${total} days`}>
+    <View style={{ flexDirection: 'row', gap: 10 }} accessible accessibilityLabel={label ?? `${filled.filter(Boolean).length} of ${total} days`}>
       {filled.map((f, i) => (
-        <View
-          key={i}
-          style={{
-            width: 18,
-            height: 18,
-            borderRadius: 9,
-            backgroundColor: f ? c.good : 'transparent',
-            borderWidth: 2,
-            borderColor: i === today ? c.text : f ? c.good : c.border,
-          }}
-        />
+        <View key={i} style={{ alignItems: 'center', gap: 4 }}>
+          <View
+            style={{
+              width: 18,
+              height: 18,
+              borderRadius: 9,
+              backgroundColor: f ? c.good : 'transparent',
+              borderWidth: 2,
+              borderColor: i === today ? c.text : f ? c.good : c.border,
+            }}
+          />
+          {labels ? (
+            <Text style={[type('body-sm'), { color: i === today ? c.text : c.muted, fontWeight: i === today ? '700' : '400' }]}>{labels[i]}</Text>
+          ) : null}
+        </View>
       ))}
     </View>
   );

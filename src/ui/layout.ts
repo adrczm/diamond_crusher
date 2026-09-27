@@ -54,3 +54,27 @@ export function activeNav(pathname: string): NavItem['key'] | null {
   if (pathname === '/sync') return 'data';
   return null;
 }
+
+/** Phone tab bar (UX audit H4). "More" opens Settings, which links to the other sections. */
+export type TabKey = 'home' | 'progress' | 'log' | 'library' | 'more';
+export const TABS: readonly { key: TabKey; href: string }[] = [
+  { key: 'home', href: '/' },
+  { key: 'progress', href: '/progress' },
+  { key: 'log', href: '/log' },
+  { key: 'library', href: '/library' },
+  { key: 'more', href: '/settings' },
+];
+
+/** Stack screens that are tab roots on phones: no back arrow in their header. */
+export const TAB_ROUTES = ['index', 'progress', 'log', 'library', 'settings'];
+
+/**
+ * Which tab is lit on a phone, or null to hide the tab bar. It shows only on the top-level sections, never in a
+ * guided flow (these run full-screen, as on the desktop) or in the sync steps.
+ */
+export function phoneTab(pathname: string): TabKey | null {
+  if (isFocusRoute(pathname) || !isSection(pathname)) return null;
+  const a = activeNav(pathname);
+  if (a === 'home' || a === 'progress' || a === 'log' || a === 'library') return a;
+  return 'more';
+}

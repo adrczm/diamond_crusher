@@ -30,6 +30,8 @@ export interface Colors {
   selected: string;
   inputBg: string;
   inputBorder: string;
+  /** Off track of switches: at least 3:1 on every surface (WCAG 1.4.11), like Polaris border-emphasis. */
+  controlOff: string;
   focus: string;
   /** Pointer hover on cards, rows and secondary buttons (desktop). */
   hover: string;
@@ -85,6 +87,8 @@ function fromPolaris(t: (typeof polaris)['light'] | (typeof polaris)['dark'], da
     selected: dark ? DARK.selected : t['bg-surface-selected'],
     inputBg: dark ? t['bg-surface'] : t['input-bg-surface'],
     inputBorder: t['input-border'],
+    // The generated border-emphasis token is the focus blue, so the off track uses the input outline grey.
+    controlOff: t['input-border'],
     focus: dark ? '#6FB1FF' : t['border-focus'],
     hover: dark ? DARK.hover : t['bg-surface-hover'],
     primaryHover: t['bg-fill-brand-hover'],
