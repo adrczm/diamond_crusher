@@ -49,7 +49,7 @@ export default function Onboarding() {
   const [goals, setGoalsState] = useState<Goal[]>([]);
   const [age, setAge] = useState<AgeBand | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
-  const [outcome, setOutcome] = useState<{ mode: SafetyMode; reasons: QuestionKey[]; cautions: QuestionKey[] } | null>(null);
+  const [outcome, setOutcome] = useState<{ mode: SafetyMode; reasons: QuestionKey[]; cautions: QuestionKey[]; skipped: QuestionKey[] } | null>(null);
   const [lockAvailable, setLockAvailable] = useState<boolean | null>(null);
   const [perDay, setPerDay] = useState(3);
   const [plan, setPlan] = useState<SlotPlan[]>(defaultPlan(3));
@@ -220,7 +220,7 @@ export default function Onboarding() {
               setBusy(true);
               try {
                 const r = await completeScreening(db, { kind: 'onboarding', answers: a.answers, startedAt: a.startedAt, surgeryDate: a.surgeryDate });
-                setOutcome({ mode: r.mode, reasons: r.reasons, cautions: r.reasons.filter((k) => k.startsWith('Q-G') || k === 'Q-F1' || k === 'Q-F2') });
+                setOutcome({ mode: r.mode, reasons: r.reasons, cautions: r.reasons.filter((k) => k.startsWith('Q-G') || k === 'Q-F1' || k === 'Q-F2'), skipped: r.skipped });
                 await updateProfile(db, { onboarding_step: 6 });
                 go('outcome');
               } finally {
@@ -232,8 +232,9 @@ export default function Onboarding() {
       );
       break;
     case 'outcome':
-      body = outcome ? <ScreeningOutcome mode={outcome.mode} reasons={outcome.reasons} cautions={outcome.cautions} /> : null;
-      footer = <Button label={COMMON.continue} onPress={() => go('expect')} />;
+      body = outcome ? <ScreeningOutcome mode={outcome.mode} reasons={outcome.reasons} cautions={outcome.cautions} skipped={outcome.skipped} anatomy={anatomy} /> : null;
+      // UX audit H7: after "get medical help today", skip the training and reminder setup.
+      footer = <Button label={COMMON.continue} onPress={() => go(outcome?.mode === 'blocked_urgent' ? 'finish' : 'expect')} />;
       break;
     case 'expect': {
       const ed = EDUCATION.find((e) => e.id === 'ED-07');

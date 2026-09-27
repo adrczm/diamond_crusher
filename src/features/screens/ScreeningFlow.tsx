@@ -1,7 +1,7 @@
 // Safety questions one at a time (ONB-010, ONB-011), and the outcome screen (ONB-012 to ONB-023).
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { CAUTION_CARD, OUTCOME, SCREENING_INTRO, SURGERY_DATE_PROMPT, questionText } from '../../content/en/screening';
+import { CAUTION_CARD, OUTCOME, SCREENING_INTRO, SKIPPED_NOTE, SURGERY_DATE_PROMPT, questionText } from '../../content/en/screening';
 import { COMMON } from '../../content/en/strings';
 import { isVisible, questionsFor, screenSizeFor, type Answers, type QuestionKey, type ScreeningKind } from '../../domain/safety';
 import type { Anatomy, SafetyMode } from '../../domain/types';
@@ -98,7 +98,19 @@ export function outcomeCopy(mode: SafetyMode, reasons: readonly QuestionKey[]): 
   return OUTCOME.normal;
 }
 
-export function ScreeningOutcome({ mode, reasons, cautions }: { mode: SafetyMode; reasons: readonly QuestionKey[]; cautions: readonly QuestionKey[] }) {
+export function ScreeningOutcome({
+  mode,
+  reasons,
+  cautions,
+  skipped = [],
+  anatomy = 'other_unspecified',
+}: {
+  mode: SafetyMode;
+  reasons: readonly QuestionKey[];
+  cautions: readonly QuestionKey[];
+  skipped?: readonly QuestionKey[];
+  anatomy?: Anatomy;
+}) {
   const o = outcomeCopy(mode, reasons);
   return (
     <View style={{ gap: 16 }}>
@@ -112,6 +124,16 @@ export function ScreeningOutcome({ mode, reasons, cautions }: { mode: SafetyMode
             </Card>
           ))
         : null}
+      {skipped.length && (mode === 'normal' || mode === 'caution') ? (
+        <Card tone="warn">
+          <P>{SKIPPED_NOTE}</P>
+          {skipped.map((k) => (
+            <P key={k} small>
+              {`• ${questionText(k, anatomy)}`}
+            </P>
+          ))}
+        </Card>
+      ) : null}
       {mode === 'blocked_urgent' ? <Banner text="If you feel very unwell, call emergency services." /> : null}
     </View>
   );

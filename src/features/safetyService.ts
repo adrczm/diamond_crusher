@@ -2,6 +2,7 @@
 import { toLocalDate } from '../domain/dates';
 import {
   deriveReasons,
+  skippedSafety,
   modeFromReasons,
   painRouteTriggered,
   type Answers,
@@ -24,6 +25,8 @@ export interface ScreeningResult {
   runId: string;
   /** New caution reasons, for the caution cards. */
   newCautions: QuestionKey[];
+  /** Skipped questions that could stop or limit training (UX audit C1). */
+  skipped: QuestionKey[];
 }
 
 export async function completeScreening(
@@ -65,7 +68,7 @@ export async function completeScreening(
     }
   });
   const newCautions = reasons.filter((r) => !prev.reasons.includes(r) && ['Q-G1', 'Q-G2', 'Q-G3', 'Q-G4', 'Q-G5', 'Q-F1', 'Q-F2'].includes(r));
-  return { mode, reasons, runId, newCautions };
+  return { mode, reasons, runId, newCautions, skipped: skippedSafety(input.answers) };
 }
 
 /** ONB-041 / ONB-042: a pain answer after a session or check. Returns whether relax-only was switched on. */

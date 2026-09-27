@@ -80,6 +80,9 @@ export const OUTCOME = {
 } as const;
 
 /** ONB-023 caution cards. Q-G5 copy is owned by 02 (LRN-031). */
+/** UX audit C1: a skipped safety question is not a "no". */
+export const SKIPPED_NOTE = 'You skipped these safety questions. If one of them is true for you, do not train yet. Talk to a doctor first.';
+
 export const CAUTION_CARD: Record<string, string> = {
   'Q-G1': 'New or worsening leaks, or rushing to the toilet, are worth checking with a doctor. You can keep training.',
   'Q-G2': 'A new or worsening erection problem is worth checking with a doctor, as it can be linked to heart and blood vessel health. You can keep training.',
