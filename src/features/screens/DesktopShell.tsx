@@ -17,6 +17,7 @@ import { Text } from '../../ui/text';
 import { radius, space, ThemePrefContext, type, useColors, useIsDark } from '../../ui/theme';
 import { useApp, useLoad } from '../app';
 import { planToday } from '../trainingService';
+import { feedback } from '../../platform/feedback';
 
 const ORDER: Settings['theme'][] = ['system', 'light', 'dark'];
 
@@ -39,13 +40,19 @@ function useBackup() {
   return { age: backupAgeDays(last, today), warn: backupState('web', last, today) !== 'ok' };
 }
 
+/** Opens today's action. A key press or click is the gesture that lets the browser play session sounds (M6). */
+function openToday(href: string) {
+  void feedback.prepare().catch(() => undefined);
+  router.push(href);
+}
+
 /** Where the sidebar's main button goes today, or null when there is nothing to start. */
 function useTodayAction() {
   const { data } = useLoad((d) => planToday(d));
   if (!data) return null;
   if (data.kind === 'learn') return { label: HOME.learnFirst, href: '/learn', done: false };
   if (data.kind === 'relax') return { label: HOME.relaxPractice, href: '/session?relax=1', done: false };
-  if (data.kind === 'strength') return { label: DESKTOP.start, href: '/session', done: false };
+  if (data.kind === 'strength') return { label: DESKTOP.start, href: '/session?go=1', done: false };
   if (data.kind === 'day_done') return { label: DESKTOP.start, href: '/session?extra=1', done: true };
   return null;
 }
@@ -73,7 +80,7 @@ export function DesktopFrame({ children }: { children: ReactNode }) {
         : {
             t: () => void theme.cycle(),
             s: () => {
-              if (today && !today.done) router.push(today.href);
+              if (today && !today.done) openToday(today.href);
             },
             ...Object.fromEntries(NAV.map((n, i) => [String(i + 1), () => router.navigate(n.href)])),
           }),
@@ -110,7 +117,7 @@ function Sidebar({
     <View role="navigation" style={{ width: SIDEBAR_W, backgroundColor: c.nav, borderRightWidth: StyleSheet.hairlineWidth, borderColor: c.border }}>
       <ScrollView contentContainerStyle={{ padding: space(1.5), gap: space(2), flexGrow: 1 }}>
         <Brand />
-        {today ? <StartButton label={today.label} done={today.done} onPress={() => router.push(today.href)} /> : null}
+        {today ? <StartButton label={today.label} done={today.done} onPress={() => openToday(today.href)} /> : null}
         {groups.map((g) => (
           <View key={g} style={{ gap: 2 }}>
             <Text style={[type('body-sm'), { color: c.muted, paddingHorizontal: space(1), marginBottom: 2, fontWeight: '600' }]}>{DESKTOP.navGroups[g]}</Text>

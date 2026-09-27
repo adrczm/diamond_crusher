@@ -1,4 +1,5 @@
 // Startup routing (07 PRIV-040, 09 ARCH-034): first run, lock, unreadable data, newer data, ready.
+import { DESKTOP } from '../src/content/en/strings';
 import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
 import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
@@ -239,6 +240,7 @@ function Nav() {
             headerTintColor: c.text,
             headerTitleStyle: { fontFamily: FONTS.semibold, fontSize: 17 },
             headerShadowVisible: true,
+            headerBackTitle: DESKTOP.back,
             contentStyle: { backgroundColor: c.bg },
             animation: desktop || tabRoot ? 'none' : 'slide_from_right',
             ...(tabRoot ? { headerBackVisible: false } : null),

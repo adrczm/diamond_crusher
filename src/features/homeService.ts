@@ -1,4 +1,5 @@
 // Everything the home screen shows, derived in one pass (09 ARCH-034 step 5).
+import { Platform } from 'react-native';
 import { weekDots, type WeekDots } from '../domain/adherence';
 import { addDays, atLocalTime, diffDays, toLocalDate, type LocalDate } from '../domain/dates';
 import { strengthUnlocked } from '../domain/learn';
@@ -19,6 +20,7 @@ import {
 import { weekdayBit } from '../domain/reminders';
 import { isBlocked, type QuestionKey } from '../domain/safety';
 import { getMeta, markContentSeen, seenContent } from '../data/repositories/misc';
+import { backupDue } from '../domain/backup';
 import { listScheduledChecks, listSelfChecks } from '../data/repositories/checks';
 import { activeGoals, getProfile, updateProfile, type ProfileRow } from '../data/repositories/profile';
 import { getProgramme, listLevelChanges, toPrescription, type ProgrammeRow } from '../data/repositories/programme';
@@ -191,6 +193,13 @@ export async function loadSessionSummary(db: SqlDb, now = new Date()): Promise<S
 }
 
 /** Hides a setup card for good. For "What to expect", opening it or dismissing it counts as read. */
+const BACKUP_LATER = 'today:backup-later:';
+
+/** "Not now" on the backup card: it comes back after a few days (3 on the web, 14 on phones). */
+export async function backupLater(db: SqlDb, today: LocalDate): Promise<void> {
+  await markContentSeen(db, `${BACKUP_LATER}${today}`);
+}
+
 export async function dismissSetup(db: SqlDb, key: SetupKey): Promise<void> {
   if (key === 'expect') await updateProfile(db, { expectations_ack_at: nowIso() });
   else await markContentSeen(db, `today:${key}`);
@@ -237,9 +246,9 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
   const inc = lastIncrease(records);
   const unlocked = strengthUnlocked(programme.learn_status);
   const reviewDone = (await listScheduledChecks(db)).some((c) => c.kind === 'quarterly_review' && (c.status === 'completed' || c.status === 'skipped'));
-  const hasData = sessions.length > 0 || checks.length > 0;
   const lastExport = meta?.last_export_at ? toLocalDate(new Date(meta.last_export_at)) : null;
-  const firstUse = profile.onboarding_completed_at ? toLocalDate(new Date(profile.onboarding_completed_at)) : todayStr;
+  // "Not now" on the backup card is stored as a content_view key with the date it was pressed.
+  const laterOn = [...seen].filter((k) => k.startsWith(BACKUP_LATER)).map((k) => k.slice(BACKUP_LATER.length)).sort().pop();
   return {
     profile,
     goals,
@@ -266,7 +275,15 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
       reviewDoneOrSkipped: reviewDone,
       keepBuildingUntilActiveDay: programme.keep_building_until_active_day,
     }),
-    exportReminder: hasData && diffDays(lastExport ?? firstUse, todayStr) >= settings.export_reminder_days,
+    // UX audit C3: first ask after the 3rd session, then weekly on the web (Safari can clear its storage).
+    exportReminder: backupDue({
+      platform: Platform.OS === 'web' ? 'web' : 'native',
+      sessionsCount: allSessions.length,
+      lastExport,
+      today: todayStr,
+      reminderDays: settings.export_reminder_days,
+      dismissedUntil: laterOn ? addDays(laterOn, Platform.OS === 'web' ? 3 : 14) : null,
+    }),
     cautions: safety.reasons.filter((r) => ['Q-G1', 'Q-G2', 'Q-G3', 'Q-G4', 'Q-G5', 'Q-F1', 'Q-F2'].includes(r)),
     setup,
   };

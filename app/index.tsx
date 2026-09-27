@@ -9,14 +9,13 @@ import { CAUTION_CARD, CLEARANCE, OUTCOME, RELAX_ONLY_HOME } from '../src/conten
 import { COMMON, EXPECTATION, HOME, LEVEL_NAME, MAINTENANCE, NEXT_NAME, SETUP, WELCOME_BACK } from '../src/content/en/strings';
 import { formatShort } from '../src/domain/dates';
 import { useApp, useLoad } from '../src/features/app';
-import { dismissSetup, loadHome, type HomeModel, type SetupKey } from '../src/features/homeService';
+import { backupLater, dismissSetup, loadHome, type HomeModel, type SetupKey } from '../src/features/homeService';
 import { SessionContents } from '../src/features/screens/SessionContents';
 import { WeekStrip, whenText } from '../src/features/screens/WeekStrip';
 import { reconcileReminders } from '../src/features/reminderService';
 import { clear } from '../src/features/safetyService';
 import { outcomeCopy } from '../src/features/screens/ScreeningFlow';
 import { applyGapChoice, keepBuilding, switchToMaintenance } from '../src/features/trainingService';
-import { updateSettings } from '../src/data/repositories/settings';
 import { toLocalDate } from '../src/domain/dates';
 import { Button, Card, Columns, H1, H2, Label, LinkRow, Loading, P, Row, Screen } from '../src/ui/kit';
 import { isWeb, useDesktop } from '../src/ui/layout';
@@ -62,7 +61,7 @@ export default function Home() {
   };
 
   return (
-    <Screen title={desktop ? HOME.todayTitle : HOME.greeting(m.profile.nickname)} width="wide">
+    <Screen title={HOME.todayTitle} width="wide">
       <Row>
         <View style={{ flex: 1 }}>
           {desktop ? <P muted>{new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</P> : null}
@@ -177,23 +176,19 @@ export default function Home() {
             <Card tone="soft">
               <P>{HOME.exportReminder}</P>
               <Row>
-                <Button label="Save a backup" kind="secondary" onPress={() => router.push('/data')} />
+                <Button label={HOME.saveBackup} kind="secondary" onPress={() => router.push('/data')} />
                 <Button
                   label={COMMON.notNow}
                   kind="quiet"
-                  onPress={() => act(() => updateSettings(db, { export_reminder_days: m.settings.export_reminder_days + 30 }))}
+                  onPress={() => act(() => backupLater(db, toLocalDate(new Date())))}
                 />
               </Row>
             </Card>
           ) : null}
 
           <Card>
-            {/* On the desktop layout the sidebar already links the sections. */}
-            {!desktop ? <LinkRow label={HOME.logSomething} onPress={() => router.push('/log')} /> : null}
-            {!desktop ? <LinkRow label="Progress" onPress={() => router.push('/progress')} /> : null}
-            {!desktop ? <LinkRow label="Learn library" onPress={() => router.push('/library')} /> : null}
+            {/* The sidebar (desktop) and the tab bar (phones) link the sections. */}
             <LinkRow label={HOME.somethingChanged} onPress={() => router.push('/screening?kind=something_changed')} />
-            {!desktop ? <LinkRow label="Settings" onPress={() => router.push('/settings')} /> : null}
           </Card>
         </>
       </Columns>
