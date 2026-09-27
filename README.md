@@ -10,6 +10,7 @@ Diamond Crusher is a training aid. It does not diagnose any condition and is not
 
 - **Install on Android:** see [docs/install.md](docs/install.md).
 - **Use on a Mac (Safari):** download the Mac zip from Releases; see [docs/mac.md](docs/mac.md).
+- **Sync phone and Mac:** pair once, then swap QR codes on screen (spec 07 §11). No network or server is involved.
 - **Specs:** the build follows the project specs (00 to 10). Requirement IDs such as `ONB-012` or `PRG-006` appear in code comments.
 
 ## Stack

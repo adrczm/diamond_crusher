@@ -11,7 +11,7 @@ const config: ExpoConfig = {
   name: 'Diamond Crusher',
   slug: 'diamond-crusher',
   scheme: 'diamondcrusher',
-  version: '1.0.0',
+  version: '1.1.0',
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   icon: './assets/icon.png',

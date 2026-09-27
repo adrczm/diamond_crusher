@@ -53,7 +53,10 @@ A narrow window keeps the phone layout. The research behind the design is in the
   Save a backup file). The same file opens on the phone, so you can also move between Mac and phone this way.
 - **Updating:** save a backup file first, then replace the Diamond Crusher folder with the new download. Your data stays
   in Safari.
-- The Mac and the phone don't sync. Each keeps its own data, as the app has no server.
+- **Sync with your phone by QR codes.** Open Backup and data → Sync. Pair the two devices once, then one screen shows
+  its changes and the other scans them with its camera. No network, no server: the codes are encrypted with a key only
+  your two devices hold. Safari asks for the camera the first time; the app only reads codes and saves no images. A Mac
+  without a built-in camera needs a webcam, or use a backup file instead.
 
 ## How the web version stores data
 
