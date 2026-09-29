@@ -75,3 +75,20 @@ cd android && ./gradlew assembleRelease
 
 For development with live reload, build with `DC_DEV=1` so the app keeps the network permission it needs to reach Metro:
 `DC_DEV=1 npx expo run:android`. Release builds never have internet access.
+
+## Phone check after each new version
+
+The automated tests run in Node and the browser, not on a phone. After you install a new APK, check these on the
+phone (about 3 minutes):
+
+1. Settings › Sound: set Tones, then tap **Try sound and vibration**. You hear a tone and feel a buzz.
+2. Set Voice and tap it again. You hear "Squeeze".
+3. Start a session. The squeeze and let-go cues play; at a block change, Voice names the next block.
+4. Tap **Pain**, then **Tapped by mistake**. The session continues where it stopped.
+5. Press the phone's Back button during a session. The app asks "End session?".
+6. The tab bar shows all five labels in full, also with a large system font size.
+7. Reminders: change a time with the − and + buttons, then save.
+8. With the app lock on: lock the phone for 2 minutes during a session. The session is still there.
+9. Save a backup, then import it with Merge.
+
+Write anything that fails in the project chat.
