@@ -2,7 +2,8 @@
 import { decryptBackup, encryptBackup } from '../data/backup/container';
 import { buildPayload, importMerge, importReplace, preview, validatePayload, type Payload, type Preview } from '../data/backup/exportImport';
 import { logDataOp, setLastExport } from '../data/repositories/misc';
-import type { SqlDb } from '../data/sql';
+import type { SqlDb, SqlValue } from '../data/sql';
+import { keepStricterSafety } from '../data/backup/safetyGuard';
 import { applyImportedBootstrap, type Bootstrap } from '../data/vault';
 import { files } from '../platform/files';
 import { randomBytes } from '../platform/random';
@@ -78,8 +79,10 @@ export async function applyImport(
   how: 'replace' | 'merge',
   keep: 'this_phone' | 'backup' = 'this_phone'
 ): Promise<Bootstrap> {
+  const before = await db.get<Record<string, SqlValue>>('SELECT * FROM safety_state WHERE id = 1');
   if (how === 'replace') await importReplace(db, payload);
   else await importMerge(db, payload, keep);
+  await keepStricterSafety(db, before ?? null);
   await logDataOp(db, how === 'replace' ? 'imported_replace' : 'imported_merge');
   if (how === 'replace' || keep === 'backup') return applyImportedBootstrap(db, boot, payload.bootstrap);
   return boot;
