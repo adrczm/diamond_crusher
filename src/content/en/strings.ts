@@ -254,7 +254,7 @@ export const MILESTONES: Record<string, string> = {
 
 export const PROGRESS = {
   title: 'Progress',
-  overviewSymptoms: 'Symptom check-ups',
+  overviewSymptoms: 'Your questionnaire answers',
   noChange: 'No change',
   somethingChanged: 'Something changed',
   noCheckYet: 'No check-up yet',
@@ -280,7 +280,7 @@ export const PROGRESS = {
   questionnaires: 'Questionnaire answers',
   checkUp: 'check-up',
   checkUpExplain:
-    'Your answers show no symptoms now. That is good news. These questionnaires measure symptoms, so they cannot show more progress from here. We will continue to ask, so that you see any change early. Your progress shows in your training record and monthly self-check instead.',
+    'Your answers are at the "no problem" end. That is good news. These questions cannot show more change from there. The app continues to ask, so that you see any change early. Your progress shows in your training record and monthly self-check instead.',
   table: 'Show as table',
   chart: 'Show as chart',
   noData: 'Nothing to show yet.',
@@ -545,7 +545,13 @@ export const ABOUT = {
   title: 'About',
   description: APP_TAGLINE,
   licences: 'Questionnaires: the app’s own questions are not validated. The app adds validated questionnaires only with permission from the licence holder.',
-  evidence: 'See "About the evidence" in the Learn library.',
+  evidence: 'About the evidence',
+  // Decision 8 (2026-09-29): the intended purpose, so the app stays a training aid (EU MDR / UK MHRA boundary).
+  purposeTitle: 'What this app is for',
+  purpose: [
+    'Diamond Crusher guides pelvic floor exercises for adults. It keeps a private record of your training and your answers.',
+    'It does not diagnose any condition or follow a condition over time. It does not replace care from a health professional.',
+  ],
 };
 
 /** Desktop layout (Mac): sidebar, toolbar and keyboard shortcuts. */

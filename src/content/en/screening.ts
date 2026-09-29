@@ -78,7 +78,7 @@ export const OUTCOME = {
   },
   relax_only: {
     title: 'Relaxation practice only for now',
-    body: 'Pain like this can mean that your pelvic floor is too tense, not too weak. Stronger squeezes could make it worse. See a pelvic health physiotherapist or doctor. Until then, the app gives relaxation practice only.',
+    body: 'Stronger squeezes are not a good idea while you have this pain. See a pelvic health physiotherapist or doctor. They can find the cause. Until then, the app gives relaxation practice only.',
     reason: 'You told us about pain.',
   },
   caution: {
