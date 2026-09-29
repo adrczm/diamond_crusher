@@ -11,6 +11,7 @@ import { checkPreview, pastChecks, type PastCheck } from '../src/domain/checkins
 import { formatShort, toLocalDate } from '../src/domain/dates';
 import { useApp, useLoad } from '../src/features/app';
 import { leaveFlow } from '../src/features/screens/GuidedFlow';
+import { Alert } from '../src/platform/dialog';
 import { currentCheck, markPart, modulesForCheck, skipCheck, type CheckDue } from '../src/features/checkService';
 import { saveSexualFlag } from '../src/features/checkService';
 import { reconcileReminders } from '../src/features/reminderService';
@@ -110,6 +111,7 @@ export default function CheckHub() {
           {p !== 'sexual_flag' && !done(p) ? (
             <Button
               label={BUNDLE.startPart}
+              accessibilityLabel={BUNDLE.startPartFor(BUNDLE.parts[p])}
               kind="secondary"
               onPress={() =>
                 router.push(
@@ -123,12 +125,22 @@ export default function CheckHub() {
       <Button
         label={BUNDLE.skip}
         kind="quiet"
-        onPress={async () => {
-          await skipCheck(db, c.row.id);
-          reconcileReminders(db);
-          bump();
-          leaveFlow();
-        }}
+        // One tap no longer throws a half-done check away (DS-E18).
+        onPress={() =>
+          Alert.alert(BUNDLE.skipAsk, BUNDLE.skipAskBody, [
+            { text: COMMON.cancel, style: 'cancel' },
+            {
+              text: BUNDLE.skip,
+              style: 'destructive',
+              onPress: async () => {
+                await skipCheck(db, c.row.id);
+                reconcileReminders(db);
+                bump();
+                leaveFlow();
+              },
+            },
+          ])
+        }
       />
       <History past={data.past} />
     </Screen>
