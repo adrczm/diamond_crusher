@@ -80,12 +80,12 @@ test('the sync engine works on sql.js (Mac) against the phone database', async (
   await ensureSingletons(mac, true);
   const phone = await freshDb();
   expect(await localNode(mac)).toMatch(/^[0-9a-f]{8}$/);
-  await updateSettings(mac, { theme: 'dark' });
+  await updateSettings(mac, { weekly_days_target: 6 });
   await mac.run("INSERT INTO milestone (key, reached_at, created_at) VALUES ('first_week', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z')");
   const tomb = await mac.get<{ n: number }>("SELECT count(*) AS n FROM milestone WHERE hlc != ''");
   expect(tomb?.n).toBe(1);
   await applyChangeSet(phone, await buildChangeSet(mac, ''));
-  expect((await getSettings(phone)).theme).toBe('dark');
+  expect((await getSettings(phone)).weekly_days_target).toBe(6);
   expect((await phone.all('SELECT key FROM milestone')).length).toBe(1);
   await mac.close();
 });
