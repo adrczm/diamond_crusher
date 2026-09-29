@@ -24,6 +24,11 @@ export const VOICE = {
   done: 'Session done',
 } as const;
 
+/** Voice mode at a block change (decision 4, 2026-09-29), so the person can train with eyes closed. */
+export function voiceBlock(block: keyof typeof BLOCK_NAME): string {
+  return `Next: ${BLOCK_NAME[block]}. ${INTENSITY[block]}.`;
+}
+
 export const RELAX_STEP_TEXT: Record<RelaxStep, { title: string; body: string }> = {
   relax_in: { title: 'Relax', body: 'Take 3 slow breaths. Let your tummy and the area between your legs go soft.' },
   relax_out: { title: 'Relax', body: 'Take 3 slow breaths. Let everything go soft and heavy.' },

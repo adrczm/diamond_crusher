@@ -119,7 +119,9 @@ export const PAIN_CHOICE = {
   question: 'Is it pain, or just tired muscles?',
   pain: 'Pain',
   tired: 'Just tired',
-  tiredReply: 'That is fine. Tired muscles mean it is time to stop the set.',
+  tiredReply: 'That is fine. Tired muscles mean it is time to stop the set. The session continues with the next part.',
+  mistake: 'Tapped by mistake',
+  pausedNote: 'The session is paused.',
   aLittle: 'Go gently. If it is still there next time, we will switch to relaxation only.',
 };
 

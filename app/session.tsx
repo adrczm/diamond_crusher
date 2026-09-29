@@ -7,7 +7,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, AppState, Platform, View } from 'react-native';
 import { Text } from '../src/ui/text';
-import { BLOCK_NAME, INTENSITY, PHASE_TEXT, RELAX_STEP_TEXT, SESSION, VOICE } from '../src/content/en/exercise';
+import { BLOCK_NAME, INTENSITY, PHASE_TEXT, RELAX_STEP_TEXT, SESSION, VOICE, voiceBlock } from '../src/content/en/exercise';
 import { REMINDER_CUES, cueText } from '../src/content/en/learn';
 import { PAIN_CHOICE, RELAX_ONLY_HOME } from '../src/content/en/screening';
 import { APP_QUESTION_LABEL, SESSION_LOG } from '../src/content/en/items';
@@ -171,10 +171,7 @@ export default function SessionScreen() {
         cue={cueText(data.profile?.preferred_cue_key ?? null, data.profile?.anatomy ?? 'other_unspecified')}
         painAsk={stage === 'painAsk'}
         onPain={() => setStage('painAsk')}
-        onPainAnswer={(isPain) => {
-          if (isPain) runner.current?.markPain();
-          setStage('running');
-        }}
+        onPainAnswer={() => setStage('running')}
         onFinished={onFinished}
       />
     );
@@ -259,7 +256,7 @@ function Runner({
   cue: string;
   painAsk: boolean;
   onPain: () => void;
-  onPainAnswer: (pain: boolean) => void;
+  onPainAnswer: () => void;
   onFinished: (c: Completion) => void;
 }) {
   useKeepAwake();
@@ -269,7 +266,13 @@ function Runner({
   // A short call or a press of the power button does not lock the app and throw the session away (DS-E1).
   useEffect(() => holdLockForRun(), []);
   const [, setTick] = useState(0);
-  const [note, setNote] = useState<string | null>(null);
+  const [note, setNoteText] = useState<string | null>(null);
+  // A note belongs to the block that is current just after it is set, and clears when the next block starts (DS-F3).
+  const noteBlock = useRef<number | null>(null);
+  const setNote = (t: string | null) => {
+    noteBlock.current = runner.currentPhase()?.blockIndex ?? null;
+    setNoteText(t);
+  };
   const [confirmEnd, setConfirmEnd] = useState(false);
   const finished = useRef(false);
 
@@ -286,6 +289,9 @@ function Runner({
           void feedback.cue('squeeze', { audio, vibration, words: VOICE.squeeze });
         } else if (e.phase.kind === 'release') {
           void feedback.cue('release', { audio, vibration, words: VOICE.release });
+        } else if (e.phase.kind === 'transition' && audio === 'voice') {
+          // Voice names the next block, so the person knows what comes without looking (decision 4).
+          void feedback.cue('tick', { audio, vibration, words: voiceBlock(e.phase.block) });
         } else if (e.phase.kind === 'transition' || (e.phase.kind === 'relax' && e.phase.rep <= 1)) {
           void feedback.cue('tick', { audio: audio === 'voice' ? 'off' : audio, vibration });
         }
@@ -356,8 +362,10 @@ function Runner({
     return () => window.removeEventListener('beforeunload', warn);
   }, [running]);
   // The "Getting weak" note belongs to one block; it clears when the next block starts (DS-F3).
-  const block = p?.block;
-  useEffect(() => setNote(null), [block]);
+  const blockIndex = p?.blockIndex;
+  useEffect(() => {
+    if (blockIndex !== noteBlock.current) setNoteText(null);
+  }, [blockIndex]);
 
   // The circle swells on squeeze and settles on release (a spring, so it feels like a muscle, not a switch).
   const scale = useRef(new Animated.Value(0.85)).current;
@@ -371,15 +379,34 @@ function Runner({
   if (painAsk) {
     return (
       <Screen title="" headerShown={false}>
+        {/* Decision 1 (2026-09-29): the Pain button pauses and asks. Pain ends the session with the relax-out; "Just
+            tired" ends only the set; "Tapped by mistake" carries on. */}
         <View style={{ paddingTop: 48, gap: 16 }}>
+          <P muted>{PAIN_CHOICE.pausedNote}</P>
           <H1>{PAIN_CHOICE.question}</H1>
-          <Button label={PAIN_CHOICE.pain} onPress={() => onPainAnswer(true)} />
+          <Button
+            label={PAIN_CHOICE.pain}
+            onPress={() => {
+              handle(runner.stopEarly(mono(), 'pain'));
+              onPainAnswer();
+            }}
+          />
           <Button
             label={PAIN_CHOICE.tired}
             kind="secondary"
             onPress={() => {
+              runner.resume(mono());
+              handle(runner.gettingWeak(mono()));
               setNote(PAIN_CHOICE.tiredReply);
-              onPainAnswer(false);
+              onPainAnswer();
+            }}
+          />
+          <Button
+            label={PAIN_CHOICE.mistake}
+            kind="quiet"
+            onPress={() => {
+              runner.resume(mono());
+              onPainAnswer();
             }}
           />
         </View>
@@ -424,7 +451,7 @@ function Runner({
                 label={SESSION.pain}
                 kind="secondary"
                 onPress={() => {
-                  handle(runner.stopEarly(mono(), 'user_stop'));
+                  if (runner.getState() !== 'paused') runner.pause(mono());
                   onPain();
                 }}
               />
