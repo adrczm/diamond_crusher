@@ -56,7 +56,7 @@ export const SELF_CHECK = {
     samePosition: 'Are you on your back, knees bent (the same position as last time)?',
     samePositionStanding: 'Are you standing, the same as last time?',
   },
-  proceedAnyway: 'You can still continue. We will add a note to the result.',
+  proceedAnyway: 'You can still continue. The app adds a note to the result.',
   rest: 'Rest',
   signTitle: 'Step 1 of 6: Sign check',
   sign: {

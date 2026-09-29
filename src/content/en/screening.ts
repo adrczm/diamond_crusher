@@ -69,17 +69,17 @@ export const OUTCOME = {
   catheter: {
     title: 'Wait until the catheter is out',
     body: 'Do not do pelvic floor exercises while a catheter is in. Exercises unlock when it is out.',
-    reason: 'You told us a catheter is in at the moment.',
+    reason: 'You said that a catheter is in at the moment.',
   },
   surgery: {
     title: 'Wait for the OK from your care team',
-    body: 'After surgery, wait until your surgeon or care team says it is OK to start. Exercises unlock when you tell us they said OK.',
-    reason: 'You told us you had surgery or radiotherapy in the last 3 months.',
+    body: 'After surgery, wait until your surgeon or care team says it is OK to start. Exercises unlock when you tell the app that they said OK.',
+    reason: 'You said that you had surgery or radiotherapy in the last 3 months.',
   },
   relax_only: {
     title: 'Relaxation practice only for now',
     body: 'Stronger squeezes are not a good idea while you have this pain. See a pelvic health physiotherapist or doctor. They can find the cause. Until then, the app gives relaxation practice only.',
-    reason: 'You told us about pain.',
+    reason: 'You said that you have pain.',
   },
   caution: {
     title: 'You can start',
@@ -109,7 +109,7 @@ export const CLEARANCE = {
   urgentTick: 'I have been seen, or this has been checked.',
   painTick: 'A health professional checked me and said that strengthening exercises are OK.',
   clearedButton: 'I am cleared',
-  preSurgeryHome: 'Tell us when your catheter is out and your team says it is OK',
+  preSurgeryHome: 'Tell the app when your catheter is out and your team says it is OK',
   preSurgeryStartNow: 'It is a good idea to start the programme now, 3 to 4 weeks or more before surgery.',
   preSurgeryShort: 'Your surgery is soon. You can still start now. After surgery, wait for the OK from your care team.',
   stillBlocked: 'Exercises stay paused for now, based on your answers.',
@@ -122,14 +122,14 @@ export const PAIN_CHOICE = {
   tiredReply: 'That is fine. Tired muscles mean it is time to stop the set. The session continues with the next part.',
   mistake: 'Tapped by mistake',
   pausedNote: 'The session is paused.',
-  aLittle: 'Go gently. If it is still there next time, we will switch to relaxation only.',
+  aLittle: 'Go gently. If it is still there next time, the app switches to relaxation only.',
 };
 
 export const REVIEW_12W_CARD = 'Not much changed in 3 months. A pelvic health physiotherapist can check what is happening.';
 
 export const RELAX_ONLY_HOME = 'Relaxation practice only, until a health professional checks the pain.';
 export const OTHER_PROFILE_PHYSIO = 'A pelvic health physiotherapist can check your technique and tailor training to you. It is a good idea to see one if you can.';
-export const TODO_BANNER = 'We are still writing some guidance for this profile';
+export const TODO_BANNER = 'Some guidance for this profile is not written yet';
 
 /** Words around the safety questions (moved from screen code, DS-P1). */
 export const SCREEN_FLOW = {

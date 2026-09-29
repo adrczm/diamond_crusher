@@ -82,7 +82,7 @@ export const LEARN = {
   resultPushDown: 'It looks like a push down',
   resultPushDownBody: 'Some signs suggest a push down, not a lift in. Before you train, try again with the tips below.',
   startAnyway: 'Start training anyway',
-  startAnywayNote: 'We will ask you to check your technique again once a week.',
+  startAnywayNote: 'The app asks you to check your technique again once a week.',
   whichCue: 'Which cue worked best?',
   tipAnotherCue: 'Try another cue.',
   tipLieDown: 'Try lying down, knees bent and apart.',
