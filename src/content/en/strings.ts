@@ -596,6 +596,7 @@ export const DESKTOP = {
     security: 'Who can open the app, and your data.',
     more: 'Learning, re-checks and version details.',
   },
+  helpAndChanges: 'Help and changes',
   more: 'More',
   sessionProgress: (pct: number) => `${pct}% of this session done`,
 };

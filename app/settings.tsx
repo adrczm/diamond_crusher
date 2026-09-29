@@ -63,7 +63,8 @@ export default function SettingsScreen() {
   };
 
   return (
-    <Screen title={SETTINGS.title} width="medium">
+    // Decision 7 (2026-09-29): on phones the tab and its page are both "More"; the desktop sidebar says Settings.
+    <Screen title={desktop ? SETTINGS.title : DESKTOP.more} width="medium">
       {/* Phones: this page is the More tab, so the sections without a tab come first (the desktop has the sidebar). */}
       {!desktop ? (
         <Card>
@@ -155,7 +156,7 @@ export default function SettingsScreen() {
           }}
         />
         <ToggleRow label={SETTINGS.functionalCues} value={s.functional_cues_enabled} onChange={(v) => set({ functional_cues_enabled: v })} />
-        <LinkRow label={SETTINGS.reminders} onPress={() => router.push('/reminders')} />
+        {desktop ? <LinkRow label={SETTINGS.reminders} onPress={() => router.push('/reminders')} /> : null}
       </Section>
 
       <Section title={SETTINGS.theme} description={DESKTOP.settingsNotes.appearance}>
@@ -194,14 +195,14 @@ export default function SettingsScreen() {
             </P>
           </>
         ) : null}
-        <LinkRow label={SETTINGS.data} onPress={() => router.push('/data')} />
+        {desktop ? <LinkRow label={SETTINGS.data} onPress={() => router.push('/data')} /> : null}
       </Section>
 
-      <Section title={DESKTOP.more} description={DESKTOP.settingsNotes.more}>
+      <Section title={DESKTOP.helpAndChanges} description={DESKTOP.settingsNotes.more}>
         <LinkRow label={SETTINGS.learn} onPress={() => router.push('/library')} />
         <LinkRow label={SETTINGS.relearn} onPress={() => router.push('/learn?mode=recheck')} />
         <LinkRow label={SETTINGS.somethingChanged} onPress={() => router.push('/screening?kind=something_changed')} />
-        <LinkRow label={SETTINGS.about} onPress={() => router.push('/about')} detail={SETTINGS.version(appVersion)} />
+        {desktop ? <LinkRow label={SETTINGS.about} onPress={() => router.push('/about')} detail={SETTINGS.version(appVersion)} /> : null}
       </Section>
     </Screen>
   );
