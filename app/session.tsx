@@ -19,7 +19,7 @@ import { reminderCueIndex } from '../src/domain/learn';
 import { SessionRunner, type RunnerEvent } from '../src/domain/session/engine';
 import { relaxPlan, type SessionPlan, type TimelinePhase } from '../src/domain/session/plan';
 import type { Completion, OffTick, Pain3 } from '../src/domain/types';
-import { useApp, useLoad } from '../src/features/app';
+import { setSessionScreenOpen, useApp, useLoad } from '../src/features/app';
 import { leaveFlow } from '../src/features/screens/GuidedFlow';
 import { loadSessionSummary } from '../src/features/homeService';
 import { SessionContents } from '../src/features/screens/SessionContents';
@@ -50,6 +50,11 @@ export default function SessionScreen() {
   const [completion, setCompletion] = useState<Completion>('complete');
   const runner = useRef<SessionRunner | null>(null);
   const startedAt = useRef<Date>(new Date());
+  // One session screen at a time (DS-E8).
+  useEffect(() => {
+    setSessionScreenOpen(true);
+    return () => setSessionScreenOpen(false);
+  }, []);
 
   useEffect(() => {
     if (!data || plan) return;

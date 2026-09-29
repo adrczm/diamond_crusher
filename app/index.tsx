@@ -8,7 +8,7 @@ import { AFTER_PEE, KNACK, SESSION } from '../src/content/en/exercise';
 import { CAUTION_CARD, CLEARANCE, OUTCOME, RELAX_ONLY_HOME } from '../src/content/en/screening';
 import { COMMON, EXPECTATION, HOME, LEVEL_NAME, MAINTENANCE, NEXT_NAME, SETUP, WELCOME_BACK } from '../src/content/en/strings';
 import { formatShort } from '../src/domain/dates';
-import { useApp, useLoad } from '../src/features/app';
+import { openSessionOnce, useApp, useLoad } from '../src/features/app';
 import { backupLater, dismissSetup, loadHome, type HomeModel, type SetupKey } from '../src/features/homeService';
 import { SessionContents } from '../src/features/screens/SessionContents';
 import { WeekStrip, whenText } from '../src/features/screens/WeekStrip';
@@ -268,10 +268,11 @@ function TodayCard({ m }: { m: HomeModel }) {
   }
   // M6: one Start. The session's 30 s relax is the lead-in, so there is no ready screen from here.
   // On the web, sound needs a user gesture, so the players are made inside this tap.
-  const start = async () => {
-    await feedback.prepare().catch(() => undefined);
-    router.push('/session?go=1');
-  };
+  const start = () =>
+    openSessionOnce(() => {
+      void feedback.prepare().catch(() => undefined);
+      router.push('/session?go=1');
+    });
   return (
     <Card>
       <H2>{HOME.upNext}</H2>

@@ -15,7 +15,7 @@ import { Icon, type IconName } from '../../ui/icons';
 import { activeNav, isFocusRoute, isSection, NAV, SIDEBAR_W, useDesktop } from '../../ui/layout';
 import { Text } from '../../ui/text';
 import { radius, space, ThemePrefContext, type, useColors, useIsDark } from '../../ui/theme';
-import { useApp, useLoad } from '../app';
+import { openSessionOnce, useApp, useLoad } from '../app';
 import { planToday } from '../trainingService';
 import { feedback } from '../../platform/feedback';
 
@@ -42,8 +42,12 @@ function useBackup() {
 
 /** Opens today's action. A key press or click is the gesture that lets the browser play session sounds (M6). */
 function openToday(href: string) {
-  void feedback.prepare().catch(() => undefined);
-  router.push(href);
+  const go = () => {
+    void feedback.prepare().catch(() => undefined);
+    router.push(href);
+  };
+  if (href.startsWith('/session')) openSessionOnce(go);
+  else go();
 }
 
 /** Where the sidebar's main button goes today, or null when there is nothing to start. */
