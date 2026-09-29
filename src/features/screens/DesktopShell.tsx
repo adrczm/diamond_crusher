@@ -14,6 +14,7 @@ import { ToggleRow } from '../../ui/kit';
 import { Icon, type IconName } from '../../ui/icons';
 import { activeNav, isFocusRoute, isSection, NAV, SIDEBAR_W, useDesktop } from '../../ui/layout';
 import { Text } from '../../ui/text';
+import { useReducedMotion } from '../../ui/motion';
 import { radius, space, ThemePrefContext, type, useColors, useIsDark } from '../../ui/theme';
 import { openSessionOnce, useApp, useLoad } from '../app';
 import { planToday } from '../trainingService';
@@ -348,9 +349,10 @@ function ShortcutsPanel({ open, onClose }: { open: boolean; onClose: () => void 
   const [on, setOn] = useState(shortcutsEnabled());
   const box = useRef<View>(null);
   const closeButton = useRef<View>(null);
+  const reduced = useReducedMotion();
   useFocusTrap(open, box, closeButton);
   return (
-    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={open} transparent animationType={reduced ? 'none' : 'fade'} onRequestClose={onClose}>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: space(3) }}>
         {/* The dimmed backdrop closes the panel on a click, but is not a Tab stop: the Close button does that job. */}
         <Pressable
