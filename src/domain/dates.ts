@@ -84,3 +84,12 @@ export function formatDuration(totalS: number): string {
   if (m === 0) return `${r} s`;
   return r === 0 ? `${m} min` : `${m} min ${r} s`;
 }
+
+/** Clock time in the device's own style (12- or 24-hour, DS-A19), e.g. "14:10" or "2:10 PM". */
+export function formatTime(at: Date): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(at);
+  } catch {
+    return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+  }
+}

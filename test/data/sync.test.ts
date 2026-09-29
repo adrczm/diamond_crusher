@@ -118,13 +118,13 @@ describe('sync engine (07 §11)', () => {
     const [a, b] = [await freshDb(), await freshDb()];
     await pair(a, b);
     await sync(a, b);
-    await updateSettings(b, { theme: 'dark', weekly_days_target: 6 });
+    await updateSettings(b, { week_start_day: 7, weekly_days_target: 6 });
     await updateProgramme(a, { hold_s: 6, hold_reps: 9 });
     await sync(a, b);
     for (const db of [a, b]) {
       const s = await getSettings(db);
       const p = await getProgramme(db);
-      expect(s.theme).toBe('dark');
+      expect(s.week_start_day).toBe(7);
       expect(s.weekly_days_target).toBe(6);
       expect(p.hold_s).toBe(6);
       expect(p.hold_reps).toBe(9);
@@ -134,10 +134,14 @@ describe('sync engine (07 §11)', () => {
   it('never syncs device-only settings (SYNC-015)', async () => {
     const [a, b] = [await freshDb(), await freshDb()];
     await pair(a, b);
-    await updateSettings(a, { notification_permission: 'granted', lock_enabled: true, theme: 'light' });
+    await updateSettings(a, { notification_permission: 'granted', lock_enabled: true, theme: 'light', audio_mode: 'off', vibration: false, week_start_day: 7 });
     await sync(a, b);
     const s = await getSettings(b);
-    expect(s.theme).toBe('light');
+    expect(s.week_start_day).toBe(7);
+    // Decision 3 (2026-09-29): theme, sound and vibration stay per device.
+    expect(s.theme).toBe('system');
+    expect(s.audio_mode).not.toBe('off');
+    expect(s.vibration).toBe(true);
     expect(s.notification_permission).toBe('undetermined');
     expect(s.lock_enabled).toBe(false);
   });
@@ -147,13 +151,13 @@ describe('sync engine (07 §11)', () => {
     await pair(a, b);
     // Device b's clock is two hours fast.
     await b.run('UPDATE sync_clock SET wall = wall + 7200000');
-    await updateSettings(b, { audio_mode: 'voice' });
+    await updateSettings(b, { weekly_days_target: 4 });
     await sync(b, a);
     // a has now seen b's clock, so its next edit is ordered after it.
-    await updateSettings(a, { audio_mode: 'off' });
+    await updateSettings(a, { weekly_days_target: 6 });
     await sync(a, b);
-    expect((await getSettings(b)).audio_mode).toBe('off');
-    expect((await getSettings(a)).audio_mode).toBe('off');
+    expect((await getSettings(b)).weekly_days_target).toBe(6);
+    expect((await getSettings(a)).weekly_days_target).toBe(6);
   });
 
   it('replaces the other device’s reminder instead of adding a second one (natural key)', async () => {

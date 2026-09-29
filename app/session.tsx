@@ -2,11 +2,12 @@
 // From Today's Start (go=1) it runs at once; the 30 s relax is the lead-in (M6). Other ways in keep the ready screen,
 // because on the web the Start tap there is the gesture that allows sound.
 import { useKeepAwake } from 'expo-keep-awake';
+import { usePreventRemove } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, AppState, Platform, View } from 'react-native';
 import { Text } from '../src/ui/text';
-import { BLOCK_NAME, INTENSITY, PHASE_TEXT, RELAX_STEP_TEXT, SESSION, VOICE } from '../src/content/en/exercise';
+import { BLOCK_NAME, INTENSITY, PHASE_TEXT, RELAX_STEP_TEXT, SESSION, VOICE, voiceBlock } from '../src/content/en/exercise';
 import { REMINDER_CUES, cueText } from '../src/content/en/learn';
 import { PAIN_CHOICE, RELAX_ONLY_HOME } from '../src/content/en/screening';
 import { APP_QUESTION_LABEL, SESSION_LOG } from '../src/content/en/items';
@@ -19,7 +20,8 @@ import { reminderCueIndex } from '../src/domain/learn';
 import { SessionRunner, type RunnerEvent } from '../src/domain/session/engine';
 import { relaxPlan, type SessionPlan, type TimelinePhase } from '../src/domain/session/plan';
 import type { Completion, OffTick, Pain3 } from '../src/domain/types';
-import { useApp, useLoad } from '../src/features/app';
+import { holdLockForRun, setSessionScreenOpen, useApp, useLoad } from '../src/features/app';
+import { leaveFlow } from '../src/features/screens/GuidedFlow';
 import { loadSessionSummary } from '../src/features/homeService';
 import { SessionContents } from '../src/features/screens/SessionContents';
 import { WeekStrip, whenText } from '../src/features/screens/WeekStrip';
@@ -41,14 +43,22 @@ type Stage = 'ready' | 'running' | 'painAsk' | 'log' | 'done';
 export default function SessionScreen() {
   const params = useLocalSearchParams<{ relax?: string; extra?: string; go?: string }>();
   const { db, bump } = useApp();
-  const { data } = useLoad(async (d) => ({ today: await planToday(d), settings: await getSettings(d), profile: await getProfile(d) }), []);
+  const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => ({ today: await planToday(d), settings: await getSettings(d), profile: await getProfile(d) }), []);
   const [stage, setStage] = useState<Stage>('ready');
   const [plan, setPlan] = useState<SessionPlan | null>(null);
   const [extra, setExtra] = useState(false);
   const [saved, setSaved] = useState<SaveSessionResult | null>(null);
   const [completion, setCompletion] = useState<Completion>('complete');
+  const [saveError, setSaveError] = useState(false);
+  const pending = useRef<Parameters<typeof saveSession>[1] | null>(null);
+  const saving = useRef(false);
   const runner = useRef<SessionRunner | null>(null);
   const startedAt = useRef<Date>(new Date());
+  // One session screen at a time (DS-E8).
+  useEffect(() => {
+    setSessionScreenOpen(true);
+    return () => setSessionScreenOpen(false);
+  }, []);
 
   useEffect(() => {
     if (!data || plan) return;
@@ -66,27 +76,30 @@ export default function SessionScreen() {
     runner.current = new SessionRunner(p);
     startedAt.current = new Date();
     setStage('running');
+    // A reload on the Mac then opens the ready screen, whose Start tap lets the browser play sound (DS-E10).
+    router.setParams({ go: undefined });
   }, []);
   // Today's Start already prepared the sound in its tap, so a strength session starts straight away.
   useEffect(() => {
     if (plan && stage === 'ready' && params.go === '1' && plan.templateKey === 'strength' && !extra) void begin(plan);
   }, [plan, stage, params.go, extra, begin]);
 
-  if (!data) return <Loading />;
+  if (!data) return <Loading error={loadError} onRetry={loadRetry} />;
   const t = data.today;
   if (!plan) {
     return (
-      <Screen title={SESSION.start} footer={<Button label={COMMON.back} onPress={() => router.back()} />}>
-        <P>{t.kind === 'day_done' ? SESSION.dayDone : t.kind === 'learn' ? 'Learn the squeeze first. It unlocks your sessions.' : 'Exercises are paused.'}</P>
+      <Screen title={SESSION.start} footer={<Button label={COMMON.back} onPress={leaveFlow} />}>
+        <P>{t.kind === 'day_done' ? SESSION.dayDone : t.kind === 'learn' ? SESSION.learnFirst : SESSION.exercisesPaused}</P>
       </Screen>
     );
   }
 
+  // The input is built once, so Try again saves the same session (DS-E7).
   const onFinished = async (c: Completion) => {
     const r = runner.current;
     if (!r) return;
     setCompletion(c);
-    const res = await saveSession(db, {
+    pending.current = {
       plan,
       slotNo: t.slotNo,
       extra,
@@ -96,13 +109,39 @@ export default function SessionScreen() {
       activeS: r.elapsedMs(mono()) / 1000,
       results: r.results(),
       position: plan.position,
-    });
-    setSaved(res);
-    if (c === 'stopped_pain') await reportPain(db, 'yes', `session:${res.id}`, toLocalDate(new Date()));
-    reconcileReminders(db);
-    bump();
-    setStage(plan.templateKey === 'relax_only' ? 'done' : 'log');
+    };
+    await persist();
   };
+  const persist = async () => {
+    const input = pending.current;
+    if (!input || saving.current) return;
+    saving.current = true;
+    setSaveError(false);
+    try {
+      const res = await saveSession(db, input);
+      pending.current = null;
+      setSaved(res);
+      if (input.completion === 'stopped_pain') await reportPain(db, 'yes', `session:${res.id}`, toLocalDate(new Date()));
+      reconcileReminders(db);
+      bump();
+      setStage(plan.templateKey === 'relax_only' ? 'done' : 'log');
+    } catch (e) {
+      console.warn(e);
+      setSaveError(true);
+    } finally {
+      saving.current = false;
+    }
+  };
+
+  if (saveError) {
+    return (
+      <Screen title={SESSION.start} headerShown={false} width="narrow" footer={<Button label={COMMON.tryAgain} onPress={() => void persist()} />}>
+        <View style={{ paddingTop: 48 }}>
+          <Banner tone="critical" text={SESSION.saveFailed} />
+        </View>
+      </Screen>
+    );
+  }
 
   if (stage === 'ready') {
     if (params.go === '1' && plan.templateKey === 'strength' && !extra) return <Loading />;
@@ -131,10 +170,7 @@ export default function SessionScreen() {
         cue={cueText(data.profile?.preferred_cue_key ?? null, data.profile?.anatomy ?? 'other_unspecified')}
         painAsk={stage === 'painAsk'}
         onPain={() => setStage('painAsk')}
-        onPainAnswer={(isPain) => {
-          if (isPain) runner.current?.markPain();
-          setStage('running');
-        }}
+        onPainAnswer={() => setStage('running')}
         onFinished={onFinished}
       />
     );
@@ -200,7 +236,7 @@ function repLabel(p: TimelinePhase | null): string {
   if (p.block === 'hold') return SESSION.holdLabel(p.rep, p.reps);
   if (p.block === 'flick') return SESSION.flickLabel(p.rep, p.reps);
   if (p.block === 'endurance') return SESSION.enduranceLabel(p.rep, p.reps);
-  return `${p.rep} of ${p.reps}`;
+  return SESSION.repCount(p.rep, p.reps);
 }
 
 function Runner({
@@ -219,15 +255,23 @@ function Runner({
   cue: string;
   painAsk: boolean;
   onPain: () => void;
-  onPainAnswer: (pain: boolean) => void;
+  onPainAnswer: () => void;
   onFinished: (c: Completion) => void;
 }) {
   useKeepAwake();
   const c = useColors();
   const desktop = useDesktop();
   const reduced = useReducedMotion();
+  // A short call or a press of the power button does not lock the app and throw the session away (DS-E1).
+  useEffect(() => holdLockForRun(), []);
   const [, setTick] = useState(0);
-  const [note, setNote] = useState<string | null>(null);
+  const [note, setNoteText] = useState<string | null>(null);
+  // A note belongs to the block that is current just after it is set, and clears when the next block starts (DS-F3).
+  const noteBlock = useRef<number | null>(null);
+  const setNote = (t: string | null) => {
+    noteBlock.current = runner.currentPhase()?.blockIndex ?? null;
+    setNoteText(t);
+  };
   const [confirmEnd, setConfirmEnd] = useState(false);
   const finished = useRef(false);
 
@@ -244,6 +288,9 @@ function Runner({
           void feedback.cue('squeeze', { audio, vibration, words: VOICE.squeeze });
         } else if (e.phase.kind === 'release') {
           void feedback.cue('release', { audio, vibration, words: VOICE.release });
+        } else if (e.phase.kind === 'transition' && audio === 'voice') {
+          // Voice names the next block, so the person knows what comes without looking (decision 4).
+          void feedback.cue('tick', { audio, vibration, words: voiceBlock(e.phase.block) });
         } else if (e.phase.kind === 'transition' || (e.phase.kind === 'relax' && e.phase.rep <= 1)) {
           void feedback.cue('tick', { audio: audio === 'voice' ? 'off' : audio, vibration });
         }
@@ -309,6 +356,24 @@ function Runner({
     else askEnd();
   };
   useHotkeys({ ' ': togglePause, Escape: stop }, !painAsk);
+  // System Back, a swipe or the toolbar Back asks "End session?" like the button (DS-W1). The browser asks before a
+  // reload or a closed tab.
+  const running = state === 'running' || state === 'paused';
+  usePreventRemove(running, () => askEnd());
+  useEffect(() => {
+    if (!isWeb || !running || typeof window === 'undefined') return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [running]);
+  // The "Getting weak" note belongs to one block; it clears when the next block starts (DS-F3).
+  const blockIndex = p?.blockIndex;
+  useEffect(() => {
+    if (blockIndex !== noteBlock.current) setNoteText(null);
+  }, [blockIndex]);
 
   // The circle swells on squeeze and settles on release (a spring, so it feels like a muscle, not a switch).
   const scale = useRef(new Animated.Value(0.85)).current;
@@ -322,15 +387,34 @@ function Runner({
   if (painAsk) {
     return (
       <Screen title="" headerShown={false}>
+        {/* Decision 1 (2026-09-29): the Pain button pauses and asks. Pain ends the session with the relax-out; "Just
+            tired" ends only the set; "Tapped by mistake" carries on. */}
         <View style={{ paddingTop: 48, gap: 16 }}>
+          <P muted>{PAIN_CHOICE.pausedNote}</P>
           <H1>{PAIN_CHOICE.question}</H1>
-          <Button label={PAIN_CHOICE.pain} onPress={() => onPainAnswer(true)} />
+          <Button
+            label={PAIN_CHOICE.pain}
+            onPress={() => {
+              handle(runner.stopEarly(mono(), 'pain'));
+              onPainAnswer();
+            }}
+          />
           <Button
             label={PAIN_CHOICE.tired}
             kind="secondary"
             onPress={() => {
+              runner.resume(mono());
+              handle(runner.gettingWeak(mono()));
               setNote(PAIN_CHOICE.tiredReply);
-              onPainAnswer(false);
+              onPainAnswer();
+            }}
+          />
+          <Button
+            label={PAIN_CHOICE.mistake}
+            kind="quiet"
+            onPress={() => {
+              runner.resume(mono());
+              onPainAnswer();
             }}
           />
         </View>
@@ -342,7 +426,6 @@ function Runner({
     <Screen
       title=""
       headerShown={false}
-      scroll={false}
       footer={
         confirmEnd ? (
           <>
@@ -376,7 +459,7 @@ function Runner({
                 label={SESSION.pain}
                 kind="secondary"
                 onPress={() => {
-                  handle(runner.stopEarly(mono(), 'user_stop'));
+                  if (runner.getState() !== 'paused') runner.pause(mono());
                   onPain();
                 }}
               />
@@ -386,9 +469,13 @@ function Runner({
         )
       }
     >
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 }}>
+      <View style={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 16 }}>
         <Label>{p ? (p.block === 'relax' ? BLOCK_NAME.relax : BLOCK_NAME[p.block]) : ''}</Label>
-        <Text style={{ fontSize: 36, fontWeight: '700', color: squeezing ? c.squeeze : c.text, textAlign: 'center' }} accessibilityLiveRegion="polite">
+        <Text
+          style={{ fontSize: 36, fontWeight: '700', color: squeezing ? c.squeeze : c.text, textAlign: 'center' }}
+          accessibilityLiveRegion="polite"
+          maxFontSizeMultiplier={1.4}
+        >
           {state === 'paused' ? SESSION.paused : phaseTitle(p)}
         </Text>
         <Ring value={done} size={D + 40} stroke={4} color={c.muted} track={c.border} label={DESKTOP.sessionProgress(Math.round(done * 100))}>
@@ -403,7 +490,9 @@ function Runner({
               transform: [{ scale }],
             }}
           >
-            <Text style={{ fontSize: desktop ? 88 : 64, fontWeight: '700', color: squeezing ? c.onSqueeze : c.primary }}>{left}</Text>
+            <Text style={{ fontSize: desktop ? 88 : 64, fontWeight: '700', color: squeezing ? c.onSqueeze : c.primary }} maxFontSizeMultiplier={1.3}>
+              {left}
+            </Text>
           </Animated.View>
         </Ring>
         <H2>{repLabel(p)}</H2>
@@ -411,8 +500,11 @@ function Runner({
         {p && p.kind === 'squeeze' && p.block !== 'relax' ? <P center muted>{INTENSITY[p.block]}</P> : null}
         {reminder ? <P center>{reminder}</P> : null}
         {note ? <P center muted>{note}</P> : null}
-        <P small muted center>{`${formatDuration(Math.round(totalLeft))} left`}</P>
-        {desktop && isWeb ? (
+        <P small muted center>
+          {SESSION.timeLeft(formatDuration(Math.round(totalLeft)))}
+        </P>
+        {/* The key hint shows only while paused, so nothing extra moves during reps (DS-F3). */}
+        {desktop && isWeb && state === 'paused' ? (
           <P small muted center>
             {DESKTOP.sessionKeys}
           </P>
@@ -466,7 +558,7 @@ function SessionLog({ sessionId, completion, onDone }: { sessionId: string; comp
   }
   return (
     <Screen
-      title="How did it go?"
+      title={SESSION.logTitle}
       width="narrow"
       footer={
         <>

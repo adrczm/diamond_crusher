@@ -23,6 +23,21 @@ export const COMMON = {
   skipQuestion: 'Skip this question',
   finishLater: 'Save for later',
   loading: 'One moment…',
+  tryAgain: 'Try again',
+};
+
+/** Messages when something fails (DS-E13): what happened, and what to do. */
+export const ERRORS = {
+  loadFailed: 'This page did not load. Try again. Your records are safe.',
+  saveFailed: 'This was not saved. Try again.',
+};
+
+/** Words that only screen readers hear. */
+export const A11Y = {
+  warning: 'Warning',
+  error: 'Error',
+  less: 'Less',
+  more: 'More',
 };
 
 export const ONBOARDING = {
@@ -134,6 +149,7 @@ export const PLAN = {
 };
 
 export const HOME = {
+  morePrompts: (n: number) => (n === 1 ? 'Show 1 more' : `Show ${n} more`),
   greeting: (name: string | null) => (name ? `Hello, ${name}` : 'Hello'),
   todayTitle: 'Today',
   sessionOf: (n: number, total: number) => `Session ${n} of ${total}`,
@@ -204,7 +220,7 @@ export const LEVEL_NAME: Record<string, (after: unknown) => string> = {
 
 export const WELCOME_BACK = {
   title: 'Welcome back',
-  body: 'Welcome back. We will restart a little easier and build again.',
+  body: 'Welcome back. The app starts a little easier, then builds again.',
   easier: 'Restart easier',
   pickUp: 'Continue my plan',
   reviewPlan: 'Do you want to review your reminders?',
@@ -238,7 +254,7 @@ export const MILESTONES: Record<string, string> = {
 
 export const PROGRESS = {
   title: 'Progress',
-  overviewSymptoms: 'Symptom check-ups',
+  overviewSymptoms: 'Questionnaire answers',
   noChange: 'No change',
   somethingChanged: 'Something changed',
   noCheckYet: 'No check-up yet',
@@ -254,17 +270,17 @@ export const PROGRESS = {
   longest: 'Longest strong hold (s)',
   repeated: 'Strong holds in a row',
   quick: 'Quick squeezes',
-  hollowNote: 'Hollow points: one condition of the check was missing, or you were not sure of your technique.',
+  hollowNote: 'Open dots: one condition of the check was missing, or you were not sure of your technique.',
   feel: 'Session feel',
-  feelSub: 'The 4-week middle value of how your squeezes felt. It needs 6 logged sessions.',
+  feelSub: 'The usual value (median) of how your squeezes felt over 4 weeks. It needs 6 logged sessions.',
   leaks: 'Logged leaks',
   leaksSub: 'Leaks you logged. Logging is optional, so this may not show every leak.',
   sexual: 'Sexual activity items',
-  sexualSub: '4-week middle values. It needs 3 entries in a window.',
+  sexualSub: 'Usual values (median) over 4 weeks. It needs 3 entries in a window.',
   questionnaires: 'Questionnaire answers',
   checkUp: 'check-up',
   checkUpExplain:
-    'Your answers show no symptoms now. That is good news. These questionnaires measure symptoms, so they cannot show more progress from here. We will continue to ask, so that you see any change early. Your progress shows in your training record and monthly self-check instead.',
+    'Your answers are at the "no problem" end and that is good news. The app will continue to ask, so that you see any change early. Your progress shows in your training record and monthly self-check instead.',
   table: 'Show as table',
   chart: 'Show as chart',
   noData: 'Nothing to show yet.',
@@ -306,6 +322,8 @@ export const MEASURE_NAME: Record<string, string> = {
 
 export const SUMMARY = {
   title: 'Your week',
+  firstNote: 'Your first summary appears after your first full week.',
+  range: (a: string, b: string) => `${a} to ${b}`,
   days: (d: number, t: number) => `${d} of ${t} days.`,
   belowTarget: (d: number, t: number) => `${d} of ${t} days. A new week starts now.`,
   sessions: (c: number, p: number) => `${c} of ${p} sessions.`,
@@ -339,6 +357,9 @@ export const BUNDLE = {
   lockedPart: (part: string, date: string) => `${part}. Opens ${date}.`,
   noneYet: 'No check is planned yet. The first check comes 4 weeks after you start training.',
   skip: 'Skip this check',
+  skipAsk: 'Skip this check?',
+  skipAskBody: 'The parts you did are kept. The parts you did not do stay empty until the next check.',
+  startPartFor: (part: string) => `Start: ${part}`,
   selfCheckTitle: 'Self-check at any time',
   selfCheckBody: 'Do a self-check when you want to see where you are. It does not replace the monthly check.',
   selfCheckNow: 'Start self-check',
@@ -364,7 +385,7 @@ export const SETTINGS = {
   anatomy: 'Body',
   anatomyChangeNote: 'If you change this, the app asks all the safety questions again.',
   goals: 'Goals',
-  ageBand: 'Age band',
+  ageBand: 'Age range',
   training: 'Training',
   sessionsPerDay: 'Sessions a day',
   weeklyTarget: 'Weekly target (days)',
@@ -377,6 +398,20 @@ export const SETTINGS = {
     { value: 'voice', label: 'Voice' },
   ],
   vibration: 'Vibration',
+  tryCues: 'Try sound and vibration',
+  sessionsPerDayNote: 'To match, change your reminder plan in Reminders.',
+  weekDays: [
+    { value: 1, label: 'Monday' },
+    { value: 7, label: 'Sunday' },
+  ],
+  textSize: 'Text size',
+  textSizeOptions: [
+    { value: 1, label: 'Normal' },
+    { value: 1.15, label: 'Large' },
+    { value: 1.3, label: 'Larger' },
+    { value: 1.5, label: 'Largest' },
+  ],
+  textSizeNote: 'This Mac only. The page loads again to use the new size.',
   theme: 'Theme',
   themeOptions: [
     { value: 'system', label: 'Phone setting' },
@@ -453,6 +488,22 @@ export const DATA = {
   strength: { too_short: 'Too short', ok: 'OK', strong: 'Strong' } as Record<string, string>,
   working: 'The app now encrypts your file. This can take up to 1 minute.',
   exportDone: 'Backup saved. Keep the file and your passphrase safe.',
+  savedAsk: 'Did the file save in a safe place?',
+  savedAskNote: 'The app counts the backup only when you say yes. If you closed the share window, choose No.',
+  savedYes: 'Yes, it saved',
+  savedNo: 'No',
+  savedNotYet: 'The backup is not counted. Tap Save a backup again, then choose a place for the file.',
+  chooseAnother: 'Choose another file',
+  thisDevice: (s: number, c: number, q: number, e: number) => `On this device now: ${s} sessions, ${c} self-checks, ${q} questionnaires, ${e} events`,
+  newerHere: (d: string) => `This device has records after the last day in the file (${d}). Replace deletes them. Merge keeps them.`,
+  replaceAsk: 'Replace everything?',
+  replaceAskBody: 'All records on this device are deleted and the records in the file take their place. You cannot undo this.',
+  errors: {
+    not_a_backup: 'This file is not a Diamond Crusher backup. Choose the file that ends in .dcbk.',
+    unsupported_version: 'A newer version of the app made this file. Install the newer version, then import the file.',
+    invalid_content: 'The file is damaged. Nothing changed. Try another backup file.',
+    other: 'Something went wrong. Nothing changed. Try again.',
+  } as Record<string, string>,
   importTitle: 'Import a backup file',
   importBody: 'Choose the backup file. Then type its passphrase.',
   pickFile: 'Choose file',
@@ -470,7 +521,7 @@ export const DATA = {
   wrongPassphrase: 'The passphrase is wrong, or the file is damaged. Nothing changed. Type the passphrase again.',
   deleteTitle: 'Delete all my data',
   deleteBody: 'This erases all app data on this phone and cancels all reminders. You cannot undo this.',
-  deleteNote: 'This does not delete backup files that you saved in other places.',
+  deleteNote: 'This does not delete backup files that you saved in other places, or the data on a paired phone or Mac.',
   deleteType: 'Type DELETE to continue',
   deleteWord: 'DELETE',
   deleteButton: 'Delete everything',
@@ -491,13 +542,21 @@ export const UNREADABLE = {
   fresh: 'Erase and restart',
   confirm: 'This erases the unreadable data. Continue?',
   newer: 'A newer version of the app made this data. Install the newer version.',
+  tryFirst: 'First, try again. A short problem (for example, a second browser tab) can also stop the app. Erase only if Try again does not work.',
+  importHint: 'To import a backup file, start fresh first. The first screen then offers "Import a backup".',
 };
 
 export const ABOUT = {
   title: 'About',
   description: APP_TAGLINE,
   licences: 'Questionnaires: the app’s own questions are not validated. The app adds validated questionnaires only with permission from the licence holder.',
-  evidence: 'See "About the evidence" in the Learn library.',
+  evidence: 'About the evidence',
+  // Decision 8 (2026-09-29): the intended purpose, so the app stays a training aid (EU MDR / UK MHRA boundary).
+  purposeTitle: 'What this app is for',
+  purpose: [
+    'Diamond Crusher guides pelvic floor exercises for adults. It keeps a private record of your training and your answers.',
+    'It does not diagnose any condition or follow a condition over time. It does not replace care from a health professional.',
+  ],
 };
 
 /** Desktop layout (Mac): sidebar, toolbar and keyboard shortcuts. */
@@ -548,6 +607,7 @@ export const DESKTOP = {
     security: 'Who can open the app, and your data.',
     more: 'Learning, re-checks and version details.',
   },
+  helpAndChanges: 'Help and changes',
   more: 'More',
   sessionProgress: (pct: number) => `${pct}% of this session done`,
 };

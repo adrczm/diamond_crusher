@@ -39,7 +39,7 @@ function errorText(e: unknown): string {
 
 export default function SyncScreen() {
   const { db, bump } = useApp();
-  const { data, reload } = useLoad((d) => syncStatus(d));
+  const { data, reload, error: loadError } = useLoad((d) => syncStatus(d));
   const [step, setStep] = useState<Step>({ kind: 'home' });
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -110,7 +110,7 @@ export default function SyncScreen() {
     [step, db, bump]
   );
 
-  if (!data) return <Loading />;
+  if (!data) return <Loading error={loadError} onRetry={reload} />;
   const peer = data.peer;
   const peerKind = (peer?.peer_kind ?? null) as Kind | null;
   const err = error ? <Banner text={error} /> : null;

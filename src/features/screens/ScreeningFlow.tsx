@@ -1,7 +1,7 @@
 // Safety questions one at a time (ONB-010, ONB-011), and the outcome screen (ONB-012 to ONB-023).
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { CAUTION_CARD, OUTCOME, SCREENING_INTRO, SKIPPED_NOTE, SURGERY_DATE_PROMPT, questionText } from '../../content/en/screening';
+import { CAUTION_CARD, OUTCOME, SCREEN_FLOW, SCREENING_INTRO, SKIPPED_NOTE, SURGERY_DATE_PROMPT, questionText } from '../../content/en/screening';
 import { COMMON } from '../../content/en/strings';
 import { isVisible, questionsFor, questionsForChange, screenSizeFor, type Answers, type ChangeTopic, type QuestionKey, type ScreeningKind } from '../../domain/safety';
 import type { Anatomy, SafetyMode } from '../../domain/types';
@@ -65,7 +65,7 @@ export function ScreeningFlow({
       <View style={{ gap: 16 }}>
         <H2>{questionText('Q-S3', anatomy)}</H2>
         <P muted>{SURGERY_DATE_PROMPT}</P>
-        <Field label="Date (YYYY-MM-DD)" value={surgeryDate} onChangeText={setSurgeryDate} placeholder="2026-11-30" keyboardType="numbers-and-punctuation" />
+        <Field label={SCREEN_FLOW.dateLabel} value={surgeryDate} onChangeText={setSurgeryDate} placeholder={SCREEN_FLOW.datePlaceholder} keyboardType="numbers-and-punctuation" />
         <Button
           label={COMMON.continue}
           busy={busy}
@@ -83,7 +83,7 @@ export function ScreeningFlow({
     <View style={{ gap: 16 }}>
       {index === 0 ? <P muted>{SCREENING_INTRO}</P> : null}
       <Label>
-        Question {index + 1} of {visible.length}
+        {SCREEN_FLOW.questionOf(index + 1, visible.length)}
       </Label>
       <H2>{questionText(current, anatomy)}</H2>
       <View style={{ gap: 8 }}>
@@ -140,7 +140,7 @@ export function ScreeningOutcome({
           ))}
         </Card>
       ) : null}
-      {mode === 'blocked_urgent' ? <Banner text="If you feel very unwell, call emergency services." /> : null}
+      {mode === 'blocked_urgent' ? <Banner tone="critical" text={SCREEN_FLOW.emergency} /> : null}
     </View>
   );
 }

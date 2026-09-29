@@ -32,11 +32,22 @@ export const FIELD_TABLES: TableName[] = ['profile', 'settings', 'programme_stat
 
 /**
  * Columns that belong to one device and never sync (SYNC-015): the OS notification permission and its test, Android
- * exact alarms, the app lock (its key lives in this device's secure store), scheduled OS notification ids, and the
- * active-day count, which is recalculated from the merged sessions.
+ * exact alarms, the app lock (its key lives in this device's secure store), theme, sound and vibration, scheduled OS
+ * notification ids, and the active-day count, which is recalculated from the merged sessions.
  */
 export const DEVICE_COLUMNS: Partial<Record<TableName, string[]>> = {
-  settings: ['notification_permission', 'precise_reminders', 'last_delivery_test_at', 'last_delivery_test_result', 'lock_enabled', 'lock_timeout_s'],
+  // Theme, sound and vibration belong to each device too (decision 3, 2026-09-29): muting the Mac must not mute the phone.
+  settings: [
+    'notification_permission',
+    'precise_reminders',
+    'last_delivery_test_at',
+    'last_delivery_test_result',
+    'lock_enabled',
+    'lock_timeout_s',
+    'theme',
+    'audio_mode',
+    'vibration',
+  ],
   programme_state: ['active_days'],
   reminder: ['os_ids', 'last_scheduled_at'],
 };

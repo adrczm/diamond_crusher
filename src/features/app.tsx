@@ -68,3 +68,35 @@ export async function withoutRelock<T>(fn: () => Promise<T>): Promise<T> {
 export function relockAllowed(): boolean {
   return relockSuspended === 0;
 }
+
+// A running session or timed test must survive a short phone call or a press of the power button (DS-E1). While one
+// is on screen, the app re-locks only after RUN_GRACE_MS in the background (or the person's own longer time).
+export const RUN_GRACE_MS = 15 * 60 * 1000;
+let runHolds = 0;
+export function holdLockForRun(): () => void {
+  runHolds++;
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    runHolds = Math.max(0, runHolds - 1);
+  };
+}
+export function runInProgress(): boolean {
+  return runHolds > 0;
+}
+
+// One session at a time (DS-E8): a double tap, a double click or a reminder tap must not open a second one.
+let sessionOpen = false;
+export function sessionScreenOpen(): boolean {
+  return sessionOpen;
+}
+export function setSessionScreenOpen(open: boolean) {
+  sessionOpen = open;
+}
+/** Opens the session screen once; further taps until it opens (or while it is open) do nothing. */
+export function openSessionOnce(go: () => void) {
+  if (sessionOpen) return;
+  sessionOpen = true;
+  go();
+}

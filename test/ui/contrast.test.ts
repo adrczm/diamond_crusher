@@ -39,6 +39,8 @@ const PAIRS: [Key | '#FFFFFF', Key, number, string][] = [
   ['link', 'warnSoft', TEXT, 'quiet buttons in warning cards'],
   ['warn', 'warnSoft', TEXT, 'warning banner'],
   ['info', 'infoSoft', TEXT, 'info banner'],
+  ['text', 'dangerSoft', TEXT, 'error banner'],
+  ['text', 'goodSoft', TEXT, 'success banner'],
   ['text', 'inputBg', TEXT, 'typed text'],
   ['muted', 'inputBg', TEXT, 'placeholder'],
   ['onPrimary', 'primary', TEXT, 'primary buttons, selected segments, pressed tap area'],

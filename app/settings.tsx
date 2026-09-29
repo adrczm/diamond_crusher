@@ -2,7 +2,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert } from '../src/platform/dialog';
-import { GOAL_LABEL } from '../src/content/en/exercise';
+import { GOAL_LABEL, VOICE } from '../src/content/en/exercise';
 import { COMMON, DESKTOP, ONBOARDING, SETTINGS } from '../src/content/en/strings';
 import { activeGoals, getProfile, setGoals, updateProfile } from '../src/data/repositories/profile';
 import { getSettings, updateSettings, type Settings } from '../src/data/repositories/settings';
@@ -11,19 +11,21 @@ import type { AgeBand, Anatomy, AudioMode, Goal } from '../src/domain/types';
 import { useApp, useLoad, withoutRelock } from '../src/features/app';
 import { reconcileReminders } from '../src/features/reminderService';
 import { auth } from '../src/platform/auth';
-import { Banner, Card, Choice, Field, Label, LinkRow, Loading, MultiChoice, P, Screen, Section, Segments, Stepper, ToggleRow } from '../src/ui/kit';
-import { useDesktop } from '../src/ui/layout';
+import { feedback } from '../src/platform/feedback';
+import { Banner, Button, Card, Choice, Field, Label, LinkRow, Loading, MultiChoice, P, Screen, Section, Segments, Stepper, ToggleRow } from '../src/ui/kit';
+import { isWeb, useDesktop } from '../src/ui/layout';
+import { setTextScale, textScale } from '../src/ui/textSize';
 
 export default function SettingsScreen() {
   const { db, boot, setBoot, bump, appVersion } = useApp();
-  const { data, reload } = useLoad(async (d) => ({ settings: await getSettings(d), profile: await getProfile(d), goals: await activeGoals(d) }));
+  const { data, reload, error: loadError } = useLoad(async (d) => ({ settings: await getSettings(d), profile: await getProfile(d), goals: await activeGoals(d) }));
   const [nick, setNick] = useState<string | null>(null);
   const [lockAvail, setLockAvail] = useState<boolean>(true);
   const desktop = useDesktop();
   useEffect(() => {
     auth.available().then(setLockAvail).catch(() => setLockAvail(false));
   }, []);
-  if (!data) return <Loading />;
+  if (!data) return <Loading error={loadError} onRetry={reload} />;
   const s = data.settings;
   const p = data.profile;
   const anatomy: Anatomy = p?.anatomy ?? 'other_unspecified';
@@ -39,16 +41,17 @@ export default function SettingsScreen() {
       { text: COMMON.cancel, style: 'cancel' },
       {
         text: COMMON.continue,
-        onPress: async () => {
-          await updateProfile(db, { anatomy: a });
-          const allowed = GOAL_LABEL[a].map((g) => g.goal);
-          const keep = data.goals.filter((g) => allowed.includes(g));
-          await setGoals(db, keep.length ? keep : [allowed[0]]);
-          bump();
-          router.push('/screening?kind=anatomy_change');
-        },
+        // The body is saved only when the safety questions are done (DS-E17), in app/screening.tsx.
+        onPress: () => router.push(`/screening?kind=anatomy_change&anatomy=${a}`),
       },
     ]);
+  };
+  const saveNick = async () => {
+    if (nick === null) return;
+    await updateProfile(db, { nickname: nick.trim() || null });
+    setNick(null);
+    bump();
+    reload();
   };
   const toggleLock = async (on: boolean) => {
     try {
@@ -60,7 +63,8 @@ export default function SettingsScreen() {
   };
 
   return (
-    <Screen title={SETTINGS.title} width="medium">
+    // Decision 7 (2026-09-29): on phones the tab and its page are both "More"; the desktop sidebar says Settings.
+    <Screen title={desktop ? SETTINGS.title : DESKTOP.more} width="medium">
       {/* Phones: this page is the More tab, so the sections without a tab come first (the desktop has the sidebar). */}
       {!desktop ? (
         <Card>
@@ -77,16 +81,16 @@ export default function SettingsScreen() {
           value={nick ?? p?.nickname ?? ''}
           maxLength={30}
           onChangeText={setNick}
-          onEndEditing={async () => {
-            if (nick === null) return;
-            await updateProfile(db, { nickname: nick.trim() || null });
-            bump();
-          }}
+          // onBlur as well: the web has no onEndEditing, so the name was never saved on the Mac (DS-E14).
+          onBlur={saveNick}
+          onEndEditing={saveNick}
+          onSubmitEditing={saveNick}
         />
         <Label>{SETTINGS.anatomy}</Label>
-        <Choice options={ONBOARDING.anatomyOptions.map((o) => ({ value: o.value as Anatomy, label: o.label }))} value={anatomy} onChange={changeAnatomy} />
+        <Choice label={SETTINGS.anatomy} options={ONBOARDING.anatomyOptions.map((o) => ({ value: o.value as Anatomy, label: o.label }))} value={anatomy} onChange={changeAnatomy} />
         <Label>{SETTINGS.goals}</Label>
         <MultiChoice
+          label={SETTINGS.goals}
           options={GOAL_LABEL[anatomy].map((g) => ({ value: g.goal, label: g.label }))}
           values={data.goals}
           onChange={async (g: Goal[]) => {
@@ -111,6 +115,7 @@ export default function SettingsScreen() {
       <Section title={SETTINGS.training} description={DESKTOP.settingsNotes.training}>
         <Label>{SETTINGS.sessionsPerDay}</Label>
         <Segments
+          label={SETTINGS.sessionsPerDay}
           options={[
             { value: 2, label: '2' },
             { value: 3, label: '3' },
@@ -119,12 +124,13 @@ export default function SettingsScreen() {
           onChange={(n) => set({ sessions_per_day_target: n })}
         />
         <P small muted>
-          In Reminders, change your reminder plan to match.
+          {SETTINGS.sessionsPerDayNote}
         </P>
         <Label>{SETTINGS.weeklyTarget}</Label>
-        <Stepper value={s.weekly_days_target} min={3} max={7} onChange={(n) => set({ weekly_days_target: n })} />
+        <Stepper label={SETTINGS.weeklyTarget} value={s.weekly_days_target} min={3} max={7} onChange={(n) => set({ weekly_days_target: n })} />
         <Label>{SETTINGS.maintenanceTarget}</Label>
         <Stepper
+          label={SETTINGS.maintenanceTarget}
           value={s.maintenance_days_target ?? (p?.age_band === '60_74' || p?.age_band === '75_plus' ? 5 : 4)}
           min={3}
           max={7}
@@ -132,22 +138,38 @@ export default function SettingsScreen() {
         />
         <Label>{SETTINGS.weekStart}</Label>
         <Segments
-          options={[
-            { value: 1, label: 'Monday' },
-            { value: 7, label: 'Sunday' },
-          ]}
+          label={SETTINGS.weekStart}
+          options={SETTINGS.weekDays}
           value={s.week_start_day}
           onChange={(n) => set({ week_start_day: n })}
         />
         <Label>{SETTINGS.sound}</Label>
-        <Segments options={SETTINGS.soundOptions.map((o) => ({ value: o.value as AudioMode, label: o.label }))} value={s.audio_mode} onChange={(v) => set({ audio_mode: v })} />
-        <ToggleRow label={SETTINGS.vibration} value={s.vibration} onChange={(v) => set({ vibration: v })} />
+        <Segments label={SETTINGS.sound} options={SETTINGS.soundOptions.map((o) => ({ value: o.value as AudioMode, label: o.label }))} value={s.audio_mode} onChange={(v) => set({ audio_mode: v })} />
+        {/* Safari on a Mac cannot vibrate, so the switch is for phones only. */}
+        {!isWeb ? <ToggleRow label={SETTINGS.vibration} value={s.vibration} onChange={(v) => set({ vibration: v })} /> : null}
+        <Button
+          kind="secondary"
+          label={SETTINGS.tryCues}
+          onPress={async () => {
+            await feedback.prepare().catch(() => undefined);
+            await feedback.cue('squeeze', { audio: s.audio_mode, vibration: s.vibration, words: VOICE.squeeze });
+          }}
+        />
         <ToggleRow label={SETTINGS.functionalCues} value={s.functional_cues_enabled} onChange={(v) => set({ functional_cues_enabled: v })} />
-        <LinkRow label={SETTINGS.reminders} onPress={() => router.push('/reminders')} />
+        {desktop ? <LinkRow label={SETTINGS.reminders} onPress={() => router.push('/reminders')} /> : null}
       </Section>
 
       <Section title={SETTINGS.theme} description={DESKTOP.settingsNotes.appearance}>
-        <Segments options={SETTINGS.themeOptions.map((o) => ({ value: o.value as Settings['theme'], label: o.label }))} value={s.theme} onChange={(v) => set({ theme: v })} />
+        <Segments label={SETTINGS.theme} options={SETTINGS.themeOptions.map((o) => ({ value: o.value as Settings['theme'], label: o.label }))} value={s.theme} onChange={(v) => set({ theme: v })} />
+        {isWeb ? (
+          <>
+            <Label>{SETTINGS.textSize}</Label>
+            <Segments label={SETTINGS.textSize} options={SETTINGS.textSizeOptions} value={textScale()} onChange={setTextScale} />
+            <P small muted>
+              {SETTINGS.textSizeNote}
+            </P>
+          </>
+        ) : null}
       </Section>
 
       <Section title={SETTINGS.security} description={DESKTOP.settingsNotes.security}>
@@ -160,6 +182,7 @@ export default function SettingsScreen() {
           <>
             <Label>{SETTINGS.lockTimeout}</Label>
             <Segments
+              label={SETTINGS.lockTimeout}
               options={SETTINGS.lockTimeoutOptions}
               value={boot.lock_timeout_s}
               onChange={async (v) => {
@@ -172,14 +195,14 @@ export default function SettingsScreen() {
             </P>
           </>
         ) : null}
-        <LinkRow label={SETTINGS.data} onPress={() => router.push('/data')} />
+        {desktop ? <LinkRow label={SETTINGS.data} onPress={() => router.push('/data')} /> : null}
       </Section>
 
-      <Section title={DESKTOP.more} description={DESKTOP.settingsNotes.more}>
+      <Section title={DESKTOP.helpAndChanges} description={DESKTOP.settingsNotes.more}>
         <LinkRow label={SETTINGS.learn} onPress={() => router.push('/library')} />
         <LinkRow label={SETTINGS.relearn} onPress={() => router.push('/learn?mode=recheck')} />
         <LinkRow label={SETTINGS.somethingChanged} onPress={() => router.push('/screening?kind=something_changed')} />
-        <LinkRow label={SETTINGS.about} onPress={() => router.push('/about')} detail={SETTINGS.version(appVersion)} />
+        {desktop ? <LinkRow label={SETTINGS.about} onPress={() => router.push('/about')} detail={SETTINGS.version(appVersion)} /> : null}
       </Section>
     </Screen>
   );

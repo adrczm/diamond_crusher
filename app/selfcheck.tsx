@@ -1,6 +1,7 @@
 // Monthly self-check (06a SC-001 to SC-033): six short steps, your own record, no verdict words.
 // UX audit H8: Close on phones; on desktop, Space or Enter taps the big button and runs Start or Continue.
 import { router, useLocalSearchParams } from 'expo-router';
+import { useKeepAwake } from 'expo-keep-awake';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from '../src/ui/text';
@@ -24,6 +25,7 @@ import { feedback } from '../src/platform/feedback';
 import { Banner, Button, Card, Choice, H1, H2, Label, Loading, P, Screen, Segments } from '../src/ui/kit';
 import { isWeb, useDesktop } from '../src/ui/layout';
 import { useColors } from '../src/ui/theme';
+import { useInterruption } from '../src/ui/useInterruption';
 
 const mono = () => (globalThis.performance?.now ? globalThis.performance.now() : Date.now());
 
@@ -53,16 +55,43 @@ function TapArea({ label, onPress }: { label: string; onPress: () => void }) {
   );
 }
 
+/** A timed test that stopped because the app left the screen: nothing is saved, and the person can start again. */
+function Interrupted({ onAgain }: { onAgain: () => void }) {
+  return (
+    <View style={{ gap: 16 }}>
+      <Banner tone="warn" text={SELF_CHECK.interrupted} />
+      <Button label={SELF_CHECK.startAgain} onPress={onAgain} />
+    </View>
+  );
+}
+
 /** SC-011: counts up in whole seconds, with a tick each second, until Stop or the cap. */
 function Stopwatch({ cap, onDone, cueOpts }: { cap: number; onDone: (s: number) => void; cueOpts: Parameters<typeof feedback.cue>[1] }) {
   const c = useColors();
   const [s, setS] = useState(0);
   const start = useRef(mono());
   const done = useRef(false);
+  // The screen stays on, and leaving the app stops the test without a result (DS-E12).
+  useKeepAwake();
+  const [interrupted, setInterrupted] = useState(false);
+  useInterruption(() => {
+    if (done.current) return;
+    done.current = true;
+    feedback.stop();
+    setInterrupted(true);
+  });
+  const again = () => {
+    start.current = mono();
+    setS(0);
+    setInterrupted(false);
+    done.current = false;
+    void feedback.cue('squeeze', cueOpts);
+  };
   useEffect(() => {
     void feedback.cue('squeeze', cueOpts);
     let last = 0;
     const id = setInterval(() => {
+      if (done.current) return;
       const secs = Math.min(cap, Math.floor((mono() - start.current) / 1000));
       if (secs !== last) {
         last = secs;
@@ -78,9 +107,10 @@ function Stopwatch({ cap, onDone, cueOpts }: { cap: number; onDone: (s: number) 
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  if (interrupted) return <Interrupted onAgain={again} />;
   return (
     <View style={{ gap: 16 }}>
-      <Text style={{ fontSize: 72, fontWeight: '700', color: c.primary, textAlign: 'center' }} accessibilityLiveRegion="polite">
+      <Text style={{ fontSize: 72, fontWeight: '700', color: c.primary, textAlign: 'center' }} maxFontSizeMultiplier={1.3}>
         {s}
       </Text>
       <TapArea
@@ -116,6 +146,20 @@ function Pacer({
   const start = useRef(mono());
   const [view, setView] = useState({ rep: 1, on: true, left: onS });
   const done = useRef(false);
+  useKeepAwake();
+  const [interrupted, setInterrupted] = useState(false);
+  useInterruption(() => {
+    if (done.current) return;
+    done.current = true;
+    feedback.stop();
+    setInterrupted(true);
+  });
+  const again = () => {
+    start.current = mono();
+    setView({ rep: 1, on: true, left: onS });
+    setInterrupted(false);
+    done.current = false;
+  };
   const period = (onS + offS) * 1000;
   // Squeezes fully held before time t; a squeeze still running when the tap comes doesn't count.
   const completedAt = (t: number) => {
@@ -126,6 +170,10 @@ function Pacer({
   useEffect(() => {
     let lastKey = '';
     const id = setInterval(() => {
+      if (done.current) {
+        lastKey = '';
+        return;
+      }
       const t = mono() - start.current;
       const rep = Math.floor(t / period) + 1;
       const within = t - (rep - 1) * period;
@@ -146,13 +194,16 @@ function Pacer({
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  if (interrupted) return <Interrupted onAgain={again} />;
   return (
     <View style={{ gap: 12 }}>
       <Text style={{ fontSize: 28, fontWeight: '700', color: view.on ? c.squeeze : c.muted, textAlign: 'center' }} accessibilityLiveRegion="polite">
-        {view.on ? 'Squeeze' : 'Let go'}
+        {view.on ? SELF_CHECK.pacerSqueeze : SELF_CHECK.pacerLetGo}
       </Text>
-      <Text style={{ fontSize: 56, fontWeight: '700', color: c.primary, textAlign: 'center' }}>{view.left}</Text>
-      <P center muted>{`${Math.min(view.rep, max)} of ${max}`}</P>
+      <Text style={{ fontSize: 56, fontWeight: '700', color: c.primary, textAlign: 'center' }} maxFontSizeMultiplier={1.3}>
+        {view.left}
+      </Text>
+      <P center muted>{SELF_CHECK.pacerCount(Math.min(view.rep, max), max)}</P>
       <TapArea
         label={tapLabel}
         onPress={() => {
@@ -170,7 +221,7 @@ export default function SelfCheck() {
   const kind = params.kind === 'baseline' ? 'baseline' : params.checkId ? 'monthly' : 'ad_hoc';
   const position: 'lying' | 'standing' = params.position === 'standing' ? 'standing' : 'lying';
   const { db, bump } = useApp();
-  const { data } = useLoad(async (d) => ({
+  const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => ({
     profile: await getProfile(d),
     prog: await getProgramme(d),
     safety: await getSafetyState(d),
@@ -195,14 +246,14 @@ export default function SelfCheck() {
   const [busy, setBusy] = useState(false);
   const [topUp, setTopUp] = useState<'offered' | 'accepted' | 'declined'>('offered');
 
-  if (!data) return <Loading />;
+  if (!data) return <Loading error={loadError} onRetry={loadRetry} />;
   const anatomy = data.profile?.anatomy ?? 'other_unspecified';
   const cueOpts = { audio: data.settings.audio_mode, vibration: data.settings.vibration } as const;
-  const title = kind === 'baseline' ? 'First self-check' : SELF_CHECK.title;
+  const title = kind === 'baseline' ? SELF_CHECK.firstTitle : SELF_CHECK.title;
   if (!strengthAllowed(data.safety.mode)) {
     return (
       <Screen title={title}>
-        <Banner text="The self-check is not available while exercises are paused or set to relaxation only." />
+        <Banner text={SELF_CHECK.unavailable} />
       </Screen>
     );
   }
@@ -274,7 +325,7 @@ export default function SelfCheck() {
       const q = (label: string, key: 'bladder' | 'notAfter' | 'same') => (
         <Card>
           <P>{label}</P>
-          <Segments options={yn} value={cond[key]} onChange={(v) => setCond({ ...cond, [key]: v })} />
+          <Segments label={label} options={yn} value={cond[key]} onChange={(v) => setCond({ ...cond, [key]: v })} />
         </Card>
       );
       // With no training session or no self-check in this position yet, "since your last session" and "same position as
@@ -311,10 +362,10 @@ export default function SelfCheck() {
           <Label>{SELF_CHECK.signTitle}</Label>
           <P>{SELF_CHECK.sign[anatomy]}</P>
           <P muted>{SELF_CHECK.signMethod}</P>
-          <Segments options={SELF_CHECK.signMethods.map((o) => ({ value: o.value as 'mirror' | 'touch', label: o.label }))} value={signMethod} onChange={setSignMethod} />
-          <Choice options={SELF_CHECK.signOptions.map((o) => ({ value: o.value as 'yes' | 'unsure' | 'no', label: o.label }))} value={sign} onChange={setSign} />
+          <Segments label={SELF_CHECK.signMethod} options={SELF_CHECK.signMethods.map((o) => ({ value: o.value as 'mirror' | 'touch', label: o.label }))} value={signMethod} onChange={setSignMethod} />
+          <Choice label={SELF_CHECK.sign[anatomy]} options={SELF_CHECK.signOptions.map((o) => ({ value: o.value as 'yes' | 'unsure' | 'no', label: o.label }))} value={sign} onChange={setSign} />
           <P>{SELF_CHECK.bulge}</P>
-          <Segments options={SELF_CHECK.bulgeOptions.map((o) => ({ value: o.value as Tri, label: o.label }))} value={bulge} onChange={setBulge} />
+          <Segments label={SELF_CHECK.bulge} options={SELF_CHECK.bulgeOptions.map((o) => ({ value: o.value as Tri, label: o.label }))} value={bulge} onChange={setBulge} />
         </>
       );
       footer = <Button label={COMMON.continue} disabled={!sign || !bulge} onPress={() => setStep('longest')} />;
@@ -338,7 +389,7 @@ export default function SelfCheck() {
           ) : null}
           {!running && longest !== null ? (
             <Card>
-              <H2>{`${bestLongest} s`}</H2>
+              <H2>{SELF_CHECK.seconds(bestLongest)}</H2>
               {bestLongest >= LONGEST_HOLD_CAP_S ? <P>{SELF_CHECK.longestCap}</P> : null}
               {longest <= 1 && retry === null ? <P>{SELF_CHECK.longestRetry}</P> : null}
             </Card>
@@ -350,7 +401,7 @@ export default function SelfCheck() {
       ) : (
         <>
           <Button label={COMMON.continue} onPress={() => setStep('repeated')} />
-          {longest <= 1 && retry === null ? <Button label="Try again" kind="secondary" onPress={() => setRunning(true)} /> : null}
+          {longest <= 1 && retry === null ? <Button label={SELF_CHECK.tryAgain} kind="secondary" onPress={() => setRunning(true)} /> : null}
         </>
       );
       if (!running) hot = longest === null ? () => setRunning(true) : () => setStep('repeated');
@@ -359,7 +410,7 @@ export default function SelfCheck() {
       body = (
         <>
           <Label>{SELF_CHECK.repeatedTitle}</Label>
-          <P>{`Hold ${H} s, rest 4 s, up to ${REPEATED_CAP} times.`}</P>
+          <P>{SELF_CHECK.repeatedHow(H, REPEATED_CAP)}</P>
           <P>{SELF_CHECK.repeated}</P>
           {running ? (
             <Pacer
@@ -374,7 +425,7 @@ export default function SelfCheck() {
               }}
             />
           ) : null}
-          {!running && repeated !== null ? <H2>{`${repeated} of ${REPEATED_CAP}`}</H2> : null}
+          {!running && repeated !== null ? <H2>{SELF_CHECK.pacerCount(repeated, REPEATED_CAP)}</H2> : null}
         </>
       );
       footer = running ? null : repeated === null ? (
@@ -402,7 +453,7 @@ export default function SelfCheck() {
               }}
             />
           ) : null}
-          {!running && quick !== null ? <H2>{`${quick} of ${QUICK_CAP}`}</H2> : null}
+          {!running && quick !== null ? <H2>{SELF_CHECK.pacerCount(quick, QUICK_CAP)}</H2> : null}
         </>
       );
       footer = running ? null : quick === null ? (
@@ -419,7 +470,7 @@ export default function SelfCheck() {
           {SELF_CHECK.technique.map((q) => (
             <Card key={q.key}>
               <P>{q.text}</P>
-              <Segments options={triOpts} value={tech[q.key]} onChange={(v) => setTech({ ...tech, [q.key]: v })} />
+              <Segments label={q.text} options={triOpts} value={tech[q.key]} onChange={(v) => setTech({ ...tech, [q.key]: v })} />
             </Card>
           ))}
         </>
@@ -449,7 +500,7 @@ export default function SelfCheck() {
           <H1>{SELF_CHECK.resultTitle}</H1>
           <Card>
             <P>{line(SELF_CHECK.longestResult, bestLongest, prev ? Math.max(prev.longest_hold_s ?? 0, prev.longest_hold_retry_s ?? 0) : null, out.best.longest_hold, ' s')}</P>
-            <P>{line(`${SELF_CHECK.repeatedResult} (at ${H} s)`, repeated, prev?.repeated_holds ?? null, out.best.repeated_holds)}</P>
+            <P>{line(SELF_CHECK.atHold(SELF_CHECK.repeatedResult, H), repeated, prev?.repeated_holds ?? null, out.best.repeated_holds)}</P>
             <P>{line(SELF_CHECK.quickResult, quick, prev?.quick_flicks ?? null, out.best.quick_flicks)}</P>
           </Card>
           {out.personalBest ? <Banner tone="soft" text={MESSAGES['PFB-031-pb']} /> : null}
@@ -480,7 +531,7 @@ export default function SelfCheck() {
       footer = needStanding ? (
         <>
           <Button
-            label="Start standing check"
+            label={SELF_CHECK.startStanding}
             onPress={() => router.replace(`/selfcheck?position=standing${params.checkId ? `&checkId=${params.checkId}&parts=${params.parts ?? ''}` : ''}&kind=${params.kind ?? ''}`)}
           />
           <Button
@@ -489,12 +540,12 @@ export default function SelfCheck() {
             onPress={async () => {
               if (params.checkId && params.parts) await markPart(db, params.checkId, 'self_check', params.parts.split(',') as BundlePart[]);
               bump();
-              router.back();
+              leaveFlow();
             }}
           />
         </>
       ) : (
-        <Button label={COMMON.done} onPress={() => (kind === 'baseline' ? router.replace('/') : router.back())} />
+        <Button label={COMMON.done} onPress={() => (kind === 'baseline' ? router.replace('/') : leaveFlow())} />
       );
       break;
     }

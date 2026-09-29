@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { SESSION } from '../../content/en/exercise';
 import { HOME } from '../../content/en/strings';
 import type { WeekDots } from '../../domain/adherence';
-import { isoWeekday } from '../../domain/dates';
+import { formatTime, isoWeekday } from '../../domain/dates';
 import { Dots, P } from '../../ui/kit';
 
 export function WeekStrip({ week, target }: { week: WeekDots; target: number }) {
@@ -29,7 +29,7 @@ export function WeekStrip({ week, target }: { week: WeekDots; target: number }) 
 
 /** "today at 13:00", "tomorrow at 07:45" or "Monday at 07:45". */
 export function whenText(at: Date, now = new Date()): string {
-  const time = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+  const time = formatTime(at);
   const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const diff = Math.round((day(at) - day(now)) / 86400000);
   if (diff <= 0) return HOME.whenToday(time);

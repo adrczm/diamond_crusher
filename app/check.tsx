@@ -10,6 +10,8 @@ import { listScheduledChecks } from '../src/data/repositories/checks';
 import { checkPreview, pastChecks, type PastCheck } from '../src/domain/checkins';
 import { formatShort, toLocalDate } from '../src/domain/dates';
 import { useApp, useLoad } from '../src/features/app';
+import { leaveFlow } from '../src/features/screens/GuidedFlow';
+import { Alert } from '../src/platform/dialog';
 import { currentCheck, markPart, modulesForCheck, skipCheck, type CheckDue } from '../src/features/checkService';
 import { saveSexualFlag } from '../src/features/checkService';
 import { reconcileReminders } from '../src/features/reminderService';
@@ -24,7 +26,7 @@ const checkName = (kind: string) => (kind === 'quarterly_review' ? BUNDLE.quarte
 export default function CheckHub() {
   const { db, bump } = useApp();
   const today = toLocalDate(new Date());
-  const { data } = useLoad(async (d) => {
+  const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => {
     const c = await currentCheck(d, today);
     return {
       check: c,
@@ -34,11 +36,11 @@ export default function CheckHub() {
   });
   const [sexual, setSexual] = useState<'yes' | 'no' | 'prefer_not' | undefined>();
   const [allDone, setAllDone] = useState(false);
-  if (!data) return <Loading />;
+  if (!data) return <Loading error={loadError} onRetry={loadRetry} />;
   const c = data.check;
   if (allDone) {
     return (
-      <Screen title={DESKTOP.nav.check} footer={<Button label={COMMON.done} onPress={() => router.back()} />}>
+      <Screen title={DESKTOP.nav.check} footer={<Button label={COMMON.done} onPress={leaveFlow} />}>
         <H1>{BUNDLE.allDone}</H1>
         <Card tone="soft" onPress={() => router.replace('/data')}>
           <P>{BUNDLE.exportOffer}</P>
@@ -95,7 +97,7 @@ export default function CheckHub() {
           {p === 'sexual_flag' && !done(p) ? (
             <>
               <P>{EVENTS.sexualActivityFlag}</P>
-              <Choice options={EVENTS.sexualActivityOptions.map((o) => ({ value: o.value, label: o.label }))} value={sexual} onChange={setSexual} />
+              <Choice label={EVENTS.sexualActivityFlag} options={EVENTS.sexualActivityOptions.map((o) => ({ value: o.value, label: o.label }))} value={sexual} onChange={setSexual} />
               <Button
                 label={COMMON.save}
                 disabled={!sexual}
@@ -109,6 +111,7 @@ export default function CheckHub() {
           {p !== 'sexual_flag' && !done(p) ? (
             <Button
               label={BUNDLE.startPart}
+              accessibilityLabel={BUNDLE.startPartFor(BUNDLE.parts[p])}
               kind="secondary"
               onPress={() =>
                 router.push(
@@ -122,12 +125,22 @@ export default function CheckHub() {
       <Button
         label={BUNDLE.skip}
         kind="quiet"
-        onPress={async () => {
-          await skipCheck(db, c.row.id);
-          reconcileReminders(db);
-          bump();
-          router.back();
-        }}
+        // One tap no longer throws a half-done check away (DS-E18).
+        onPress={() =>
+          Alert.alert(BUNDLE.skipAsk, BUNDLE.skipAskBody, [
+            { text: COMMON.cancel, style: 'cancel' },
+            {
+              text: BUNDLE.skip,
+              style: 'destructive',
+              onPress: async () => {
+                await skipCheck(db, c.row.id);
+                reconcileReminders(db);
+                bump();
+                leaveFlow();
+              },
+            },
+          ])
+        }
       />
       <History past={data.past} />
     </Screen>

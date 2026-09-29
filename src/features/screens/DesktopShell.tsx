@@ -4,7 +4,7 @@
 import { router, usePathname } from 'expo-router';
 import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { DESKTOP, HOME } from '../../content/en/strings';
+import { APP_NAME, DESKTOP, HOME } from '../../content/en/strings';
 import { getMeta } from '../../data/repositories/misc';
 import { updateSettings, type Settings } from '../../data/repositories/settings';
 import { backupAgeDays, backupState } from '../../domain/backup';
@@ -14,8 +14,9 @@ import { ToggleRow } from '../../ui/kit';
 import { Icon, type IconName } from '../../ui/icons';
 import { activeNav, isFocusRoute, isSection, NAV, SIDEBAR_W, useDesktop } from '../../ui/layout';
 import { Text } from '../../ui/text';
+import { useReducedMotion } from '../../ui/motion';
 import { radius, space, ThemePrefContext, type, useColors, useIsDark } from '../../ui/theme';
-import { useApp, useLoad } from '../app';
+import { openSessionOnce, useApp, useLoad } from '../app';
 import { planToday } from '../trainingService';
 import { feedback } from '../../platform/feedback';
 
@@ -42,8 +43,12 @@ function useBackup() {
 
 /** Opens today's action. A key press or click is the gesture that lets the browser play session sounds (M6). */
 function openToday(href: string) {
-  void feedback.prepare().catch(() => undefined);
-  router.push(href);
+  const go = () => {
+    void feedback.prepare().catch(() => undefined);
+    router.push(href);
+  };
+  if (href.startsWith('/session')) openSessionOnce(go);
+  else go();
 }
 
 /** Where the sidebar's main button goes today, or null when there is nothing to start. */
@@ -168,7 +173,7 @@ function Brand() {
       <View style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
         <View style={{ width: 20, height: 20, borderRadius: 5, backgroundColor: c.primary, transform: [{ rotate: '45deg' }] }} />
       </View>
-      <Text style={[type('heading-md'), { color: c.text }]}>Diamond Crusher</Text>
+      <Text style={[type('heading-md'), { color: c.text }]}>{APP_NAME}</Text>
     </View>
   );
 }
@@ -344,9 +349,10 @@ function ShortcutsPanel({ open, onClose }: { open: boolean; onClose: () => void 
   const [on, setOn] = useState(shortcutsEnabled());
   const box = useRef<View>(null);
   const closeButton = useRef<View>(null);
+  const reduced = useReducedMotion();
   useFocusTrap(open, box, closeButton);
   return (
-    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={open} transparent animationType={reduced ? 'none' : 'fade'} onRequestClose={onClose}>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: space(3) }}>
         {/* The dimmed backdrop closes the panel on a click, but is not a Tab stop: the Close button does that job. */}
         <Pressable

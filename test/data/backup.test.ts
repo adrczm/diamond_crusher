@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
 import { BackupError, decryptBackup, encryptBackup, passphraseOk, readHeader } from '../../src/data/backup/container';
+import { keepStricterSafety } from '../../src/data/backup/safetyGuard';
 import { buildPayload, importMerge, importReplace, preview, tableCounts, validatePayload } from '../../src/data/backup/exportImport';
 import { insertEvent } from '../../src/data/repositories/events';
 import { updateProfile } from '../../src/data/repositories/profile';
@@ -115,5 +116,29 @@ describe('backup file (PRIV-030 to PRIV-037)', () => {
     expect(passphraseOk('short')).toBe(false);
     expect(passphraseOk('twelve chars')).toBe(true);
     expect(passphraseOk('a b c d')).toBe(true);
+  });
+});
+
+describe('imports never loosen safety (decision 2, 2026-09-29)', () => {
+  const row = async (db: Awaited<ReturnType<typeof freshDb>>) => (await db.get<Record<string, string>>('SELECT * FROM safety_state WHERE id = 1'))!;
+
+  it('keeps relax-only when an older backup says normal', async () => {
+    const db = await freshDb();
+    const old = await buildPayload(db, { appVersion: '1.0.0', installId: 'x', lockEnabled: false, lockTimeoutS: 60, now: new Date('2026-01-01') });
+    await db.run("UPDATE safety_state SET mode = 'relax_only', since = '2099-01-01T00:00:00.000Z' WHERE id = 1");
+    const before = await row(db);
+    await importReplace(db, old);
+    expect((await row(db)).mode).toBe('normal');
+    expect(await keepStricterSafety(db, before)).toBe(true);
+    expect((await row(db)).mode).toBe('relax_only');
+  });
+
+  it('lets a newer, looser state through', async () => {
+    const db = await freshDb();
+    await db.run("UPDATE safety_state SET mode = 'relax_only', since = '2000-01-01T00:00:00.000Z' WHERE id = 1");
+    const before = await row(db);
+    await db.run("UPDATE safety_state SET mode = 'normal', since = '2001-01-01T00:00:00.000Z' WHERE id = 1");
+    expect(await keepStricterSafety(db, before)).toBe(false);
+    expect((await row(db)).mode).toBe('normal');
   });
 });

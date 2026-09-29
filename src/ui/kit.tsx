@@ -1,6 +1,6 @@
 // Small UI kit styled after Shopify Polaris (cards, buttons, choice lists, banners), with large touch targets and
 // plain text, in light and dark (spec 05, 09 polish).
-import { router, Stack, usePathname } from 'expo-router';
+import { router, Stack, useFocusEffect, usePathname } from 'expo-router';
 import React, { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -17,7 +17,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DESKTOP } from '../content/en/strings';
+import { A11Y, APP_NAME, COMMON, DESKTOP, ERRORS } from '../content/en/strings';
 import { Icon } from './icons';
 import { isSection, useDesktop } from './layout';
 import { useReducedMotion } from './motion';
@@ -74,6 +74,12 @@ export function Screen({
     <View style={[column, { flex: 1, padding: pad, gap }]}>{children}</View>
   );
   const nativeHeader = headerShown && !desktop;
+  // The browser tab names the page (WCAG 2.4.2, DS-W7). Only page names, never logged content.
+  useFocusEffect(
+    React.useCallback(() => {
+      if (Platform.OS === 'web' && typeof document !== 'undefined') document.title = title ? `${title} · ${APP_NAME}` : APP_NAME;
+    }, [title])
+  );
   return (
     <HeaderTitle.Provider value={nativeHeader ? title ?? '' : null}>
       <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: headerShown || desktop ? 0 : insets.top }}>
@@ -254,9 +260,14 @@ export function P({ children, muted, small, center }: { children: ReactNode; mut
   );
 }
 
+/** A small group or step title. It is a heading for screen readers (DS-A13). */
 export function Label({ children }: { children: ReactNode }) {
   const c = useColors();
-  return <Text style={[type('heading-sm'), { color: c.muted }]}>{children}</Text>;
+  return (
+    <Text accessibilityRole="header" style={[type('heading-sm'), { color: c.muted }]}>
+      {children}
+    </Text>
+  );
 }
 
 export type ButtonKind = 'primary' | 'secondary' | 'danger' | 'quiet';
@@ -360,17 +371,34 @@ export function Card({ children, onPress, tone = 'normal' }: { children: ReactNo
   );
 }
 
-/** Polaris banner: tinted surface with a tone bar. `warn` = warning, `soft` = info. */
-export function Banner({ text, tone = 'warn' }: { text: string; tone?: 'warn' | 'soft' }) {
+export type BannerTone = 'warn' | 'soft' | 'critical' | 'success';
+
+/**
+ * Polaris banner: tinted surface, tone bar and icon. `warn` = warning, `soft` = information, `critical` = something failed,
+ * `success` = something worked. The icon and a spoken prefix carry the tone, so colour is never the only cue (DS-A11).
+ * Only `critical` interrupts a screen reader; the others are read politely when they appear (DS-A12).
+ */
+export function Banner({ text, tone = 'warn' }: { text: string; tone?: BannerTone }) {
   const c = useColors();
-  const warn = tone === 'warn';
+  const look = {
+    warn: { bg: c.warnSoft, fg: c.warn, bar: '#FFB800', icon: 'alert' as const, prefix: A11Y.warning },
+    critical: { bg: c.dangerSoft, fg: c.text, bar: c.danger, icon: 'alert' as const, prefix: A11Y.error },
+    success: { bg: c.goodSoft, fg: c.text, bar: c.good, icon: 'done' as const, prefix: '' },
+    soft: { bg: c.infoSoft, fg: c.info, bar: c.release, icon: 'info' as const, prefix: '' },
+  }[tone];
   return (
     <View
-      accessibilityRole={warn ? 'alert' : undefined}
-      style={{ backgroundColor: warn ? c.warnSoft : c.infoSoft, borderRadius: radius.lg, overflow: 'hidden', flexDirection: 'row' }}
+      accessible
+      accessibilityRole={tone === 'critical' ? 'alert' : undefined}
+      accessibilityLiveRegion={tone === 'critical' ? 'assertive' : 'polite'}
+      accessibilityLabel={look.prefix ? `${look.prefix}: ${text}` : text}
+      style={{ backgroundColor: look.bg, borderRadius: radius.lg, overflow: 'hidden', flexDirection: 'row' }}
     >
-      <View style={{ width: 4, backgroundColor: warn ? '#FFB800' : c.release }} />
-      <Text style={[type('body-md'), { color: warn ? c.warn : c.info, padding: space(1.5), flex: 1 }]}>{text}</Text>
+      <View style={{ width: 4, backgroundColor: look.bar }} />
+      <View style={{ paddingLeft: space(1.5), paddingTop: space(1.5) + 2 }}>
+        <Icon name={look.icon} size={18} color={look.fg} />
+      </View>
+      <Text style={[type('body-md'), { color: look.fg, padding: space(1.5), paddingLeft: space(1), flex: 1 }]}>{text}</Text>
     </View>
   );
 }
@@ -462,9 +490,20 @@ function ChoiceRow({
 }
 
 /** Single-choice list with large rows (Polaris ChoiceList, radio semantics). */
-export function Choice<T>({ options, value, onChange }: { options: readonly Option<T>[]; value: T | undefined; onChange: (v: T) => void }) {
+export function Choice<T>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: readonly Option<T>[];
+  value: T | undefined;
+  onChange: (v: T) => void;
+  /** The question, for screen readers (DS-A4). */
+  label?: string;
+}) {
   return (
-    <View style={{ gap: space(1) }} accessibilityRole="radiogroup">
+    <View style={{ gap: space(1) }} accessibilityRole="radiogroup" accessibilityLabel={label}>
       {options.map((o, i) => {
         const selected = value === o.value;
         return (
@@ -484,9 +523,20 @@ export function Choice<T>({ options, value, onChange }: { options: readonly Opti
 }
 
 /** Multi-choice list (Polaris ChoiceList allowMultiple, checkbox semantics). */
-export function MultiChoice<T>({ options, values, onChange }: { options: readonly Option<T>[]; values: readonly T[]; onChange: (v: T[]) => void }) {
+export function MultiChoice<T>({
+  options,
+  values,
+  onChange,
+  label,
+}: {
+  options: readonly Option<T>[];
+  values: readonly T[];
+  onChange: (v: T[]) => void;
+  /** The question, for screen readers (DS-A4). */
+  label?: string;
+}) {
   return (
-    <View style={{ gap: space(1) }}>
+    <View style={{ gap: space(1) }} accessibilityRole={label ? 'list' : undefined} accessibilityLabel={label}>
       {options.map((o, i) => {
         const selected = values.includes(o.value);
         return (
@@ -506,10 +556,21 @@ export function MultiChoice<T>({ options, values, onChange }: { options: readonl
 }
 
 /** Compact segmented picker for short option sets (Polaris segmented button group). */
-export function Segments<T>({ options, value, onChange }: { options: readonly Option<T>[]; value: T | undefined; onChange: (v: T) => void }) {
+export function Segments<T>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: readonly Option<T>[];
+  value: T | undefined;
+  onChange: (v: T) => void;
+  /** The question, for screen readers (DS-A4). */
+  label?: string;
+}) {
   const c = useColors();
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(1) }} accessibilityRole="radiogroup">
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(1) }} accessibilityRole="radiogroup" accessibilityLabel={label}>
       {options.map((o, i) => {
         const selected = value === o.value;
         return (
@@ -622,14 +683,30 @@ export function Field(props: TextInputProps & { label?: string }) {
   );
 }
 
-export function Stepper({ value, min, max, onChange, suffix }: { value: number; min: number; max: number; onChange: (v: number) => void; suffix?: string }) {
+export function Stepper({
+  value,
+  min,
+  max,
+  onChange,
+  suffix,
+  label,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+  suffix?: string;
+  /** What the number is, for screen readers: the buttons read "Less: <label>" (DS-A4). */
+  label?: string;
+}) {
   const c = useColors();
   const btn = (label: string, d: number, a11y: string) => {
     const off = value + d < min || value + d > max;
     return (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={a11y}
+        accessibilityLabel={label ? `${a11y}: ${label}` : a11y}
+        accessibilityState={{ disabled: off }}
         disabled={off}
         onPress={() => onChange(Math.max(min, Math.min(max, value + d)))}
         style={{
@@ -650,12 +727,12 @@ export function Stepper({ value, min, max, onChange, suffix }: { value: number; 
   };
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(2) }}>
-      {btn('−', -1, 'Less')}
-      <Text style={[type('heading-lg'), { color: c.text, minWidth: 48, textAlign: 'center' }]}>
+      {btn('−', -1, A11Y.less)}
+      <Text accessibilityLiveRegion="polite" style={[type('heading-lg'), { color: c.text, minWidth: 48, textAlign: 'center' }]}>
         {value}
         {suffix ? ` ${suffix}` : ''}
       </Text>
-      {btn('+', 1, 'More')}
+      {btn('+', 1, A11Y.more)}
     </View>
   );
 }
@@ -689,13 +766,22 @@ export function LinkRow({ label, onPress, detail }: { label: string; onPress: ()
     >
       <Text style={[type('body-md'), { flex: 1, color: c.text }]}>{label}</Text>
       {detail ? <Text style={[type('body-sm'), { color: c.muted }]}>{detail}</Text> : null}
-      <Text style={{ fontSize: 20, color: c.muted }}>›</Text>
+      <Icon name="chevron" size={18} color={c.muted} />
     </Pressable>
   );
 }
 
-export function Loading() {
+/** Spinner while a page loads. With `error`, it says the page did not load and offers Try again (DS-E13). */
+export function Loading({ error, onRetry }: { error?: unknown; onRetry?: () => void } = {}) {
   const c = useColors();
+  if (error) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg, padding: space(3), gap: space(2) }}>
+        <Banner tone="critical" text={ERRORS.loadFailed} />
+        {onRetry ? <Button label={COMMON.tryAgain} onPress={onRetry} /> : null}
+      </View>
+    );
+  }
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg }}>
       <ActivityIndicator color={c.text} size="large" />

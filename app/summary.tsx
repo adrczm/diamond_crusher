@@ -5,12 +5,13 @@ import { COMMON, MESSAGES, SUMMARY } from '../src/content/en/strings';
 import { listWeeklySummaries, markSummaryViewed } from '../src/data/repositories/misc';
 import { addDays, formatShort } from '../src/domain/dates';
 import { useApp, useLoad } from '../src/features/app';
+import { leaveFlow } from '../src/features/screens/GuidedFlow';
 import { loggedInWeek } from '../src/features/summaryService';
 import { Button, Card, H1, Loading, P, Screen } from '../src/ui/kit';
 
 export default function Summary() {
   const { db, bump } = useApp();
-  const { data } = useLoad(async (d) => {
+  const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => {
     const all = await listWeeklySummaries(d);
     const s = all[0] ?? null;
     return { s, logged: s ? await loggedInWeek(d, s.week_start) : { leaks: 0, sexual: 0 } };
@@ -20,14 +21,14 @@ export default function Summary() {
     if (s && !s.viewed_at) markSummaryViewed(db, s.week_start).then(bump).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s?.week_start]);
-  if (!data) return <Loading />;
+  if (!data) return <Loading error={loadError} onRetry={loadRetry} />;
   return (
-    <Screen title={SUMMARY.title} footer={<Button label={COMMON.done} onPress={() => router.back()} />}>
+    <Screen title={SUMMARY.title} footer={<Button label={COMMON.done} onPress={leaveFlow} />}>
       {!s ? (
-        <P>Your first summary appears after your first full week.</P>
+        <P>{SUMMARY.firstNote}</P>
       ) : (
         <>
-          <H1>{`${formatShort(s.week_start)} to ${formatShort(addDays(s.week_start, 6))}`}</H1>
+          <H1>{SUMMARY.range(formatShort(s.week_start), formatShort(addDays(s.week_start, 6)))}</H1>
           <Card>
             <P>{s.days_trained >= s.target_days ? SUMMARY.days(s.days_trained, s.target_days) : SUMMARY.belowTarget(s.days_trained, s.target_days)}</P>
             <P muted>{SUMMARY.sessions(s.sessions_counted, s.sessions_planned)}</P>

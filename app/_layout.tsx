@@ -21,7 +21,7 @@ import { logReminderAction } from '../src/data/repositories/reminders';
 import { getSettings } from '../src/data/repositories/settings';
 import type { SqlDb } from '../src/data/sql';
 import { createFresh, startupRoute, type Bootstrap } from '../src/data/vault';
-import { AppContext, relockAllowed } from '../src/features/app';
+import { AppContext, relockAllowed, RUN_GRACE_MS, runInProgress, sessionScreenOpen } from '../src/features/app';
 import { DesktopFrame } from '../src/features/screens/DesktopShell';
 import { PhoneTabs } from '../src/features/screens/PhoneTabs';
 import { LockScreen, NewerScreen, UnreadableScreen } from '../src/features/screens/gate';
@@ -95,7 +95,8 @@ export default function RootLayout() {
       if (s === 'active') {
         const since = backgroundAt.current;
         backgroundAt.current = null;
-        if (since != null && gate.boot.lock_enabled && relockAllowed() && Date.now() - since >= gate.boot.lock_timeout_s * 1000) {
+        const limit = runInProgress() ? Math.max(RUN_GRACE_MS, gate.boot.lock_timeout_s * 1000) : gate.boot.lock_timeout_s * 1000;
+        if (since != null && gate.boot.lock_enabled && relockAllowed() && Date.now() - since >= limit) {
           const boot = gate.boot;
           gate.db.close().catch(() => undefined);
           setGate({ kind: 'locked', boot });
@@ -121,7 +122,10 @@ export default function RootLayout() {
         await logReminderAction(db, reminderId, 'done_already', at);
       } else {
         await logReminderAction(db, reminderId, 'opened', at);
-        if (r.data.kind === 'session') router.push('/session');
+        // A session already on screen stays the only one (DS-E8).
+        if (r.data.kind === 'session') {
+          if (!sessionScreenOpen()) router.push('/session');
+        }
         else if (r.data.kind === 'monthly_check' || r.data.kind === 'quarterly_review') router.push('/check');
         else if (r.data.kind === 'weekly_summary') router.push('/summary');
       }
@@ -152,7 +156,16 @@ export default function RootLayout() {
       />
     );
   else if (gate.kind === 'unreadable')
-    body = <UnreadableScreen appVersion={APP_VERSION} onFresh={(db2, boot) => setGate({ kind: 'ready', db: db2, boot })} />;
+    body = (
+      <UnreadableScreen
+        appVersion={APP_VERSION}
+        onFresh={(db2, boot) => setGate({ kind: 'ready', db: db2, boot })}
+        onRetry={() => {
+          setGate({ kind: 'loading' });
+          setRunId((x) => x + 1);
+        }}
+      />
+    );
   else if (gate.kind === 'newer_version') body = <NewerScreen />;
   else
     body = (

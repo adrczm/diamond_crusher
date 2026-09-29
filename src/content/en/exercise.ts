@@ -24,6 +24,11 @@ export const VOICE = {
   done: 'Session done',
 } as const;
 
+/** Voice mode at a block change (decision 4, 2026-09-29), so the person can train with eyes closed. */
+export function voiceBlock(block: keyof typeof BLOCK_NAME): string {
+  return `Next: ${BLOCK_NAME[block]}. ${INTENSITY[block]}.`;
+}
+
 export const RELAX_STEP_TEXT: Record<RelaxStep, { title: string; body: string }> = {
   relax_in: { title: 'Relax', body: 'Take 3 slow breaths. Let your tummy and the area between your legs go soft.' },
   relax_out: { title: 'Relax', body: 'Take 3 slow breaths. Let everything go soft and heavy.' },
@@ -40,6 +45,12 @@ export const RELAX_STEP_TEXT: Record<RelaxStep, { title: string; body: string }>
 };
 
 export const SESSION = {
+  learnFirst: 'Learn the squeeze first. It unlocks your sessions.',
+  exercisesPaused: 'Exercises are paused.',
+  repCount: (rep: number, reps: number) => `${rep} of ${reps}`,
+  timeLeft: (t: string) => `${t} left`,
+  saveFailed: 'This session is not saved yet. Try again. The session stays here until it is saved.',
+  logTitle: 'How did it go?',
   gettingWeak: 'Getting weak',
   gettingWeakReply: 'Good call. When the squeeze fades, that is the right time to stop.',
   pain: 'Pain',

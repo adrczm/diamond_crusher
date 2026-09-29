@@ -1,7 +1,7 @@
 // Progress (06c): consistency, your self-check record, session feel, logged events and questionnaire answers.
 import { useState } from 'react';
 import { EVENTS } from '../src/content/en/items';
-import { LEVEL_NAME, MEASURE_NAME, MESSAGES, PROGRESS } from '../src/content/en/strings';
+import { BUNDLE, HOME, LEVEL_NAME, MEASURE_NAME, MESSAGES, PROGRESS } from '../src/content/en/strings';
 import { listResponses, listSelfChecks } from '../src/data/repositories/checks';
 import { listContextFlags, listEvents } from '../src/data/repositories/events';
 import { activeGoals, getProfile } from '../src/data/repositories/profile';
@@ -43,9 +43,9 @@ async function load(db: Parameters<typeof getSettings>[0]) {
 }
 
 export default function Progress() {
-  const { data } = useLoad(load);
+  const { data, reload: loadRetry, error: loadError } = useLoad(load);
   const [range, setRange] = useState<'12w' | '12m'>('12w');
-  if (!data) return <Loading />;
+  if (!data) return <Loading error={loadError} onRetry={loadRetry} />;
   const today = toLocalDate(new Date());
   const weeks = range === '12w' ? 12 : 52;
   const thisWeek = weekStart(today, data.settings.week_start_day);
@@ -137,7 +137,7 @@ export default function Progress() {
       <Columns>
         <Card>
           <Label>{PROGRESS.trainingWeek}</Label>
-          <P>{`${consistency[consistency.length - 1].value} of ${target} days`}</P>
+          <P>{HOME.weekCount(consistency[consistency.length - 1].value ?? 0, target)}</P>
         </Card>
         <Card>
           <Label>{PROGRESS.yourRecord}</Label>
@@ -241,7 +241,7 @@ export default function Progress() {
             <P key={r.id}>
               {`${formatShort(toLocalDate(new Date(r.started_at)))} · ${MODULES.find((m) => m.moduleId === r.instrument_key)?.name ?? r.instrument_key}${
                 r.total_score != null ? ` · ${r.total_score}` : ''
-              }${r.flags.includes('possibly_rushed') ? ' · answered quickly' : ''}`}
+              }${r.flags.includes('possibly_rushed') ? ` · ${BUNDLE.rushed}` : ''}`}
             </P>
           ))}
       </Card>

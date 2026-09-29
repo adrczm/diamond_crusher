@@ -1,5 +1,6 @@
 // Questionnaire runner (06b QST-020 to QST-045): one item per screen, skippable, recall period on every item.
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
+import { usePreventRemove } from '@react-navigation/native';
 import { useState } from 'react';
 import { APP_QUESTION_LABEL } from '../src/content/en/items';
 import { BUNDLE, COMMON } from '../src/content/en/strings';
@@ -8,13 +9,14 @@ import { listScheduledChecks } from '../src/data/repositories/checks';
 import { itemVisible, type AnswerValue, type ModuleItem } from '../src/domain/questionnaire';
 import type { BundleKind } from '../src/domain/schedule';
 import { useApp, useLoad } from '../src/features/app';
+import { confirmLeave, leaveFlow } from '../src/features/screens/GuidedFlow';
 import { markPart, modulesForCheck, saveQuestionnaire, type BundlePart } from '../src/features/checkService';
 import { Button, Choice, H2, Label, Loading, P, Screen, Segments } from '../src/ui/kit';
 
 export default function QuestionnaireScreen() {
   const params = useLocalSearchParams<{ checkId?: string; parts?: string }>();
   const { db, bump } = useApp();
-  const { data } = useLoad(async (d) => {
+  const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => {
     const row = (await listScheduledChecks(d)).find((r) => r.id === params.checkId);
     const kind = (row?.kind ?? 'monthly_check') as BundleKind;
     return { kind, modules: await modulesForCheck(d, kind), goals: await activeGoals(d) };
@@ -24,12 +26,17 @@ export default function QuestionnaireScreen() {
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [startedAt, setStartedAt] = useState(() => new Date());
   const [busy, setBusy] = useState(false);
-  if (!data) return <Loading />;
+  const [finished, setFinished] = useState(false);
+  // Leaving with answers asks first (DS-E16).
+  const navigation = useNavigation();
+  usePreventRemove(Object.keys(answers).length > 0 && !finished, ({ data: e }) => confirmLeave(() => navigation.dispatch(e.action)));
+  if (!data) return <Loading error={loadError} onRetry={loadRetry} />;
   const m = data.modules[mi];
   const finishAll = async () => {
     if (params.checkId && params.parts) await markPart(db, params.checkId, 'questionnaires', params.parts.split(',') as BundlePart[]);
     bump();
-    router.back();
+    setFinished(true);
+    setTimeout(leaveFlow, 0);
   };
   if (!m) {
     return (
@@ -67,6 +74,7 @@ export default function QuestionnaireScreen() {
         <>
           <Button label={COMMON.next} disabled={value == null} busy={busy} onPress={() => next(value)} />
           <Button label={COMMON.skipQuestion} kind="quiet" disabled={busy} onPress={() => next(undefined)} />
+          {ii > 0 ? <Button label={COMMON.back} kind="secondary" disabled={busy} onPress={() => setIi(ii - 1)} /> : null}
         </>
       }
     >
@@ -86,7 +94,7 @@ export default function QuestionnaireScreen() {
           <P small muted>{`${item.scale.min} = ${item.scale.minLabel}, ${item.scale.max} = ${item.scale.maxLabel}`}</P>
         </>
       ) : (
-        <Choice options={item.options.map((o) => ({ value: o.value, label: o.label }))} value={value as number | string | undefined} onChange={set} />
+        <Choice label={item.text} options={item.options.map((o) => ({ value: o.value, label: o.label }))} value={value as number | string | undefined} onChange={set} />
       )}
     </Screen>
   );

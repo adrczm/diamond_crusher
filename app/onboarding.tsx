@@ -212,7 +212,7 @@ export default function Onboarding() {
         <>
           <H1>{ONBOARDING.goalsQuestion}</H1>
           <P muted>{ONBOARDING.goalsNote}</P>
-          <MultiChoice options={options.map((g) => ({ value: g.goal, label: g.label }))} values={chosen} onChange={setGoalsState} />
+          <MultiChoice label={ONBOARDING.goalsQuestion} options={options.map((g) => ({ value: g.goal, label: g.label }))} values={chosen} onChange={setGoalsState} />
         </>
       );
       actions = (
@@ -233,7 +233,7 @@ export default function Onboarding() {
         <>
           <H1>{ONBOARDING.ageQuestion}</H1>
           <P muted>{ONBOARDING.ageNote}</P>
-          <Choice options={ONBOARDING.ageOptions.map((o) => ({ value: o.value as AgeBand | null, label: o.label }))} value={age} onChange={setAge} />
+          <Choice label={ONBOARDING.ageQuestion} options={ONBOARDING.ageOptions.map((o) => ({ value: o.value as AgeBand | null, label: o.label }))} value={age} onChange={setAge} />
         </>
       );
       actions = (

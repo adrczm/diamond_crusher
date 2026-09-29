@@ -45,6 +45,10 @@ import { confirmLeave, FlowScreen, leaveFlow } from '../src/features/screens/Gui
 import { LiftCircle, PelvicFloorDiagram } from '../src/features/screens/LearnVisuals';
 import { Banner, Button, Card, Choice, H1, H2, Label, Loading, P, Screen, Segments } from '../src/ui/kit';
 import { useColors } from '../src/ui/theme';
+import { VOICE } from '../src/content/en/exercise';
+import { useKeepAwake } from 'expo-keep-awake';
+import { feedback } from '../src/platform/feedback';
+import { getSettings } from '../src/data/repositories/settings';
 import { useCountdown } from '../src/ui/useCountdown';
 
 type Step = 'edu' | 'intro' | 'relax' | 'cue' | 'squeeze' | 'check' | 'letgo' | 'mistakes' | 'result' | 'whichCue' | 'stopTest';
@@ -56,10 +60,16 @@ const NOTHING_OFF: Mistakes = { breathing: true, buttocks: true, thighs: true, t
 function BigCount({ seconds, label, onDone }: { seconds: number; label: string; onDone: () => void }) {
   const c = useColors();
   const left = useCountdown(seconds, true, onDone);
+  // The screen stays on during a timed step (DS-E12).
+  useKeepAwake();
   return (
-    <View style={{ alignItems: 'center', paddingVertical: 24, gap: 8 }} accessibilityLiveRegion="polite">
-      <Text style={{ fontSize: 20, color: c.muted }}>{label}</Text>
-      <Text style={{ fontSize: 72, fontWeight: '700', color: c.primary }}>{left}</Text>
+    <View style={{ alignItems: 'center', paddingVertical: 24, gap: 8 }}>
+      <Text style={{ fontSize: 20, color: c.muted }} accessibilityLiveRegion="polite">
+        {label}
+      </Text>
+      <Text style={{ fontSize: 72, fontWeight: '700', color: c.primary }} maxFontSizeMultiplier={1.3}>
+        {left}
+      </Text>
     </View>
   );
 }
@@ -68,7 +78,8 @@ export default function Learn() {
   const params = useLocalSearchParams<{ mode?: string }>();
   const recheck = params.mode === 'recheck';
   const { db, bump } = useApp();
-  const { data } = useLoad(async (d) => ({
+  const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => ({
+    settings: await getSettings(d),
     profile: await getProfile(d),
     prog: await getProgramme(d),
     safety: await getSafetyState(d),
@@ -90,6 +101,16 @@ export default function Learn() {
   const [result, setResult] = useState<{ result: SittingResult; canStartAnyway: boolean; raisedQG5: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Learn uses the same sound and vibration as a session, so it can be done lying down without watching (DS-F2).
+  useEffect(() => {
+    if (!data) return;
+    const opts = { audio: data.settings.audio_mode, vibration: data.settings.vibration };
+    if (step === 'squeeze') void feedback.cue('squeeze', { ...opts, words: VOICE.squeeze });
+    else if (step === 'letgo') void feedback.cue('release', { ...opts, words: VOICE.release });
+    else if (step === 'relax') void feedback.cue('tick', { ...opts, audio: opts.audio === 'voice' ? 'off' : opts.audio });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   const eduScreens = EDUCATION.filter((e) => e.id === 'ED-01' || e.id === 'ED-06');
 
   useEffect(() => {
@@ -102,7 +123,7 @@ export default function Learn() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
-  if (!data || !step) return <Loading />;
+  if (!data || !step) return <Loading error={loadError} onRetry={loadRetry} />;
   const anatomy = data.profile?.anatomy ?? 'other_unspecified';
   const cues = CUES[anatomy];
   const cueKey = cues.keys[cueIdx % cues.keys.length];
@@ -242,7 +263,7 @@ export default function Learn() {
             <H2>{LEARN.checkTitle}</H2>
             <P muted>{LEARN.checkLying}</P>
             <P>{touchCheck.text}</P>
-            <Choice options={TOUCH_ANSWERS.map((a) => ({ value: a.value as TouchCheck, label: a.label }))} value={touch === 'not_done' ? undefined : touch} onChange={setTouch} />
+            <Choice label={touchCheck.text} options={TOUCH_ANSWERS.map((a) => ({ value: a.value as TouchCheck, label: a.label }))} value={touch === 'not_done' ? undefined : touch} onChange={setTouch} />
             <Button label={LEARN.useMirror} kind="quiet" onPress={() => setMethod('mirror')} />
           </>
         ) : (
@@ -307,7 +328,7 @@ export default function Learn() {
             <>
               <H2>{LEARN.offQuestion}</H2>
               <P muted>{LEARN.offNote}</P>
-              <Segments options={yn} value={off} onChange={setOff} />
+              <Segments label={LEARN.offQuestion} options={yn} value={off} onChange={setOff} />
             </>
           ) : null}
           {full ? (
@@ -317,7 +338,7 @@ export default function Learn() {
               {MISTAKES.map((m) => (
                 <Card key={m.key}>
                   <P>{m.question}</P>
-                  <Segments options={yn} value={mistakes[m.key] ?? undefined} onChange={(v) => setMistakes({ ...mistakes, [m.key]: v })} />
+                  <Segments label={m.question} options={yn} value={mistakes[m.key] ?? undefined} onChange={(v) => setMistakes({ ...mistakes, [m.key]: v })} />
                   {mistakes[m.key] === false ? (
                     <P small muted>
                       {m.tip}
@@ -335,7 +356,7 @@ export default function Learn() {
               </Card>
               <Card>
                 <P>{LEAK_QUESTION}</P>
-                <Segments options={yn} value={mistakes.leak ?? undefined} onChange={(v) => setMistakes({ ...mistakes, leak: v })} />
+                <Segments label={LEAK_QUESTION} options={yn} value={mistakes.leak ?? undefined} onChange={(v) => setMistakes({ ...mistakes, leak: v })} />
               </Card>
             </>
           ) : null}
@@ -396,7 +417,7 @@ export default function Learn() {
       body = (
         <>
           <H2>{LEARN.whichCue}</H2>
-          <Choice options={cues.keys.map((k) => ({ value: k, label: cues.text[k] }))} value={cueKey} onChange={(k) => setCueIdx(cues.keys.indexOf(k))} />
+          <Choice label={LEARN.whichCue} options={cues.keys.map((k) => ({ value: k, label: cues.text[k] }))} value={cueKey} onChange={(k) => setCueIdx(cues.keys.indexOf(k))} />
         </>
       );
       footer = <Button label={COMMON.continue} onPress={next} />;
