@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { useKeepAwake } from 'expo-keep-awake';
+import { SYNC } from '../../content/en/sync';
 import { radius } from '../../ui/theme';
 
 function pathFor(text: string): { d: string; n: number } {
@@ -50,7 +51,7 @@ export function QrCode({ frames, size }: { frames: string[]; size: number }) {
     <View
       accessible
       accessibilityRole="image"
-      accessibilityLabel="Sync code"
+      accessibilityLabel={SYNC.codeLabel}
       style={{ width: size, height: size, backgroundColor: '#FFFFFF', borderRadius: radius.lg, overflow: 'hidden', alignSelf: 'center' }}
     >
       <Svg width={size} height={size} viewBox={`0 0 ${box} ${box}`}>

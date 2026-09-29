@@ -4,7 +4,7 @@
 import { router, usePathname } from 'expo-router';
 import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { DESKTOP, HOME } from '../../content/en/strings';
+import { APP_NAME, DESKTOP, HOME } from '../../content/en/strings';
 import { getMeta } from '../../data/repositories/misc';
 import { updateSettings, type Settings } from '../../data/repositories/settings';
 import { backupAgeDays, backupState } from '../../domain/backup';
@@ -173,7 +173,7 @@ function Brand() {
       <View style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
         <View style={{ width: 20, height: 20, borderRadius: 5, backgroundColor: c.primary, transform: [{ rotate: '45deg' }] }} />
       </View>
-      <Text style={[type('heading-md'), { color: c.text }]}>Diamond Crusher</Text>
+      <Text style={[type('heading-md'), { color: c.text }]}>{APP_NAME}</Text>
     </View>
   );
 }

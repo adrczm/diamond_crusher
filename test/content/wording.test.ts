@@ -58,6 +58,7 @@ const catalogue = [
   ...collect([nonEvidence, exercise, items, learn, screening, strings]),
   ...literals(path.join(root, 'app')),
   ...literals(path.join(root, 'src/features')),
+  ...literals(path.join(root, 'src/ui')),
   ...collect(MODULES.filter((m) => !m.validated).map((m) => m.items)),
 ];
 // Copy from the content catalogue only (no screen source), for the STE checks.
@@ -205,5 +206,23 @@ describe('wording checks', () => {
     ];
     const bad = buttons.filter((b) => b.split(/\s+/).length > 3 || /[.!?:;,]$/.test(b));
     expect(bad).toEqual([]);
+  });
+
+  // DS-P1: copy lives in src/content/en, where these checks can read it. Screens and the UI kit hold no English text.
+  it('keeps English copy out of screen and UI code', () => {
+    const offenders: string[] = [];
+    const walk = (d: string) => {
+      for (const f of fs.readdirSync(d)) {
+        const p = path.join(d, f);
+        if (fs.statSync(p).isDirectory()) walk(p);
+        else if (f.endsWith('.tsx')) {
+          const src = fs.readFileSync(p, 'utf8');
+          for (const m of src.matchAll(/(label|text|title|placeholder|accessibilityLabel)="([^"]*[A-Za-z]{2}[^"]*)"/g)) offenders.push(`${path.relative(root, p)}: ${m[0]}`);
+          for (const m of src.matchAll(/>([ \t]*[A-Z][a-z][^<>{}()=;'"\n]*)<\//g)) offenders.push(`${path.relative(root, p)}: ${m[1].trim()}`);
+        }
+      }
+    };
+    for (const d of ['app', 'src/features', 'src/ui']) walk(path.join(root, d));
+    expect(offenders).toEqual([]);
   });
 });

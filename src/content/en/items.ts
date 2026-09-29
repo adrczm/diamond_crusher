@@ -35,6 +35,13 @@ export const SESSION_LOG = {
 } as const;
 
 export const SELF_CHECK = {
+  firstTitle: 'First self-check',
+  unavailable: 'The self-check is not available while exercises are paused or set to relaxation only.',
+  tryAgain: 'Try again',
+  startStanding: 'Start standing check',
+  seconds: (n: number) => `${n} s`,
+  repeatedHow: (h: number, cap: number) => `Hold ${h} s, rest 4 s, up to ${cap} times.`,
+  atHold: (label: string, h: number) => `${label} (at ${h} s)`,
   interrupted: 'The timer stopped because the app left the screen. This result is not saved. Do this test again when you are ready.',
   startAgain: 'Start again',
   pacerSqueeze: 'Squeeze',

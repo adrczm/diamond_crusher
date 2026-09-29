@@ -322,6 +322,8 @@ export const MEASURE_NAME: Record<string, string> = {
 
 export const SUMMARY = {
   title: 'Your week',
+  firstNote: 'Your first summary appears after your first full week.',
+  range: (a: string, b: string) => `${a} to ${b}`,
   days: (d: number, t: number) => `${d} of ${t} days.`,
   belowTarget: (d: number, t: number) => `${d} of ${t} days. A new week starts now.`,
   sessions: (c: number, p: number) => `${c} of ${p} sessions.`,

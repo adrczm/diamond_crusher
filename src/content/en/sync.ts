@@ -4,6 +4,7 @@ import type { Kind } from '../../data/sync/codes';
 const other = (k: Kind | null) => (k === 'phone' ? 'phone' : k === 'computer' ? 'Mac' : 'other device');
 
 export const SYNC = {
+  codeLabel: 'Sync code',
   title: 'Sync',
   entryTitle: 'Sync with your other device',
   entryBody: 'Keep your phone and your Mac in step. Codes on the screen carry your data. No internet. No cloud.',

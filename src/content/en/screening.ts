@@ -130,3 +130,11 @@ export const REVIEW_12W_CARD = 'Not much changed in 3 months. A pelvic health ph
 export const RELAX_ONLY_HOME = 'Relaxation practice only, until a health professional checks the pain.';
 export const OTHER_PROFILE_PHYSIO = 'A pelvic health physiotherapist can check your technique and tailor training to you. It is a good idea to see one if you can.';
 export const TODO_BANNER = 'We are still writing some guidance for this profile';
+
+/** Words around the safety questions (moved from screen code, DS-P1). */
+export const SCREEN_FLOW = {
+  dateLabel: 'Date (YYYY-MM-DD)',
+  datePlaceholder: '2026-11-30',
+  questionOf: (n: number, total: number) => `Question ${n} of ${total}`,
+  emergency: 'If you feel very unwell, call emergency services.',
+};

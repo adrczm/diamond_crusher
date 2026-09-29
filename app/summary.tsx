@@ -25,10 +25,10 @@ export default function Summary() {
   return (
     <Screen title={SUMMARY.title} footer={<Button label={COMMON.done} onPress={leaveFlow} />}>
       {!s ? (
-        <P>Your first summary appears after your first full week.</P>
+        <P>{SUMMARY.firstNote}</P>
       ) : (
         <>
-          <H1>{`${formatShort(s.week_start)} to ${formatShort(addDays(s.week_start, 6))}`}</H1>
+          <H1>{SUMMARY.range(formatShort(s.week_start), formatShort(addDays(s.week_start, 6)))}</H1>
           <Card>
             <P>{s.days_trained >= s.target_days ? SUMMARY.days(s.days_trained, s.target_days) : SUMMARY.belowTarget(s.days_trained, s.target_days)}</P>
             <P muted>{SUMMARY.sessions(s.sessions_counted, s.sessions_planned)}</P>

@@ -249,11 +249,11 @@ export default function SelfCheck() {
   if (!data) return <Loading error={loadError} onRetry={loadRetry} />;
   const anatomy = data.profile?.anatomy ?? 'other_unspecified';
   const cueOpts = { audio: data.settings.audio_mode, vibration: data.settings.vibration } as const;
-  const title = kind === 'baseline' ? 'First self-check' : SELF_CHECK.title;
+  const title = kind === 'baseline' ? SELF_CHECK.firstTitle : SELF_CHECK.title;
   if (!strengthAllowed(data.safety.mode)) {
     return (
       <Screen title={title}>
-        <Banner text="The self-check is not available while exercises are paused or set to relaxation only." />
+        <Banner text={SELF_CHECK.unavailable} />
       </Screen>
     );
   }
@@ -389,7 +389,7 @@ export default function SelfCheck() {
           ) : null}
           {!running && longest !== null ? (
             <Card>
-              <H2>{`${bestLongest} s`}</H2>
+              <H2>{SELF_CHECK.seconds(bestLongest)}</H2>
               {bestLongest >= LONGEST_HOLD_CAP_S ? <P>{SELF_CHECK.longestCap}</P> : null}
               {longest <= 1 && retry === null ? <P>{SELF_CHECK.longestRetry}</P> : null}
             </Card>
@@ -401,7 +401,7 @@ export default function SelfCheck() {
       ) : (
         <>
           <Button label={COMMON.continue} onPress={() => setStep('repeated')} />
-          {longest <= 1 && retry === null ? <Button label="Try again" kind="secondary" onPress={() => setRunning(true)} /> : null}
+          {longest <= 1 && retry === null ? <Button label={SELF_CHECK.tryAgain} kind="secondary" onPress={() => setRunning(true)} /> : null}
         </>
       );
       if (!running) hot = longest === null ? () => setRunning(true) : () => setStep('repeated');
@@ -410,7 +410,7 @@ export default function SelfCheck() {
       body = (
         <>
           <Label>{SELF_CHECK.repeatedTitle}</Label>
-          <P>{`Hold ${H} s, rest 4 s, up to ${REPEATED_CAP} times.`}</P>
+          <P>{SELF_CHECK.repeatedHow(H, REPEATED_CAP)}</P>
           <P>{SELF_CHECK.repeated}</P>
           {running ? (
             <Pacer
@@ -425,7 +425,7 @@ export default function SelfCheck() {
               }}
             />
           ) : null}
-          {!running && repeated !== null ? <H2>{`${repeated} of ${REPEATED_CAP}`}</H2> : null}
+          {!running && repeated !== null ? <H2>{SELF_CHECK.pacerCount(repeated, REPEATED_CAP)}</H2> : null}
         </>
       );
       footer = running ? null : repeated === null ? (
@@ -453,7 +453,7 @@ export default function SelfCheck() {
               }}
             />
           ) : null}
-          {!running && quick !== null ? <H2>{`${quick} of ${QUICK_CAP}`}</H2> : null}
+          {!running && quick !== null ? <H2>{SELF_CHECK.pacerCount(quick, QUICK_CAP)}</H2> : null}
         </>
       );
       footer = running ? null : quick === null ? (
@@ -500,7 +500,7 @@ export default function SelfCheck() {
           <H1>{SELF_CHECK.resultTitle}</H1>
           <Card>
             <P>{line(SELF_CHECK.longestResult, bestLongest, prev ? Math.max(prev.longest_hold_s ?? 0, prev.longest_hold_retry_s ?? 0) : null, out.best.longest_hold, ' s')}</P>
-            <P>{line(`${SELF_CHECK.repeatedResult} (at ${H} s)`, repeated, prev?.repeated_holds ?? null, out.best.repeated_holds)}</P>
+            <P>{line(SELF_CHECK.atHold(SELF_CHECK.repeatedResult, H), repeated, prev?.repeated_holds ?? null, out.best.repeated_holds)}</P>
             <P>{line(SELF_CHECK.quickResult, quick, prev?.quick_flicks ?? null, out.best.quick_flicks)}</P>
           </Card>
           {out.personalBest ? <Banner tone="soft" text={MESSAGES['PFB-031-pb']} /> : null}
@@ -531,7 +531,7 @@ export default function SelfCheck() {
       footer = needStanding ? (
         <>
           <Button
-            label="Start standing check"
+            label={SELF_CHECK.startStanding}
             onPress={() => router.replace(`/selfcheck?position=standing${params.checkId ? `&checkId=${params.checkId}&parts=${params.parts ?? ''}` : ''}&kind=${params.kind ?? ''}`)}
           />
           <Button
