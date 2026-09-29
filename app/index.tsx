@@ -27,6 +27,7 @@ export default function Home() {
   const desktop = useDesktop();
   const { data: m, reload: loadRetry, error: loadError } = useLoad((d) => loadHome(d));
   const [busy, setBusy] = useState(false);
+  const [allPrompts, setAllPrompts] = useState(false);
   if (!m) return <Loading error={loadError} onRetry={loadRetry} />;
   if (!m.profile.onboarding_completed_at) return <Redirect href="/onboarding" />;
 
@@ -51,6 +52,14 @@ export default function Home() {
   const levelName = m.levelName ? (LEVEL_NAME[m.levelName.variable]?.(m.levelName.after) ?? null) : null;
   // C2: setup moved out of onboarding, one or two cards at a time. The app lock exists on Android only.
   const setup = m.setup.filter((k) => k !== 'lock' || Platform.OS === 'android').slice(0, 2);
+  // Decision 6 (2026-09-29): at most two prompts show, safety first; the rest wait behind one button.
+  const prompts = [
+    m.safetyRecheck && mode !== 'blocked_urgent' ? { key: 'safety', text: HOME.shortScreenDue, go: () => router.push('/screening?kind=periodic') } : null,
+    m.check?.open ? { key: 'check', text: m.check.row.kind === 'quarterly_review' ? HOME.reviewReady : HOME.checkReady, go: () => router.push('/check') } : null,
+    m.techniqueCheck ? { key: 'technique', text: HOME.techniqueCheck, go: () => router.push('/learn?mode=recheck') } : null,
+    m.baselineOffer ? { key: 'baseline', text: HOME.baselineOffer, go: () => router.push('/selfcheck?kind=baseline') } : null,
+    m.summary ? { key: 'summary', text: HOME.summaryReady, go: () => router.push('/summary') } : null,
+  ].filter((x): x is { key: string; text: string; go: () => void } => !!x);
   const openSetup = (k: SetupKey) => {
     if (k === 'plan') router.push('/reminders');
     else if (k === 'lock') router.push('/settings');
@@ -92,6 +101,15 @@ export default function Home() {
             </Card>
           ) : null}
 
+          {/* Decision 6 (2026-09-29): safety cautions come first, above the session and any prompts. */}
+          {m.cautions.length && mode === 'caution' ? (
+            <Card tone="warn">
+              {m.cautions.map((k) => (
+                <P key={k}>{CAUTION_CARD[k]}</P>
+              ))}
+            </Card>
+          ) : null}
+
           {m.gap && t.kind !== 'blocked' ? (
             <Card tone="soft">
               <H2>{WELCOME_BACK.title}</H2>
@@ -121,13 +139,10 @@ export default function Home() {
             <SetupCard key={k} k={k} onOpen={() => openSetup(k)} onDismiss={() => act(() => dismissSetup(db, k))} busy={busy} />
           ))}
 
-          {m.techniqueCheck ? <Prompt text={HOME.techniqueCheck} onPress={() => router.push('/learn?mode=recheck')} /> : null}
-          {m.baselineOffer ? <Prompt text={HOME.baselineOffer} onPress={() => router.push('/selfcheck?kind=baseline')} /> : null}
-          {m.safetyRecheck && mode !== 'blocked_urgent' ? <Prompt text={HOME.shortScreenDue} onPress={() => router.push('/screening?kind=periodic')} /> : null}
-          {m.check?.open ? (
-            <Prompt text={m.check.row.kind === 'quarterly_review' ? HOME.reviewReady : HOME.checkReady} onPress={() => router.push('/check')} />
-          ) : null}
-          {m.summary ? <Prompt text={HOME.summaryReady} onPress={() => router.push('/summary')} /> : null}
+          {prompts.slice(0, allPrompts ? prompts.length : 2).map((p) => (
+            <Prompt key={p.key} text={p.text} onPress={p.go} />
+          ))}
+          {!allPrompts && prompts.length > 2 ? <Button label={HOME.morePrompts(prompts.length - 2)} kind="quiet" onPress={() => setAllPrompts(true)} /> : null}
         </>
         <>
           {t.kind !== 'learn' && t.kind !== 'blocked' ? (
@@ -156,13 +171,6 @@ export default function Home() {
             </Card>
           ) : null}
 
-          {m.cautions.length && mode === 'caution' ? (
-            <Card tone="warn">
-              {m.cautions.map((k) => (
-                <P key={k}>{CAUTION_CARD[k]}</P>
-              ))}
-            </Card>
-          ) : null}
 
           {m.settings.functional_cues_enabled && m.programme.learn_status !== 'not_started' && t.kind !== 'blocked' ? (
             <Card>

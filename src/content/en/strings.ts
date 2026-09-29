@@ -149,6 +149,7 @@ export const PLAN = {
 };
 
 export const HOME = {
+  morePrompts: (n: number) => (n === 1 ? 'Show 1 more' : `Show ${n} more`),
   greeting: (name: string | null) => (name ? `Hello, ${name}` : 'Hello'),
   todayTitle: 'Today',
   sessionOf: (n: number, total: number) => `Session ${n} of ${total}`,
