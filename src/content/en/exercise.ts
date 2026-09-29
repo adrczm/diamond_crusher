@@ -40,6 +40,12 @@ export const RELAX_STEP_TEXT: Record<RelaxStep, { title: string; body: string }>
 };
 
 export const SESSION = {
+  learnFirst: 'Learn the squeeze first. It unlocks your sessions.',
+  exercisesPaused: 'Exercises are paused.',
+  repCount: (rep: number, reps: number) => `${rep} of ${reps}`,
+  timeLeft: (t: string) => `${t} left`,
+  saveFailed: 'This session is not saved yet. Try again. The session stays here until it is saved.',
+  logTitle: 'How did it go?',
   gettingWeak: 'Getting weak',
   gettingWeakReply: 'Good call. When the squeeze fades, that is the right time to stop.',
   pain: 'Pain',
