@@ -20,6 +20,7 @@ import { SessionRunner, type RunnerEvent } from '../src/domain/session/engine';
 import { relaxPlan, type SessionPlan, type TimelinePhase } from '../src/domain/session/plan';
 import type { Completion, OffTick, Pain3 } from '../src/domain/types';
 import { useApp, useLoad } from '../src/features/app';
+import { leaveFlow } from '../src/features/screens/GuidedFlow';
 import { loadSessionSummary } from '../src/features/homeService';
 import { SessionContents } from '../src/features/screens/SessionContents';
 import { WeekStrip, whenText } from '../src/features/screens/WeekStrip';
@@ -41,7 +42,7 @@ type Stage = 'ready' | 'running' | 'painAsk' | 'log' | 'done';
 export default function SessionScreen() {
   const params = useLocalSearchParams<{ relax?: string; extra?: string; go?: string }>();
   const { db, bump } = useApp();
-  const { data } = useLoad(async (d) => ({ today: await planToday(d), settings: await getSettings(d), profile: await getProfile(d) }), []);
+  const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => ({ today: await planToday(d), settings: await getSettings(d), profile: await getProfile(d) }), []);
   const [stage, setStage] = useState<Stage>('ready');
   const [plan, setPlan] = useState<SessionPlan | null>(null);
   const [extra, setExtra] = useState(false);
@@ -72,11 +73,11 @@ export default function SessionScreen() {
     if (plan && stage === 'ready' && params.go === '1' && plan.templateKey === 'strength' && !extra) void begin(plan);
   }, [plan, stage, params.go, extra, begin]);
 
-  if (!data) return <Loading />;
+  if (!data) return <Loading error={loadError} onRetry={loadRetry} />;
   const t = data.today;
   if (!plan) {
     return (
-      <Screen title={SESSION.start} footer={<Button label={COMMON.back} onPress={() => router.back()} />}>
+      <Screen title={SESSION.start} footer={<Button label={COMMON.back} onPress={leaveFlow} />}>
         <P>{t.kind === 'day_done' ? SESSION.dayDone : t.kind === 'learn' ? 'Learn the squeeze first. It unlocks your sessions.' : 'Exercises are paused.'}</P>
       </Screen>
     );

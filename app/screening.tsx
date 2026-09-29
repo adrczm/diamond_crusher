@@ -1,36 +1,42 @@
 // "Something changed?", the periodic short re-check, and re-runs after a body change (ONB-030 to ONB-032).
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { COMMON, HOME } from '../src/content/en/strings';
-import { getProfile } from '../src/data/repositories/profile';
+import { GOAL_LABEL } from '../src/content/en/exercise';
+import { activeGoals, getProfile, setGoals, updateProfile } from '../src/data/repositories/profile';
 import { CHANGE_TOPICS } from '../src/content/en/screening';
 import type { ChangeTopic, QuestionKey, ScreeningKind } from '../src/domain/safety';
-import type { SafetyMode } from '../src/domain/types';
+import type { Anatomy, SafetyMode } from '../src/domain/types';
 import { useApp, useLoad } from '../src/features/app';
 import { markPart, type BundlePart } from '../src/features/checkService';
 import { reconcileReminders } from '../src/features/reminderService';
 import { completeScreening } from '../src/features/safetyService';
+import { leaveFlow } from '../src/features/screens/GuidedFlow';
 import { ScreeningFlow, ScreeningOutcome } from '../src/features/screens/ScreeningFlow';
 import { Button, H1, H2, Loading, MultiChoice, P, Screen } from '../src/ui/kit';
 
+const ANATOMIES: Anatomy[] = ['male', 'female', 'other_unspecified'];
 const KINDS: ScreeningKind[] = ['something_changed', 'periodic', 'after_gap', 'review_12w', 'anatomy_change'];
 
 export default function ScreeningScreen() {
-  const params = useLocalSearchParams<{ kind?: string; checkId?: string; parts?: string }>();
+  const params = useLocalSearchParams<{ kind?: string; checkId?: string; parts?: string; anatomy?: string }>();
   const kind: ScreeningKind = KINDS.includes(params.kind as ScreeningKind) ? (params.kind as ScreeningKind) : 'something_changed';
   const { db, bump } = useApp();
-  const { data: profile } = useLoad((d) => getProfile(d));
+  const { data: profile, reload: loadRetry, error: loadError } = useLoad((d) => getProfile(d));
   const [busy, setBusy] = useState(false);
   // "Something changed?" starts with what changed (UX audit M10); null until the person continues.
   const [picked, setPicked] = useState<ChangeTopic[]>([]);
   const [topics, setTopics] = useState<ChangeTopic[] | null>(null);
   const [result, setResult] = useState<{ mode: SafetyMode; reasons: QuestionKey[]; cautions: QuestionKey[]; skipped: QuestionKey[] } | null>(null);
-  if (!profile) return <Loading />;
+  if (!profile) return <Loading error={loadError} onRetry={loadRetry} />;
+  // A body change from Settings arrives here unsaved; it is saved only with the answers (DS-E17).
+  const newAnatomy = kind === 'anatomy_change' && ANATOMIES.includes(params.anatomy as Anatomy) ? (params.anatomy as Anatomy) : null;
+  const anatomy: Anatomy = newAnatomy ?? profile.anatomy ?? 'other_unspecified';
   const title = kind === 'periodic' ? HOME.shortScreenDue : HOME.somethingChanged;
   if (result) {
     return (
-      <Screen title={title} footer={<Button label={COMMON.done} onPress={() => router.back()} />}>
-        <ScreeningOutcome mode={result.mode} reasons={result.reasons} cautions={result.cautions} skipped={result.skipped} anatomy={profile.anatomy ?? 'other_unspecified'} />
+      <Screen title={title} footer={<Button label={COMMON.done} onPress={leaveFlow} />}>
+        <ScreeningOutcome mode={result.mode} reasons={result.reasons} cautions={result.cautions} skipped={result.skipped} anatomy={anatomy} />
       </Screen>
     );
   }
@@ -54,11 +60,17 @@ export default function ScreeningScreen() {
       <ScreeningFlow
         kind={kind}
         topics={topics ?? undefined}
-        anatomy={profile.anatomy ?? 'other_unspecified'}
+        anatomy={anatomy}
         busy={busy}
         onDone={async (a) => {
           setBusy(true);
           try {
+            if (newAnatomy && newAnatomy !== profile.anatomy) {
+              await updateProfile(db, { anatomy: newAnatomy });
+              const allowed = GOAL_LABEL[newAnatomy].map((g) => g.goal);
+              const keep = (await activeGoals(db)).filter((g) => allowed.includes(g));
+              await setGoals(db, keep.length ? keep : [allowed[0]]);
+            }
             const r = await completeScreening(db, { kind, answers: a.answers, startedAt: a.startedAt, surgeryDate: a.surgeryDate, sourceRef: params.checkId ?? null });
             if (params.checkId && params.parts) await markPart(db, params.checkId, 'safety', params.parts.split(',') as BundlePart[]);
             setResult({ mode: r.mode, reasons: r.reasons, cautions: r.newCautions, skipped: r.skipped });

@@ -17,7 +17,7 @@ import { Banner, Button, Card, Field, H2, Label, Loading, P, Screen } from '../s
 
 export default function DataScreen() {
   const { db, restart, bump } = useApp();
-  const { data, reload } = useLoad(async (d) => ({
+  const { data, reload, error: loadError } = useLoad(async (d) => ({
     meta: await getMeta(d),
     paired: !!(await getPeer(d)),
     persisted: Platform.OS === 'web' ? await idb.persisted() : null,
@@ -25,7 +25,7 @@ export default function DataScreen() {
   const [mode, setMode] = useState<'view' | 'export' | 'import' | 'delete'>('view');
   const [word, setWord] = useState('');
   const [done, setDone] = useState<string | null>(null);
-  if (!data) return <Loading />;
+  if (!data) return <Loading error={loadError} onRetry={reload} />;
   if (mode === 'export')
     return (
       <Screen title={DATA.title}>

@@ -14,7 +14,7 @@ import { TimeField } from '../src/ui/TimeField';
 
 export default function RemindersScreen() {
   const { db, bump } = useApp();
-  const { data, reload } = useLoad(async (d) => {
+  const { data, reload, error: loadError } = useLoad(async (d) => {
     const settings = await getSettings(d);
     const slots = await listSlots(d);
     const reminders = await listReminders(d);
@@ -54,7 +54,7 @@ export default function RemindersScreen() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [knackTime]);
-  if (!data || !plan) return <Loading />;
+  if (!data || !plan) return <Loading error={loadError} onRetry={reload} />;
   const s = data.settings;
   const set = async (patch: Partial<Settings>) => {
     await updateSettings(db, patch);

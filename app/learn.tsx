@@ -242,7 +242,7 @@ export default function Learn() {
             <H2>{LEARN.checkTitle}</H2>
             <P muted>{LEARN.checkLying}</P>
             <P>{touchCheck.text}</P>
-            <Choice options={TOUCH_ANSWERS.map((a) => ({ value: a.value as TouchCheck, label: a.label }))} value={touch === 'not_done' ? undefined : touch} onChange={setTouch} />
+            <Choice label={touchCheck.text} options={TOUCH_ANSWERS.map((a) => ({ value: a.value as TouchCheck, label: a.label }))} value={touch === 'not_done' ? undefined : touch} onChange={setTouch} />
             <Button label={LEARN.useMirror} kind="quiet" onPress={() => setMethod('mirror')} />
           </>
         ) : (
@@ -307,7 +307,7 @@ export default function Learn() {
             <>
               <H2>{LEARN.offQuestion}</H2>
               <P muted>{LEARN.offNote}</P>
-              <Segments options={yn} value={off} onChange={setOff} />
+              <Segments label={LEARN.offQuestion} options={yn} value={off} onChange={setOff} />
             </>
           ) : null}
           {full ? (
@@ -317,7 +317,7 @@ export default function Learn() {
               {MISTAKES.map((m) => (
                 <Card key={m.key}>
                   <P>{m.question}</P>
-                  <Segments options={yn} value={mistakes[m.key] ?? undefined} onChange={(v) => setMistakes({ ...mistakes, [m.key]: v })} />
+                  <Segments label={m.question} options={yn} value={mistakes[m.key] ?? undefined} onChange={(v) => setMistakes({ ...mistakes, [m.key]: v })} />
                   {mistakes[m.key] === false ? (
                     <P small muted>
                       {m.tip}
@@ -335,7 +335,7 @@ export default function Learn() {
               </Card>
               <Card>
                 <P>{LEAK_QUESTION}</P>
-                <Segments options={yn} value={mistakes.leak ?? undefined} onChange={(v) => setMistakes({ ...mistakes, leak: v })} />
+                <Segments label={LEAK_QUESTION} options={yn} value={mistakes.leak ?? undefined} onChange={(v) => setMistakes({ ...mistakes, leak: v })} />
               </Card>
             </>
           ) : null}
@@ -396,7 +396,7 @@ export default function Learn() {
       body = (
         <>
           <H2>{LEARN.whichCue}</H2>
-          <Choice options={cues.keys.map((k) => ({ value: k, label: cues.text[k] }))} value={cueKey} onChange={(k) => setCueIdx(cues.keys.indexOf(k))} />
+          <Choice label={LEARN.whichCue} options={cues.keys.map((k) => ({ value: k, label: cues.text[k] }))} value={cueKey} onChange={(k) => setCueIdx(cues.keys.indexOf(k))} />
         </>
       );
       footer = <Button label={COMMON.continue} onPress={next} />;

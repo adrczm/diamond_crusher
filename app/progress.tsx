@@ -43,9 +43,9 @@ async function load(db: Parameters<typeof getSettings>[0]) {
 }
 
 export default function Progress() {
-  const { data } = useLoad(load);
+  const { data, reload: loadRetry, error: loadError } = useLoad(load);
   const [range, setRange] = useState<'12w' | '12m'>('12w');
-  if (!data) return <Loading />;
+  if (!data) return <Loading error={loadError} onRetry={loadRetry} />;
   const today = toLocalDate(new Date());
   const weeks = range === '12w' ? 12 : 52;
   const thisWeek = weekStart(today, data.settings.week_start_day);

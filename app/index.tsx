@@ -25,9 +25,9 @@ import { educationFor } from '../src/content/en/education';
 export default function Home() {
   const { db, bump } = useApp();
   const desktop = useDesktop();
-  const { data: m } = useLoad((d) => loadHome(d));
+  const { data: m, reload: loadRetry, error: loadError } = useLoad((d) => loadHome(d));
   const [busy, setBusy] = useState(false);
-  if (!m) return <Loading />;
+  if (!m) return <Loading error={loadError} onRetry={loadRetry} />;
   if (!m.profile.onboarding_completed_at) return <Redirect href="/onboarding" />;
 
   const act = async (fn: () => Promise<unknown>) => {

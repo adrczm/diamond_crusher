@@ -170,7 +170,7 @@ export default function SelfCheck() {
   const kind = params.kind === 'baseline' ? 'baseline' : params.checkId ? 'monthly' : 'ad_hoc';
   const position: 'lying' | 'standing' = params.position === 'standing' ? 'standing' : 'lying';
   const { db, bump } = useApp();
-  const { data } = useLoad(async (d) => ({
+  const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => ({
     profile: await getProfile(d),
     prog: await getProgramme(d),
     safety: await getSafetyState(d),
@@ -195,7 +195,7 @@ export default function SelfCheck() {
   const [busy, setBusy] = useState(false);
   const [topUp, setTopUp] = useState<'offered' | 'accepted' | 'declined'>('offered');
 
-  if (!data) return <Loading />;
+  if (!data) return <Loading error={loadError} onRetry={loadRetry} />;
   const anatomy = data.profile?.anatomy ?? 'other_unspecified';
   const cueOpts = { audio: data.settings.audio_mode, vibration: data.settings.vibration } as const;
   const title = kind === 'baseline' ? 'First self-check' : SELF_CHECK.title;
@@ -274,7 +274,7 @@ export default function SelfCheck() {
       const q = (label: string, key: 'bladder' | 'notAfter' | 'same') => (
         <Card>
           <P>{label}</P>
-          <Segments options={yn} value={cond[key]} onChange={(v) => setCond({ ...cond, [key]: v })} />
+          <Segments label={label} options={yn} value={cond[key]} onChange={(v) => setCond({ ...cond, [key]: v })} />
         </Card>
       );
       // With no training session or no self-check in this position yet, "since your last session" and "same position as
@@ -311,10 +311,10 @@ export default function SelfCheck() {
           <Label>{SELF_CHECK.signTitle}</Label>
           <P>{SELF_CHECK.sign[anatomy]}</P>
           <P muted>{SELF_CHECK.signMethod}</P>
-          <Segments options={SELF_CHECK.signMethods.map((o) => ({ value: o.value as 'mirror' | 'touch', label: o.label }))} value={signMethod} onChange={setSignMethod} />
-          <Choice options={SELF_CHECK.signOptions.map((o) => ({ value: o.value as 'yes' | 'unsure' | 'no', label: o.label }))} value={sign} onChange={setSign} />
+          <Segments label={SELF_CHECK.signMethod} options={SELF_CHECK.signMethods.map((o) => ({ value: o.value as 'mirror' | 'touch', label: o.label }))} value={signMethod} onChange={setSignMethod} />
+          <Choice label={SELF_CHECK.sign[anatomy]} options={SELF_CHECK.signOptions.map((o) => ({ value: o.value as 'yes' | 'unsure' | 'no', label: o.label }))} value={sign} onChange={setSign} />
           <P>{SELF_CHECK.bulge}</P>
-          <Segments options={SELF_CHECK.bulgeOptions.map((o) => ({ value: o.value as Tri, label: o.label }))} value={bulge} onChange={setBulge} />
+          <Segments label={SELF_CHECK.bulge} options={SELF_CHECK.bulgeOptions.map((o) => ({ value: o.value as Tri, label: o.label }))} value={bulge} onChange={setBulge} />
         </>
       );
       footer = <Button label={COMMON.continue} disabled={!sign || !bulge} onPress={() => setStep('longest')} />;
@@ -419,7 +419,7 @@ export default function SelfCheck() {
           {SELF_CHECK.technique.map((q) => (
             <Card key={q.key}>
               <P>{q.text}</P>
-              <Segments options={triOpts} value={tech[q.key]} onChange={(v) => setTech({ ...tech, [q.key]: v })} />
+              <Segments label={q.text} options={triOpts} value={tech[q.key]} onChange={(v) => setTech({ ...tech, [q.key]: v })} />
             </Card>
           ))}
         </>
@@ -489,12 +489,12 @@ export default function SelfCheck() {
             onPress={async () => {
               if (params.checkId && params.parts) await markPart(db, params.checkId, 'self_check', params.parts.split(',') as BundlePart[]);
               bump();
-              router.back();
+              leaveFlow();
             }}
           />
         </>
       ) : (
-        <Button label={COMMON.done} onPress={() => (kind === 'baseline' ? router.replace('/') : router.back())} />
+        <Button label={COMMON.done} onPress={() => (kind === 'baseline' ? router.replace('/') : leaveFlow())} />
       );
       break;
     }

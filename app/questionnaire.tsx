@@ -8,13 +8,14 @@ import { listScheduledChecks } from '../src/data/repositories/checks';
 import { itemVisible, type AnswerValue, type ModuleItem } from '../src/domain/questionnaire';
 import type { BundleKind } from '../src/domain/schedule';
 import { useApp, useLoad } from '../src/features/app';
+import { leaveFlow } from '../src/features/screens/GuidedFlow';
 import { markPart, modulesForCheck, saveQuestionnaire, type BundlePart } from '../src/features/checkService';
 import { Button, Choice, H2, Label, Loading, P, Screen, Segments } from '../src/ui/kit';
 
 export default function QuestionnaireScreen() {
   const params = useLocalSearchParams<{ checkId?: string; parts?: string }>();
   const { db, bump } = useApp();
-  const { data } = useLoad(async (d) => {
+  const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => {
     const row = (await listScheduledChecks(d)).find((r) => r.id === params.checkId);
     const kind = (row?.kind ?? 'monthly_check') as BundleKind;
     return { kind, modules: await modulesForCheck(d, kind), goals: await activeGoals(d) };
@@ -24,12 +25,12 @@ export default function QuestionnaireScreen() {
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [startedAt, setStartedAt] = useState(() => new Date());
   const [busy, setBusy] = useState(false);
-  if (!data) return <Loading />;
+  if (!data) return <Loading error={loadError} onRetry={loadRetry} />;
   const m = data.modules[mi];
   const finishAll = async () => {
     if (params.checkId && params.parts) await markPart(db, params.checkId, 'questionnaires', params.parts.split(',') as BundlePart[]);
     bump();
-    router.back();
+    leaveFlow();
   };
   if (!m) {
     return (
@@ -86,7 +87,7 @@ export default function QuestionnaireScreen() {
           <P small muted>{`${item.scale.min} = ${item.scale.minLabel}, ${item.scale.max} = ${item.scale.maxLabel}`}</P>
         </>
       ) : (
-        <Choice options={item.options.map((o) => ({ value: o.value, label: o.label }))} value={value as number | string | undefined} onChange={set} />
+        <Choice label={item.text} options={item.options.map((o) => ({ value: o.value, label: o.label }))} value={value as number | string | undefined} onChange={set} />
       )}
     </Screen>
   );

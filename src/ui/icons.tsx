@@ -19,7 +19,10 @@ export type IconName =
   | 'done'
   | 'lock'
   | 'more'
-  | 'close';
+  | 'close'
+  | 'alert'
+  | 'info'
+  | 'chevron';
 
 export function Icon({ name, size = 20, color }: { name: IconName; size?: number; color: string }) {
   const p = { stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' };
@@ -146,6 +149,20 @@ export function Icon({ name, size = 20, color }: { name: IconName; size?: number
       break;
     case 'close':
       body = <Path d="M18 6 6 18M6 6l12 12" {...p} />;
+      break;
+    case 'alert':
+      body = <Path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01" {...p} />;
+      break;
+    case 'info':
+      body = (
+        <>
+          <Circle cx={12} cy={12} r={10} {...p} />
+          <Path d="M12 16v-4M12 8h.01" {...p} />
+        </>
+      );
+      break;
+    case 'chevron':
+      body = <Path d="m9 18 6-6-6-6" {...p} />;
       break;
   }
   return (

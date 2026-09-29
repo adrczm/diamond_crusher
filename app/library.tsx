@@ -19,11 +19,11 @@ export default function Library() {
   const { db } = useApp();
   const desktop = useDesktop();
   const c = useColors();
-  const { data } = useLoad(async (d) => ({ profile: await getProfile(d), goals: await activeGoals(d) }));
+  const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => ({ profile: await getProfile(d), goals: await activeGoals(d) }));
   useEffect(() => {
     if (id) markContentSeen(db, id).catch(() => undefined);
   }, [db, id]);
-  if (!data) return <Loading />;
+  if (!data) return <Loading error={loadError} onRetry={loadRetry} />;
   const anatomy = data.profile?.anatomy ?? 'other_unspecified';
   const screens = educationFor(anatomy);
   const addOns = addOnsFor(anatomy, data.goals);

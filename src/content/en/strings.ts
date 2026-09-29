@@ -23,6 +23,21 @@ export const COMMON = {
   skipQuestion: 'Skip this question',
   finishLater: 'Save for later',
   loading: 'One moment…',
+  tryAgain: 'Try again',
+};
+
+/** Messages when something fails (DS-E13): what happened, and what to do. */
+export const ERRORS = {
+  loadFailed: 'This page did not load. Try again. Your records are safe.',
+  saveFailed: 'This was not saved. Try again.',
+};
+
+/** Words that only screen readers hear. */
+export const A11Y = {
+  warning: 'Warning',
+  error: 'Error',
+  less: 'Less',
+  more: 'More',
 };
 
 export const ONBOARDING = {
@@ -377,6 +392,20 @@ export const SETTINGS = {
     { value: 'voice', label: 'Voice' },
   ],
   vibration: 'Vibration',
+  tryCues: 'Try sound and vibration',
+  sessionsPerDayNote: 'To match, change your reminder plan in Reminders.',
+  weekDays: [
+    { value: 1, label: 'Monday' },
+    { value: 7, label: 'Sunday' },
+  ],
+  textSize: 'Text size',
+  textSizeOptions: [
+    { value: 1, label: 'Normal' },
+    { value: 1.15, label: 'Large' },
+    { value: 1.3, label: 'Larger' },
+    { value: 1.5, label: 'Largest' },
+  ],
+  textSizeNote: 'This Mac only. The page loads again to use the new size.',
   theme: 'Theme',
   themeOptions: [
     { value: 'system', label: 'Phone setting' },
