@@ -35,6 +35,11 @@ export const SESSION_LOG = {
 } as const;
 
 export const SELF_CHECK = {
+  interrupted: 'The timer stopped because the app left the screen. This result is not saved. Do this test again when you are ready.',
+  startAgain: 'Start again',
+  pacerSqueeze: 'Squeeze',
+  pacerLetGo: 'Let go',
+  pacerCount: (n: number, of: number) => `${n} of ${of}`,
   title: 'Monthly self-check',
   intro: 'This check has six short steps and takes about 5 minutes. The app compares your numbers only with your own past results.',
   conditionsTitle: 'Before you start',

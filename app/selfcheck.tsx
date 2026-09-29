@@ -1,6 +1,7 @@
 // Monthly self-check (06a SC-001 to SC-033): six short steps, your own record, no verdict words.
 // UX audit H8: Close on phones; on desktop, Space or Enter taps the big button and runs Start or Continue.
 import { router, useLocalSearchParams } from 'expo-router';
+import { useKeepAwake } from 'expo-keep-awake';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from '../src/ui/text';
@@ -24,6 +25,7 @@ import { feedback } from '../src/platform/feedback';
 import { Banner, Button, Card, Choice, H1, H2, Label, Loading, P, Screen, Segments } from '../src/ui/kit';
 import { isWeb, useDesktop } from '../src/ui/layout';
 import { useColors } from '../src/ui/theme';
+import { useInterruption } from '../src/ui/useInterruption';
 
 const mono = () => (globalThis.performance?.now ? globalThis.performance.now() : Date.now());
 
@@ -53,16 +55,43 @@ function TapArea({ label, onPress }: { label: string; onPress: () => void }) {
   );
 }
 
+/** A timed test that stopped because the app left the screen: nothing is saved, and the person can start again. */
+function Interrupted({ onAgain }: { onAgain: () => void }) {
+  return (
+    <View style={{ gap: 16 }}>
+      <Banner tone="warn" text={SELF_CHECK.interrupted} />
+      <Button label={SELF_CHECK.startAgain} onPress={onAgain} />
+    </View>
+  );
+}
+
 /** SC-011: counts up in whole seconds, with a tick each second, until Stop or the cap. */
 function Stopwatch({ cap, onDone, cueOpts }: { cap: number; onDone: (s: number) => void; cueOpts: Parameters<typeof feedback.cue>[1] }) {
   const c = useColors();
   const [s, setS] = useState(0);
   const start = useRef(mono());
   const done = useRef(false);
+  // The screen stays on, and leaving the app stops the test without a result (DS-E12).
+  useKeepAwake();
+  const [interrupted, setInterrupted] = useState(false);
+  useInterruption(() => {
+    if (done.current) return;
+    done.current = true;
+    feedback.stop();
+    setInterrupted(true);
+  });
+  const again = () => {
+    start.current = mono();
+    setS(0);
+    setInterrupted(false);
+    done.current = false;
+    void feedback.cue('squeeze', cueOpts);
+  };
   useEffect(() => {
     void feedback.cue('squeeze', cueOpts);
     let last = 0;
     const id = setInterval(() => {
+      if (done.current) return;
       const secs = Math.min(cap, Math.floor((mono() - start.current) / 1000));
       if (secs !== last) {
         last = secs;
@@ -78,9 +107,10 @@ function Stopwatch({ cap, onDone, cueOpts }: { cap: number; onDone: (s: number) 
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  if (interrupted) return <Interrupted onAgain={again} />;
   return (
     <View style={{ gap: 16 }}>
-      <Text style={{ fontSize: 72, fontWeight: '700', color: c.primary, textAlign: 'center' }} accessibilityLiveRegion="polite">
+      <Text style={{ fontSize: 72, fontWeight: '700', color: c.primary, textAlign: 'center' }} maxFontSizeMultiplier={1.3}>
         {s}
       </Text>
       <TapArea
@@ -116,6 +146,20 @@ function Pacer({
   const start = useRef(mono());
   const [view, setView] = useState({ rep: 1, on: true, left: onS });
   const done = useRef(false);
+  useKeepAwake();
+  const [interrupted, setInterrupted] = useState(false);
+  useInterruption(() => {
+    if (done.current) return;
+    done.current = true;
+    feedback.stop();
+    setInterrupted(true);
+  });
+  const again = () => {
+    start.current = mono();
+    setView({ rep: 1, on: true, left: onS });
+    setInterrupted(false);
+    done.current = false;
+  };
   const period = (onS + offS) * 1000;
   // Squeezes fully held before time t; a squeeze still running when the tap comes doesn't count.
   const completedAt = (t: number) => {
@@ -126,6 +170,10 @@ function Pacer({
   useEffect(() => {
     let lastKey = '';
     const id = setInterval(() => {
+      if (done.current) {
+        lastKey = '';
+        return;
+      }
       const t = mono() - start.current;
       const rep = Math.floor(t / period) + 1;
       const within = t - (rep - 1) * period;
@@ -146,13 +194,16 @@ function Pacer({
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  if (interrupted) return <Interrupted onAgain={again} />;
   return (
     <View style={{ gap: 12 }}>
       <Text style={{ fontSize: 28, fontWeight: '700', color: view.on ? c.squeeze : c.muted, textAlign: 'center' }} accessibilityLiveRegion="polite">
-        {view.on ? 'Squeeze' : 'Let go'}
+        {view.on ? SELF_CHECK.pacerSqueeze : SELF_CHECK.pacerLetGo}
       </Text>
-      <Text style={{ fontSize: 56, fontWeight: '700', color: c.primary, textAlign: 'center' }}>{view.left}</Text>
-      <P center muted>{`${Math.min(view.rep, max)} of ${max}`}</P>
+      <Text style={{ fontSize: 56, fontWeight: '700', color: c.primary, textAlign: 'center' }} maxFontSizeMultiplier={1.3}>
+        {view.left}
+      </Text>
+      <P center muted>{SELF_CHECK.pacerCount(Math.min(view.rep, max), max)}</P>
       <TapArea
         label={tapLabel}
         onPress={() => {
