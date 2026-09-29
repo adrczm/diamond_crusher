@@ -81,7 +81,7 @@ export function PhoneTabs() {
             >
               <Icon name={ICON[t.key]} size={22} color={on ? c.text : c.muted} />
             </View>
-            <Text numberOfLines={1} maxFontSizeMultiplier={1.5} style={[type('body-sm'), { color: on ? c.text : c.muted, fontWeight: on ? '600' : '400' }]}>
+            <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={[type('body-sm'), { color: on ? c.text : c.muted, fontWeight: on ? '600' : '400' }]}>
               {label(t.key)}
             </Text>
           </Pressable>
