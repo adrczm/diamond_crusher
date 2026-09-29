@@ -189,6 +189,13 @@ export class SessionRunner {
     return this.tick(nowMono);
   }
 
+  /** ENG-012a: a confirmed "End session" closes the session at once, with no relax-out (Adrian, 2026-09-29). */
+  endNow(nowMono: number): RunnerEvent[] {
+    const events = this.stopEarly(nowMono, 'user_stop');
+    if (this.state === 'finished') return events;
+    return events.concat(this.skipRelaxOut(nowMono));
+  }
+
   /** ONB-040: the user confirmed the stop was pain, not tired muscles. */
   markPain() {
     this.pain = true;

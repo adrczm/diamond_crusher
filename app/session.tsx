@@ -295,7 +295,10 @@ function Runner({
     if (state !== 'paused') runner.pause(mono());
     setConfirmEnd(true);
   };
-  const endNow = () => handle(runner.stopEarly(mono(), 'user_stop'));
+  const endNow = () => {
+    setConfirmEnd(false);
+    handle(runner.endNow(mono()));
+  };
   const keepGoing = () => {
     setConfirmEnd(false);
     if (runner.getState() === 'paused') runner.resume(mono());
