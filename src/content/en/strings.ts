@@ -254,7 +254,7 @@ export const MILESTONES: Record<string, string> = {
 
 export const PROGRESS = {
   title: 'Progress',
-  overviewSymptoms: 'Your questionnaire answers',
+  overviewSymptoms: 'Questionnaire answers',
   noChange: 'No change',
   somethingChanged: 'Something changed',
   noCheckYet: 'No check-up yet',
@@ -280,7 +280,7 @@ export const PROGRESS = {
   questionnaires: 'Questionnaire answers',
   checkUp: 'check-up',
   checkUpExplain:
-    'Your answers are at the "no problem" end. That is good news. These questions cannot show more change from there. The app continues to ask, so that you see any change early. Your progress shows in your training record and monthly self-check instead.',
+    'Your answers are at the "no problem" end and that is good news. The app will continue to ask, so that you see any change early. Your progress shows in your training record and monthly self-check instead.',
   table: 'Show as table',
   chart: 'Show as chart',
   noData: 'Nothing to show yet.',
