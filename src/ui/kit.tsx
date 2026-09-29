@@ -1,6 +1,6 @@
 // Small UI kit styled after Shopify Polaris (cards, buttons, choice lists, banners), with large touch targets and
 // plain text, in light and dark (spec 05, 09 polish).
-import { router, Stack, usePathname } from 'expo-router';
+import { router, Stack, useFocusEffect, usePathname } from 'expo-router';
 import React, { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -17,7 +17,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { A11Y, COMMON, DESKTOP, ERRORS } from '../content/en/strings';
+import { A11Y, APP_NAME, COMMON, DESKTOP, ERRORS } from '../content/en/strings';
 import { Icon } from './icons';
 import { isSection, useDesktop } from './layout';
 import { useReducedMotion } from './motion';
@@ -74,6 +74,12 @@ export function Screen({
     <View style={[column, { flex: 1, padding: pad, gap }]}>{children}</View>
   );
   const nativeHeader = headerShown && !desktop;
+  // The browser tab names the page (WCAG 2.4.2, DS-W7). Only page names, never logged content.
+  useFocusEffect(
+    React.useCallback(() => {
+      if (Platform.OS === 'web' && typeof document !== 'undefined') document.title = title ? `${title} · ${APP_NAME}` : APP_NAME;
+    }, [title])
+  );
   return (
     <HeaderTitle.Provider value={nativeHeader ? title ?? '' : null}>
       <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: headerShown || desktop ? 0 : insets.top }}>
