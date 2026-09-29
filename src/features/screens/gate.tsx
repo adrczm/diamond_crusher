@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { Alert } from '../../platform/dialog';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { APP_NAME, LOCK, UNREADABLE } from '../../content/en/strings';
+import { APP_NAME, COMMON, LOCK, UNREADABLE } from '../../content/en/strings';
 import type { SqlDb } from '../../data/sql';
 import { deleteEverything, startFreshAfterUnreadable, unlock, type Bootstrap, type Route } from '../../data/vault';
 import { Button, H1, P } from '../../ui/kit';
@@ -36,7 +36,7 @@ export function LockScreen({ boot, appVersion, onOpen }: { boot: Bootstrap; appV
   }, []);
   const erase = () =>
     Alert.alert(LOCK.erase, LOCK.eraseWarning, [
-      { text: 'Cancel', style: 'cancel' },
+      { text: COMMON.cancel, style: 'cancel' },
       {
         text: LOCK.erase,
         style: 'destructive',
@@ -57,13 +57,14 @@ export function LockScreen({ boot, appVersion, onOpen }: { boot: Bootstrap; appV
   );
 }
 
-export function UnreadableScreen({ appVersion, onFresh }: { appVersion: string; onFresh: (db: SqlDb, boot: Bootstrap) => void }) {
+/** DS-E2: any start-up error lands here, so Try again comes first and erasing is the quiet, confirmed last step. */
+export function UnreadableScreen({ appVersion, onFresh, onRetry }: { appVersion: string; onFresh: (db: SqlDb, boot: Bootstrap) => void; onRetry: () => void }) {
   const [busy, setBusy] = useState(false);
   const fresh = () =>
     Alert.alert(UNREADABLE.fresh, UNREADABLE.confirm, [
-      { text: 'Cancel', style: 'cancel' },
+      { text: COMMON.cancel, style: 'cancel' },
       {
-        text: 'Continue',
+        text: COMMON.continue,
         style: 'destructive',
         onPress: async () => {
           setBusy(true);
@@ -80,9 +81,11 @@ export function UnreadableScreen({ appVersion, onFresh }: { appVersion: string; 
     <Frame>
       <H1>{UNREADABLE.title}</H1>
       <P>{UNREADABLE.body}</P>
-      <P muted>To import a backup file, start fresh first. The first screen then offers “Import a backup”.</P>
+      <P>{UNREADABLE.tryFirst}</P>
+      <P muted>{UNREADABLE.importHint}</P>
       <View style={{ flex: 1 }} />
-      <Button label={UNREADABLE.fresh} kind="danger" onPress={fresh} busy={busy} />
+      <Button label={COMMON.tryAgain} onPress={onRetry} />
+      <Button label={UNREADABLE.fresh} kind="quiet" onPress={fresh} busy={busy} />
     </Frame>
   );
 }

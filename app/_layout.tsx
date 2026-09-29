@@ -156,7 +156,16 @@ export default function RootLayout() {
       />
     );
   else if (gate.kind === 'unreadable')
-    body = <UnreadableScreen appVersion={APP_VERSION} onFresh={(db2, boot) => setGate({ kind: 'ready', db: db2, boot })} />;
+    body = (
+      <UnreadableScreen
+        appVersion={APP_VERSION}
+        onFresh={(db2, boot) => setGate({ kind: 'ready', db: db2, boot })}
+        onRetry={() => {
+          setGate({ kind: 'loading' });
+          setRunId((x) => x + 1);
+        }}
+      />
+    );
   else if (gate.kind === 'newer_version') body = <NewerScreen />;
   else
     body = (
