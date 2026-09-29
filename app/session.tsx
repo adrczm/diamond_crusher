@@ -98,7 +98,6 @@ export default function SessionScreen() {
   const onFinished = async (c: Completion) => {
     const r = runner.current;
     if (!r) return;
-    feedback.stop();
     setCompletion(c);
     pending.current = {
       plan,
@@ -299,11 +298,16 @@ function Runner({
     },
     [audio, vibration, onFinished]
   );
+  // The parent passes a new onFinished on every render, so `handle` changes every 200 ms tick.
+  // Keep it in a ref: if the effect below re-ran, its cleanup (feedback.stop) would cancel each
+  // vibration and voice cue a few milliseconds after it starts.
+  const handleRef = useRef(handle);
+  handleRef.current = handle;
 
   useEffect(() => {
-    if (runner.getState() === 'ready') handle(runner.start(mono()));
+    if (runner.getState() === 'ready') handleRef.current(runner.start(mono()));
     const id = setInterval(() => {
-      handle(runner.tick(mono()));
+      handleRef.current(runner.tick(mono()));
       setTick((x) => x + 1);
     }, 200);
     const sub = AppState.addEventListener('change', (s) => {
@@ -312,9 +316,10 @@ function Runner({
     return () => {
       clearInterval(id);
       sub.remove();
-      feedback.stop();
+      // Let the "done" cue finish; stop only a session left part way.
+      if (!finished.current) feedback.stop();
     };
-  }, [runner, handle]);
+  }, [runner]);
 
   const now = mono();
   const p = runner.currentPhase();
@@ -337,7 +342,10 @@ function Runner({
     if (state !== 'paused') runner.pause(mono());
     setConfirmEnd(true);
   };
-  const endNow = () => handle(runner.stopEarly(mono(), 'user_stop'));
+  const endNow = () => {
+    setConfirmEnd(false);
+    handle(runner.endNow(mono()));
+  };
   const keepGoing = () => {
     setConfirmEnd(false);
     if (runner.getState() === 'paused') runner.resume(mono());

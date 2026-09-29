@@ -74,4 +74,15 @@ describe('session runner (ARCH-030, ENG-020, ENG-021)', () => {
     r.tick(80_000);
     expect(r.completion()).toBe('stopped_pain');
   });
+
+  it('a confirmed End session finishes at once, with no relax-out (ENG-012a)', () => {
+    const r = new SessionRunner(plan);
+    r.start(0);
+    r.tick(40_000);
+    r.pause(40_000);
+    const events = r.endNow(45_000);
+    expect(r.getState()).toBe('finished');
+    expect(events.some((e) => e.type === 'finished')).toBe(true);
+    expect(r.completion()).toBe('partial');
+  });
 });
