@@ -145,6 +145,8 @@ export async function clear(db: SqlDb, kind: ClearanceKind): Promise<ScreeningRe
   const answers: Answers = kind === 'surgery' ? { 'Q-S1': 'no', 'Q-S2': 'no' } : kind === 'maternity' ? { 'Q-F2a1': 'no' } : {};
   const ticks: ClearanceTicks = kind === 'urgent' ? { urgentChecked: true } : kind === 'pain' ? { painCleared: true } : {};
   const res = await completeScreening(db, { kind: 'clearance', answers, startedAt: nowIso(), ticks });
+  // A professional cleared the pain: the exercise-pain lock on the gentle squeeze ends too.
+  if (kind === 'pain') await updateProgramme(db, { gentle_pain_lock: false });
   if (kind === 'surgery' && wasSurgery) {
     const prog = await getProgramme(db);
     await db.transaction(async () => {
@@ -175,7 +177,7 @@ export interface LatestAnswer {
 export async function latestAnswers(db: SqlDb): Promise<Partial<Record<QuestionKey, LatestAnswer>>> {
   const rows = await db.all<{ question_key: QuestionKey; answer: 'yes' | 'no'; value_date: string | null; completed_at: string }>(
     `SELECT a.question_key, a.answer, a.value_date, r.completed_at FROM screening_answer a JOIN screening_run r ON r.id = a.run_id
-     WHERE a.answer != 'skipped' AND r.completed_at IS NOT NULL ORDER BY r.completed_at`
+     WHERE a.answer != 'skipped' AND r.completed_at IS NOT NULL ORDER BY r.completed_at, r.rowid`
   );
   const out: Partial<Record<QuestionKey, LatestAnswer>> = {};
   for (const r of rows) out[r.question_key] = { answer: r.answer, valueDate: r.value_date, on: toLocalDate(new Date(r.completed_at)) };

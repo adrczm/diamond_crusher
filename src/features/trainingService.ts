@@ -20,6 +20,8 @@ import {
 import { isBlocked, strengthAllowed } from '../domain/safety';
 import type { BlockResult } from '../domain/session/engine';
 import { dayPlan, relaxPlan, strengthPlan, type Load, type SessionPlan } from '../domain/session/plan';
+import { gentleState } from './gentleService';
+import { profileFacts } from './safetyService';
 import type { Completion, SafetyMode, SessionPosition } from '../domain/types';
 import { strengthUnlocked } from '../domain/learn';
 import { listSelfChecks } from '../data/repositories/checks';
@@ -72,7 +74,15 @@ export function isMaintenance(prog: ProgrammeRow): boolean {
   return prog.phase === 'maintenance';
 }
 
+/** Today's plan. Pregnant users see "lying" as side-lying or propped up (SX8), so the plans carry the flag. */
 export async function planToday(db: SqlDb, now = new Date()): Promise<TodayPlan> {
+  const t = await planTodayFor(db, now);
+  if (!(await profileFacts(db, toLocalDate(now))).pregnant) return t;
+  const mark = (p: SessionPlan | null) => (p ? { ...p, pregnant: true } : p);
+  return { ...t, plan: mark(t.plan), extraPlan: mark(t.extraPlan) };
+}
+
+async function planTodayFor(db: SqlDb, now: Date): Promise<TodayPlan> {
   const [prog, safety, settings] = await Promise.all([getProgramme(db), getSafetyState(db), getSettings(db)]);
   const today = toLocalDate(now);
   const sessions = await listSessionsWithReps(db, today, today);
@@ -90,7 +100,9 @@ export async function planToday(db: SqlDb, now = new Date()): Promise<TodayPlan>
     maintenance: isMaintenance(prog),
   };
   if (isBlocked(safety.mode)) return { ...base, kind: 'blocked' };
-  if (!strengthAllowed(safety.mode)) return { ...base, kind: 'relax', plan: relaxPlan('lying') };
+  // ENG-061: in relaxation-only mode the gentle squeeze joins once the let-go is confirmed and no exercise pain locks it.
+  const gentle = gentleState(safety.mode, prog.gentle_unlocked_at, prog.gentle_pain_lock) === 'on';
+  if (!strengthAllowed(safety.mode)) return { ...base, kind: 'relax', plan: relaxPlan('lying', gentle) };
   if (!strengthUnlocked(prog.learn_status)) return { ...base, kind: 'learn', plan: relaxPlan('lying') };
   const load = loadOf(toPrescription(prog));
   const slots = dayPlan(load, settings.sessions_per_day_target, isMaintenance(prog));

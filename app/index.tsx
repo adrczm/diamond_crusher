@@ -18,6 +18,7 @@ import { reconcileReminders } from '../src/features/reminderService';
 import { answerHealthNote, clear } from '../src/features/safetyService';
 import { outcomeCopy } from '../src/features/screens/ScreeningFlow';
 import { HeroCard, levelNameOf } from '../src/features/screens/TodayHero';
+import { GentlePainLock } from '../src/features/screens/GentleSqueeze';
 import { HealthNoteCard, LevelUpCard, SuggestionCard, TipLine } from '../src/features/screens/TodayNotes';
 import { TodayPlanCard } from '../src/features/screens/TodayPlan';
 import { applyGapChoice, keepBuilding, switchToMaintenance } from '../src/features/trainingService';
@@ -97,6 +98,7 @@ function TodayBody({ m }: { m: HomeModel }) {
       <Card key="relax" tone="warn">
         <H2>{OUTCOME.relax_only.title}</H2>
         <P>{RELAX_ONLY_HOME}</P>
+        <GentlePainLock busy={busy} />
         <Button label={CLEARANCE.clearedButton} kind="secondary" onPress={() => confirmClear('pain', CLEARANCE.painTick)} busy={busy} />
       </Card>
     );

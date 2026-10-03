@@ -1,6 +1,7 @@
 // Exercise copy (spec 03): block cues, functional habits, add-ons, relax template.
 import type { Anatomy, Goal } from '../../domain/types';
 import type { RelaxStep } from '../../domain/session/plan';
+import type { SessionPosition } from '../../domain/types';
 
 export const BLOCK_NAME = { relax: 'Relax', hold: 'Hold', flick: 'Quick squeeze', endurance: 'Steady hold' } as const;
 export const INTENSITY = {
@@ -194,3 +195,34 @@ export const GOAL_LABEL: Record<Anatomy, { goal: Goal; label: string }[]> = {
     { goal: 'long_term_health', label: 'Long-term pelvic floor health' },
   ],
 };
+
+/** ENG-061: the gentle squeeze in relaxation-only mode (SX13, SX21, SX22, SX26). */
+export const GENTLE_SQUEEZE = {
+  name: 'Gentle squeeze',
+  intensity: 'Half strength. Hold as long as is comfortable, up to 10 seconds. Stop if it hurts.',
+  label: (rep: number, reps: number) => `Gentle squeeze ${rep} of ${reps}`,
+  next: 'Next: Gentle squeezes',
+  // After a relax-only session: the person can say the let-go felt full, which unlocks the gentle squeeze.
+  letGoQuestion: 'Can you feel a full let-go?',
+  letGoNote: 'If you can feel your pelvic floor let go fully, the next relax sessions add 8 gentle squeezes. Stop at any pain.',
+  letGoYes: 'Yes, I can',
+  letGoNotYet: 'Not yet',
+  unlocked: 'Your relax sessions now end with 8 gentle squeezes.',
+  painLocked: 'Gentle squeezes stay off while the pain from the exercises is there.',
+  painGone: 'The pain has gone',
+  painGoneConfirm: 'Has the pain from the exercises gone? Gentle squeezes come back in your relax sessions.',
+};
+
+/** SX8: pregnant users do the lying sessions on their side or propped up (POGP, NHS, Canadian guideline). */
+export const PREGNANT_LYING = {
+  name: 'Side-lying or propped up',
+  hint: 'Lie on your side, or sit propped up with pillows. If you feel dizzy or sick lying flat, turn on your side.',
+};
+
+export function positionName(pos: SessionPosition, pregnant = false): string {
+  return pregnant && pos === 'lying' ? PREGNANT_LYING.name : SESSION.positionName[pos];
+}
+
+export function positionHint(pos: SessionPosition, pregnant = false): string {
+  return pregnant && pos === 'lying' ? PREGNANT_LYING.hint : SESSION.positionHint[pos];
+}

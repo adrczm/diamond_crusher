@@ -2,7 +2,7 @@
 // times. The next session opens up with its length, shape, parts and one Start button (M6, HE-10, MOT-001 to MOT-004).
 import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
-import { SESSION } from '../../content/en/exercise';
+import { SESSION, positionHint, positionName } from '../../content/en/exercise';
 import { DESKTOP, HOME } from '../../content/en/strings';
 import { atLocalTime, formatDuration, formatShort, formatTime, toLocalDate } from '../../domain/dates';
 import { durationS, RELAX_IN_S, type SessionPlan } from '../../domain/session/plan';
@@ -94,7 +94,7 @@ function Timeline({ m }: { m: HomeModel }) {
   const rows: React.ReactNode[] = [];
   m.timeline.forEach((s, i) => {
     if (m.nowAt === i && t.kind === 'strength') rows.push(<NowLine key="now" timed={timed} />);
-    rows.push(<SlotRow key={s.n} slot={s} total={m.timeline.length} time={timed ? clock(s.time) : null} plan={s.state === 'next' ? t.plan : null} />);
+    rows.push(<SlotRow key={s.n} slot={s} total={m.timeline.length} time={timed ? clock(s.time) : null} plan={s.state === 'next' ? t.plan : null} pregnant={!!t.plan?.pregnant} />);
   });
   if (m.nowAt === m.timeline.length && t.kind === 'strength') rows.push(<NowLine key="now" timed={timed} />);
   return <View style={{ gap: space(1) }}>{rows}</View>;
@@ -113,14 +113,14 @@ function NowLine({ timed }: { timed: boolean }) {
   );
 }
 
-function SlotRow({ slot, total, time, plan }: { slot: TimelineSlot; total: number; time: string | null; plan: SessionPlan | null }) {
+function SlotRow({ slot, total, time, plan, pregnant }: { slot: TimelineSlot; total: number; time: string | null; plan: SessionPlan | null; pregnant: boolean }) {
   const c = useColors();
   const look = {
     done: { bg: c.goodSoft, edge: c.good },
     next: { bg: c.infoSoft, edge: c.squeeze },
     later: { bg: c.soft, edge: c.inputBorder },
   }[slot.state];
-  const title = HOME.slotTitle(slot.n, total, SESSION.positionName[slot.position]);
+  const title = HOME.slotTitle(slot.n, total, positionName(slot.position, pregnant));
   return (
     <View style={{ flexDirection: 'row', gap: space(1), alignItems: 'flex-start' }}>
       {time != null ? <Text style={[type('body-sm'), { color: c.muted, width: 52, paddingTop: space(1.5) }]}>{time}</Text> : null}
@@ -144,7 +144,7 @@ function SlotRow({ slot, total, time, plan }: { slot: TimelineSlot; total: numbe
 /** The next session, opened up (HE-10): length, shape, the parts as tiles, the position, and Start. */
 function NextBody({ plan }: { plan: SessionPlan }) {
   const c = useColors();
-  const hint = SESSION.positionHint[plan.position] || SESSION.positionName[plan.position];
+  const hint = positionHint(plan.position, plan.pregnant) || positionName(plan.position, plan.pregnant);
   const tiles = [
     { v: `${RELAX_IN_S} s`, l: HOME.parts.relax },
     { v: `${plan.load.N} × ${plan.load.H} s`, l: HOME.parts.holds },
