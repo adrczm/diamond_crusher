@@ -7,6 +7,7 @@ import { canonicalContent, moduleAllowed, type QuestionnaireModule } from '../..
 import type { Anatomy, Goal } from '../../../domain/types';
 import globalChange from './app_global_change.v1.json';
 import monthlySexual from './app_monthly_sexual.v1.json';
+import monthlySexualF from './app_monthly_sexual_f.v1.json';
 import symptomCheckin from './app_symptom_checkin.v1.json';
 import manifest from './manifest.json';
 
@@ -15,9 +16,16 @@ export const CHECKIN_MODULE_ID = 'app_symptom_checkin';
 
 export const MODULES: QuestionnaireModule[] = [
   monthlySexual as QuestionnaireModule,
+  monthlySexualF as QuestionnaireModule,
   globalChange as QuestionnaireModule,
   symptomCheckin as QuestionnaireModule,
 ];
+
+/** SX27: any "Yes" to leaking during sex (F3) shows the Q-G1 "worth getting checked" card. */
+export function sexualLeakCard(moduleId: string, answers: Record<string, unknown>): boolean {
+  const v = answers.F3;
+  return moduleId === 'app_monthly_sexual_f' && typeof v === 'string' && v.startsWith('yes');
+}
 
 export function contentHash(m: QuestionnaireModule): string {
   return bytesToHex(sha256(utf8ToBytes(canonicalContent(m))));
@@ -56,7 +64,7 @@ export const GOAL_MAPPING: Record<Anatomy, { always: Mapping; goals: Partial<Rec
     goals: {
       bladder_control: { monthly: ['iciq_ui_sf'], quarterly: ['iciq_ui_sf', 'iciq_fluts'] },
       pregnancy_birth: { monthly: ['iciq_ui_sf'], quarterly: ['iciq_ui_sf', 'iciq_fluts'] },
-      sexual_function: { monthly: ['iciq_flutssex', 'app_female_sexual'], quarterly: ['iciq_flutssex', 'app_female_sexual'] },
+      sexual_function: { monthly: ['iciq_flutssex', 'app_monthly_sexual_f'], quarterly: ['iciq_flutssex', 'app_monthly_sexual_f'] },
       bowel_control: { monthly: ['iciq_ui_sf'], quarterly: ['iciq_b'] },
       long_term_health: { monthly: ['iciq_ui_sf'], quarterly: ['iciq_ui_sf', 'app_global_change'] },
     },

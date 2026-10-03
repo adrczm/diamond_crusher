@@ -136,10 +136,42 @@ describe('questionnaires by profile (SX2, SX-D.5.1, SX28)', () => {
 
   it('maps the women goals and the bowel goal for everyone', () => {
     expect(bundleIds('female', ['bladder_control'], 'quarterly')).toEqual(['iciq_ui_sf', 'app_global_change', 'iciq_fluts']);
-    expect(bundleIds('female', ['sexual_function'], 'monthly')).toEqual(['iciq_ui_sf', 'iciq_flutssex', 'app_female_sexual']);
+    expect(bundleIds('female', ['sexual_function'], 'monthly')).toEqual(['iciq_ui_sf', 'iciq_flutssex', 'app_monthly_sexual_f']);
     expect(bundleIds('male', ['bowel_control'], 'quarterly')).toContain('iciq_b');
     expect(bundleIds('other_unspecified', ['bowel_control'], 'quarterly')).toContain('iciq_b');
     expect(bundleIds('female', [], 'quarterly', { bulge: true })).toContain('iciq_vs');
     expect(bundleIds('female', [], 'quarterly')).not.toContain('pfdi_20');
+  });
+});
+
+describe("women's monthly sexual items (SX27)", () => {
+  const { sexualLeakCard, verifiedModule } = require('../../src/content/en/questionnaires');
+  const { modulesForCheck, saveSexualFlag } = require('../../src/features/checkService');
+  const { setGoals } = require('../../src/data/repositories/profile');
+
+  it('ships verified, unscored and for the female profile only', () => {
+    const m = verifiedModule('app_monthly_sexual_f');
+    expect(m).not.toBeNull();
+    expect(m.profiles).toEqual(['female']);
+    expect(m.scoring.method).toBe('none');
+    expect(m.items.map((i: { itemId: string }) => i.itemId)).toEqual(['F1', 'F2', 'F3', 'F4']);
+  });
+
+  it('shows the Q-G1 card on any Yes to leaking during sex', () => {
+    expect(sexualLeakCard('app_monthly_sexual_f', { F3: 'yes_orgasm' })).toBe(true);
+    expect(sexualLeakCard('app_monthly_sexual_f', { F3: 'no' })).toBe(false);
+    expect(sexualLeakCard('app_monthly_sexual_f', { F3: 'not_sure' })).toBe(false);
+    expect(sexualLeakCard('app_monthly_sexual', { F3: 'yes_both' })).toBe(false);
+  });
+
+  it('leaves the app sexual items out after No to any sexual activity', async () => {
+    const db = await freshDb();
+    await updateProfile(db, { anatomy: 'female', onboarding_completed_at: '2026-03-01T08:00:00.000Z' });
+    await setGoals(db, ['sexual_function']);
+    const ids = async () => ((await modulesForCheck(db, 'monthly_check')) as { moduleId: string }[]).map((m) => m.moduleId);
+    expect(await ids()).toContain('app_monthly_sexual_f');
+    const today = new Date().toISOString().slice(0, 10);
+    await saveSexualFlag(db, 'no', today);
+    expect(await ids()).not.toContain('app_monthly_sexual_f');
   });
 });

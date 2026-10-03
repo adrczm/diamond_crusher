@@ -3,6 +3,8 @@ import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { usePreventRemove } from '@react-navigation/native';
 import { useState } from 'react';
 import { APP_QUESTION_LABEL } from '../src/content/en/items';
+import { sexualLeakCard } from '../src/content/en/questionnaires';
+import { cautionCardText } from '../src/content/en/screening';
 import { BUNDLE, COMMON } from '../src/content/en/strings';
 import { activeGoals } from '../src/data/repositories/profile';
 import { listScheduledChecks } from '../src/data/repositories/checks';
@@ -11,7 +13,8 @@ import type { BundleKind } from '../src/domain/schedule';
 import { useApp, useLoad } from '../src/features/app';
 import { confirmLeave, leaveFlow } from '../src/features/screens/GuidedFlow';
 import { markPart, modulesForCheck, saveQuestionnaire, type BundlePart } from '../src/features/checkService';
-import { Button, Choice, H2, Label, Loading, P, Screen, Segments } from '../src/ui/kit';
+import { Button, Card, Choice, H2, Label, Loading, P, Screen, Segments } from '../src/ui/kit';
+import { getProfile } from '../src/data/repositories/profile';
 
 export default function QuestionnaireScreen() {
   const params = useLocalSearchParams<{ checkId?: string; parts?: string }>();
@@ -19,7 +22,7 @@ export default function QuestionnaireScreen() {
   const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => {
     const row = (await listScheduledChecks(d)).find((r) => r.id === params.checkId);
     const kind = (row?.kind ?? 'monthly_check') as BundleKind;
-    return { kind, modules: await modulesForCheck(d, kind), goals: await activeGoals(d) };
+    return { kind, modules: await modulesForCheck(d, kind), goals: await activeGoals(d), anatomy: (await getProfile(d))?.anatomy ?? null };
   });
   const [mi, setMi] = useState(0);
   const [ii, setIi] = useState(0);
@@ -27,6 +30,8 @@ export default function QuestionnaireScreen() {
   const [startedAt, setStartedAt] = useState(() => new Date());
   const [busy, setBusy] = useState(false);
   const [finished, setFinished] = useState(false);
+  // SX27: after a leak during sex, the Q-G1 card shows before the next module.
+  const [leakCard, setLeakCard] = useState<null | (() => void)>(null);
   // Leaving with answers asks first (DS-E16).
   const navigation = useNavigation();
   usePreventRemove(Object.keys(answers).length > 0 && !finished, ({ data: e }) => confirmLeave(() => navigation.dispatch(e.action)));
@@ -38,6 +43,15 @@ export default function QuestionnaireScreen() {
     setFinished(true);
     setTimeout(leaveFlow, 0);
   };
+  if (leakCard) {
+    return (
+      <Screen title={m?.name ?? BUNDLE.parts.questionnaires} footer={<Button label={COMMON.next} onPress={leakCard} />}>
+        <Card tone="warn">
+          <P>{cautionCardText('Q-G1', data.anatomy)}</P>
+        </Card>
+      </Screen>
+    );
+  }
   if (!m) {
     return (
       <Screen title={BUNDLE.parts.questionnaires} footer={<Button label={COMMON.done} onPress={finishAll} />}>
@@ -56,12 +70,17 @@ export default function QuestionnaireScreen() {
     try {
       const ctx = data.kind === 'quarterly_review' ? 'quarterly' : params.checkId ? 'monthly' : 'ad_hoc';
       await saveQuestionnaire(db, m, a, { startedAt, scheduledCheckId: params.checkId ?? null, context: ctx });
-      if (mi + 1 < data.modules.length) {
-        setMi(mi + 1);
-        setIi(0);
-        setAnswers({});
-        setStartedAt(new Date());
-      } else await finishAll();
+      const go = async () => {
+        setLeakCard(null);
+        if (mi + 1 < data.modules.length) {
+          setMi(mi + 1);
+          setIi(0);
+          setAnswers({});
+          setStartedAt(new Date());
+        } else await finishAll();
+      };
+      if (sexualLeakCard(m.moduleId, a)) setLeakCard(() => go);
+      else await go();
     } finally {
       setBusy(false);
     }
@@ -92,6 +111,9 @@ export default function QuestionnaireScreen() {
             onChange={set}
           />
           <P small muted>{`${item.scale.min} = ${item.scale.minLabel}, ${item.scale.max} = ${item.scale.maxLabel}`}</P>
+          {item.options.length ? (
+            <Choice label={item.text} options={item.options.map((o) => ({ value: o.value, label: o.label }))} value={typeof value === 'string' ? value : undefined} onChange={set} />
+          ) : null}
         </>
       ) : (
         <Choice label={item.text} options={item.options.map((o) => ({ value: o.value, label: o.label }))} value={value as number | string | undefined} onChange={set} />

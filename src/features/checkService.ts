@@ -16,7 +16,7 @@ import {
   type ScheduledCheckRow,
   type SelfCheckRow,
 } from '../data/repositories/checks';
-import { insertContextFlag } from '../data/repositories/events';
+import { insertContextFlag, listContextFlags } from '../data/repositories/events';
 import { reachMilestone } from '../data/repositories/misc';
 import { activeGoals, getProfile } from '../data/repositories/profile';
 import { addLevelChange, fromPrescription, getProgramme, toPrescription, updateProgramme } from '../data/repositories/programme';
@@ -156,11 +156,17 @@ export function bundlePartsFor(kind: BundleKind, anatomy: Anatomy, goals: Goal[]
 export async function modulesForCheck(db: SqlDb, kind: BundleKind): Promise<QuestionnaireModule[]> {
   const anatomy = (await getProfile(db))?.anatomy ?? 'other_unspecified';
   const goals = await activeGoals(db);
-  if (kind !== 'quarterly_review') return bundleModules(anatomy, goals, 'monthly');
+  // The app's own sexual items show only after "Yes" to any sexual activity (SX27): a recent "No" leaves them out.
+  const today = toLocalDate(new Date());
+  const noSex = (await listContextFlags(db)).some((f) => f.kind === 'no_sexual_activity_period' && f.to_date != null && diffDays(f.to_date, today) <= 7);
+  const keep = (ms: QuestionnaireModule[]) => (noSex ? ms.filter((m) => !APP_SEXUAL.includes(m.moduleId)) : ms);
+  if (kind !== 'quarterly_review') return keep(bundleModules(anatomy, goals, 'monthly'));
   // SX28: the quarterly extras take turns, counted by the reviews already done.
   const reviewNo = (await listScheduledChecks(db)).filter((c) => c.kind === 'quarterly_review' && c.status === 'completed').length;
-  return bundleModules(anatomy, goals, 'quarterly', { reviewNo, bulge: (await profileFacts(db)).bulge });
+  return keep(bundleModules(anatomy, goals, 'quarterly', { reviewNo, bulge: (await profileFacts(db)).bulge }));
 }
+
+const APP_SEXUAL = ['app_monthly_sexual', 'app_monthly_sexual_f'];
 
 const BUNDLE_KINDS = ['monthly_check', 'quarterly_review'] as const;
 

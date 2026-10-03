@@ -1,0 +1,72 @@
+{
+  "moduleId": "app_monthly_sexual_f",
+  "name": "Monthly sexual check",
+  "version": 1,
+  "language": "en",
+  "validated": false,
+  "profiles": ["female"],
+  "goals": ["sexual_function"],
+  "recall": { "text": "Over the past 4 weeks", "days": 28 },
+  "intervalDays": 28,
+  "instructions": "Answer for the past 4 weeks. Skip anything you prefer not to answer.",
+  "items": [
+    {
+      "itemId": "F1",
+      "text": "Over the past 4 weeks, how satisfied were you with your sex life?",
+      "responseType": "numeric",
+      "goals": ["sexual_function"],
+      "options": [],
+      "scale": { "min": 0, "max": 10, "minLabel": "Not at all satisfied", "maxLabel": "Completely satisfied" },
+      "scored": false
+    },
+    {
+      "itemId": "F2",
+      "text": "Over the past 4 weeks, when you had sex or masturbated, how easy was it to reach orgasm?",
+      "responseType": "numeric",
+      "goals": ["sexual_function"],
+      "options": [{ "label": "Did not try", "value": "did_not_try" }],
+      "scale": { "min": 0, "max": 10, "minLabel": "Very difficult or not possible", "maxLabel": "Very easy" },
+      "scored": false
+    },
+    {
+      "itemId": "F3",
+      "text": "Over the past 4 weeks, did you leak pee during sex?",
+      "responseType": "single",
+      "goals": ["sexual_function"],
+      "options": [
+        { "label": "No", "value": "no" },
+        { "label": "Yes, when something went in", "value": "yes_penetration" },
+        { "label": "Yes, at orgasm", "value": "yes_orgasm" },
+        { "label": "Yes, both", "value": "yes_both" },
+        { "label": "Not sure", "value": "not_sure" }
+      ],
+      "scored": false
+    },
+    {
+      "itemId": "F4",
+      "text": "Over the past 4 weeks, did your vagina feel too loose during sex?",
+      "responseType": "single",
+      "goals": ["sexual_function"],
+      "options": [
+        { "label": "Not at all", "value": 0 },
+        { "label": "A little", "value": 1 },
+        { "label": "Quite a lot", "value": 2 },
+        { "label": "Very much", "value": 3 },
+        { "label": "Not sure", "value": "not_sure" }
+      ],
+      "scored": false
+    }
+  ],
+  "scoring": { "method": "none", "missingRule": "none" },
+  "licence": {
+    "holder": "Diamond Crusher (app-own item)",
+    "licenceType": "free-open",
+    "status": "granted",
+    "reference": null,
+    "grantedOn": null,
+    "permittedUse": "App-own question, written for this app.",
+    "conditions": "",
+    "copyrightNotice": "App question, not validated",
+    "reviewBy": null
+  }
+}
