@@ -14,7 +14,10 @@ import {
   CodeError,
 } from '../../src/data/sync/codes';
 import { getProgramme, updateProgramme } from '../../src/data/repositories/programme';
-import { getSettings, updateSettings } from '../../src/data/repositories/settings';
+import { getSettings, todayHero, updateSettings } from '../../src/data/repositories/settings';
+import { openNodeDb } from '../../src/data/nodeSql';
+import { migrate } from '../../src/data/migrate';
+import { ensureSingletons } from '../../src/data/init';
 import { deleteSession, insertSession, listSessions } from '../../src/data/repositories/sessions';
 import type { SqlDb } from '../../src/data/sql';
 import { strengthPlan, DEFAULT_LOAD } from '../../src/domain/session/plan';
@@ -219,5 +222,59 @@ describe('pairing codes (SYNC-020, SYNC-021)', () => {
     const other = { ...offer, key: rand(32) };
     expect(() => decodeConfirm(encodeConfirm(other, '0f0f0f0f', 'phone'), offer)).toThrow(CodeError);
     expect(() => decodePairing('https://example.com')).toThrow(CodeError);
+  });
+});
+
+describe('schema 3 (design round 2)', () => {
+  it('upgrades a schema 2 database and keeps its rows and sync clocks', async () => {
+    const db = openNodeDb();
+    await migrate(db, 'test', 2);
+    await ensureSingletons(db, true);
+    await db.run("INSERT INTO context_flag (id, kind, from_date, note, created_at) VALUES ('c1', 'illness', '2026-10-01', 'cold', 'x')");
+    await db.run("INSERT INTO training_slot (id, slot_no, active, created_at) VALUES ('t1', 2, 1, 'x')");
+    await updateSettings(db, { weekly_days_target: 4 });
+    expect(await migrate(db, 'test')).toEqual({ status: 'ok', from: 2, to: 3 });
+    expect((await getSettings(db)).weekly_days_target).toBe(4);
+    expect(await db.get("SELECT note FROM context_flag WHERE id = 'c1'")).toEqual({ note: 'cold' });
+    // The rebuilt tables accept the new ranges and still stamp clocks and tombstones.
+    await updateSettings(db, { sessions_per_day_target: 5, timer_view: 'wave' });
+    await db.run("INSERT INTO training_slot (id, slot_no, active, created_at) VALUES ('t5', 5, 1, 'x')");
+    await db.run(`UPDATE context_flag SET note = '${'a'.repeat(280)}' WHERE id = 'c1'`);
+    expect((await db.get<{ hlc: string }>("SELECT hlc FROM training_slot WHERE id = 't5'"))!.hlc).not.toBe('');
+    await db.run("DELETE FROM training_slot WHERE id = 't1'");
+    expect(await db.get("SELECT pk FROM sync_tombstone WHERE table_name = 'training_slot'")).toEqual({ pk: '["t1"]' });
+    await expect(db.run("UPDATE settings SET sessions_per_day_target = 0 WHERE id = 1")).rejects.toThrow();
+    await expect(db.run(`UPDATE context_flag SET note = '${'a'.repeat(281)}' WHERE id = 'c1'`)).rejects.toThrow();
+    const fields = (await db.all<{ field: string }>("SELECT field FROM sync_field WHERE table_name = 'settings'")).map((r) => r.field);
+    expect(fields).toEqual(expect.arrayContaining(['timer_view', 'today_hero_shared', 'today_hero_sync', 'sessions_per_day_target']));
+    expect(fields).not.toContain('today_hero');
+  });
+
+  it('syncs the timer view and a shared Today card, but not the device-only Today card', async () => {
+    const a = await freshDb();
+    const b = await freshDb();
+    await pair(a, b);
+    await updateSettings(a, { timer_view: 'wave', today_hero: 'rings', sessions_per_day_target: 4 });
+    await sync(a, b);
+    const s = await getSettings(b);
+    expect(s.timer_view).toBe('wave');
+    expect(s.today_hero).toBeNull();
+    expect(s.sessions_per_day_target).toBe(4);
+    await updateSettings(a, { today_hero_sync: true, today_hero_shared: 'rings' });
+    await sync(a, b);
+    expect(todayHero(await getSettings(b))).toBe('rings');
+  });
+
+  it('syncs the part of the day of a logged event', async () => {
+    const a = await freshDb();
+    const b = await freshDb();
+    await pair(a, b);
+    await a.run(
+      "INSERT INTO event (id, type, occurred_at, local_date, tz_offset_min, entered_at, leak_situation, leak_amount, item_set_version, created_at, occurred_period) VALUES ('e1', 'leak', '2026-10-02T19:00:00.000Z', '2026-10-02', 0, 'x', 'urge', 'drops', 1, 'x', 'evening')"
+    );
+    await sync(a, b);
+    await a.run("UPDATE event SET occurred_period = 'night' WHERE id = 'e1'");
+    await sync(a, b);
+    expect(await b.get("SELECT occurred_period FROM event WHERE id = 'e1'")).toEqual({ occurred_period: 'night' });
   });
 });
