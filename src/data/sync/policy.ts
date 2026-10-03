@@ -77,6 +77,8 @@ export const FIELD_GROUPS: Partial<Record<TableName, string[][]>> = {
       'template_key',
       'template_version',
     ],
+    // Relaxation-only gentle squeeze: the unlock and the pain lock change together (03 ENG-061).
+    ['gentle_unlocked_at', 'gentle_pain_lock'],
   ],
   safety_state: [['mode', 'reasons', 'since', 'set_by_run_id', 'strengthening_paused_reason']],
 };

@@ -2,6 +2,7 @@ import type { SqlDb } from '../sql';
 import * as m0001 from './0001_init';
 import * as m0002 from './0002_sync';
 import * as m0003 from './0003_round2';
+import * as m0004 from './0004_profiles';
 
 export interface Migration {
   version: number;
@@ -14,6 +15,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 1, name: '0001_init', up: m0001.up },
   { version: 2, name: '0002_sync', up: m0002.up },
   { version: 3, name: '0003_round2', up: m0003.up },
+  { version: 4, name: '0004_profiles', up: m0004.up },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
