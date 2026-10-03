@@ -319,6 +319,7 @@ export const MILESTONES: Record<string, string> = {
 
 export const PROGRESS = {
   title: 'Progress',
+  // Kept from v1 (PFB-017 tile 1 now lives in Other records).
   overviewSymptoms: 'Questionnaire answers',
   noChange: 'No change',
   somethingChanged: 'Something changed',
@@ -326,41 +327,176 @@ export const PROGRESS = {
   trainingWeek: 'Training this week',
   yourRecord: 'Your record',
   trend: { improvement: 'Up', steady: 'Steady', decline: 'Down', too_early: 'Too early to tell' } as Record<string, string>,
+  trendSpoken: (v: string) => `Your record: ${v}.`,
+
+  // Range tabs inside each card (round 2 P1, P4; PFB-018).
+  range: { all: 'All', '12w': '12 weeks', '12m': '12 months' } as Record<string, string>,
+  rangeSpoken: { all: 'since you started', '12w': 'last 12 weeks', '12m': 'last 12 months' } as Record<string, string>,
+  rangeLabel: (card: string) => `Time range for ${card}`,
+
+  // Training consistency (hero card, PFB-010).
   consistency: 'Training consistency',
-  consistencySub: 'Days trained each week, and your target.',
-  recordChart: 'Your record',
+  thisWeek: 'This week',
+  weekCount: (n: number, target: number) => `${n} of ${target} days`,
+  weekDaysSpoken: (n: number, target: number) => `This week: ${n} of ${target} days trained.`,
+  weeksOnTarget: (on: number, of: number) => `Weeks on target: ${on} of the last ${of}`,
+  weeksOnTargetFirst: 'Weeks on target show after your first full week.',
+  captionWeeks: 'Days trained each week. Dashed line: your target. Tick: on target. Dashed outline: this week so far.',
+  captionMonths: 'Average days trained a week, by month. Dashed line: your target. Tick: on target.',
+  consistencyEmptyTitle: 'Your chart starts after 2 weeks',
+  consistencyEmpty: 'Each day you train adds to it. Until then, this week shows at the top.',
+  summaries: 'Weekly summaries',
+  summariesLast: (range: string, n: number, target: number) => `Last: ${range}, ${n} of ${target} days`,
+  summariesNone: 'Your first summary comes after your first full week.',
+
+  // How your squeezes feel (PFB-014, PFB-024, LOG-025) and milestones (MOT-032).
+  feel: 'How your squeezes feel',
+  feelSub: 'The usual value (median) of how your squeezes felt over 4 weeks.',
+  feelUsually: (word: string) => `Usually ${word}`,
+  feelCompare: {
+    higher: 'Higher than the 8 weeks before.',
+    lower: 'Lower than the 8 weeks before.',
+    same: 'About the same as the 8 weeks before.',
+  } as Record<string, string>,
+  feelBeforeWas: (word: string) => `In the 8 weeks before, it was usually ${word}.`,
+  feelFrom: (n: number) => `From ${n} logged sessions in the last 4 weeks.`,
+  feelProgress: (n: number, min: number) => `${n} of ${min} sessions logged`,
+  feelProgressBody: 'After a session, log how your squeezes felt. The usual value shows when 6 sessions in 4 weeks have a log.',
+  feelNow: 'Last 4 weeks',
+  feelBefore: '8 weeks before',
+  feelScaleSpoken: (now: string, before: string | null) =>
+    `Scale from Very weak to Very strong. Last 4 weeks: ${now}.${before ? ` The 8 weeks before: ${before}.` : ''}`,
+  feelByWeek: 'Usual value by week',
+  feelByWeekShow: 'Show by week',
+  feelByWeekHide: 'Hide by week',
+  milestones: 'Milestones',
+  milestonesNone: 'New personal bests, new levels and your first full week show here.',
+  showAll: 'Show all',
+  milestone: {
+    pr: (what: string) => `New best: ${what}`,
+    prGeneric: 'New personal best in your self-check',
+    level: (name: string) => `New level: ${name}`,
+    ceiling: (name: string) => `Plan matched to your check: ${name}`,
+    restart: (name: string) => `Restarted easier: ${name}`,
+    first_week: 'First week of training done',
+    first_target_week: 'First full week at your target',
+    first_standing: 'First standing session done',
+    build_done: '12-week build done',
+  },
+  bestWhat: {
+    longest_hold: (v: number) => `${v} s longest strong hold`,
+    repeated_holds: (v: number) => `${v} strong holds in a row`,
+    quick_flicks: (v: number) => `${v} quick squeezes`,
+  } as Record<string, (v: number) => string>,
+
+  // Your record (one card, PFB-011, PFB-020, HE-03).
   recordSub: 'From your monthly self-check. It compares you only with your own past results.',
+  positionLabel: 'Position',
+  measureLabel: 'Measure to chart',
   lying: 'Lying',
   standing: 'Standing',
-  longest: 'Longest strong hold (s)',
-  repeated: 'Strong holds in a row',
-  quick: 'Quick squeezes',
-  hollowNote: 'Open dots: one condition of the check was missing, or you were not sure of your technique.',
-  feel: 'Session feel',
-  feelSub: 'The usual value (median) of how your squeezes felt over 4 weeks. It needs 6 logged sessions.',
-  leaks: 'Logged leaks',
-  leaksSub: 'Leaks you logged. Logging is optional, so this may not show every leak.',
+  tiles: {
+    longest_hold: 'Longest strong hold',
+    repeated_holds: 'Strong holds in a row',
+    quick_flicks: 'Quick squeezes',
+  } as Record<string, string>,
+  best: (v: string) => `Best ${v}`,
+  tileSpoken: (name: string, latest: string, best: string) => `${name}: latest ${latest}, best ${best}.`,
+  recordNoneTitle: 'No self-check yet',
+  recordNone: 'Your record starts with your first self-check. It compares you only with your own past results.',
+  recordLegend: 'Star: your best. Open dot: a check condition was missing, or you were not sure of your technique. The line stops where there was no check.',
+  holdLengthNote: 'The line also stops where the hold length of the check changed.',
+  noCheck: 'no check',
+
+  // Sexual activity items (PFB-016, PFB-024).
   sexual: 'Sexual activity items',
-  sexualSub: 'Usual values (median) over 4 weeks. It needs 3 entries in a window.',
+  sexualSub: 'Usual values (median) over 4 weeks. Each value needs 3 entries in 4 weeks.',
+  sexualItems: { hardness: 'Firmness', control_0_10: 'Control', bother_0_10: 'Bother' } as Record<string, string>,
+  outOf: (max: number) => `of ${max}`,
+  sexualCompare: {
+    higher: 'Higher than the 8 weeks before',
+    lower: 'Lower than the 8 weeks before',
+    same: 'About the same as the 8 weeks before',
+  } as Record<string, string>,
+  sexualNotEnough: 'Needs 3 entries in 4 weeks',
+  lowerIsBetter: 'Lower is better',
+
+  // Other records (tertiary list) and their details (PFB-012, PFB-013, PFB-015, PFB-017).
+  otherRecords: 'Other records',
+  leaks: 'Logged leaks',
+  leaksRow: (n: number) => `${n} in the last 12 weeks`,
+  leaksSub: 'Leaks you logged. Logging is optional, so this may not show every leak.',
+  leaksBlocks: 'Leaks per 4 weeks, by situation.',
+  leaksEmptyTitle: 'No leaks logged',
+  leaksEmpty: 'If you log a leak, it shows here. Logging is optional.',
   questionnaires: 'Questionnaire answers',
+  symptomRow: { none: 'No check-up yet', changed: 'Something changed' } as Record<string, string>,
+  symptomNoChange: (date: string) => `No change, last on ${date}`,
+  scoreTitle: (name: string) => `${name} score`,
+  scoreLowerFewer: 'A lower score means fewer symptoms.',
+  scoreHigherBetter: 'A higher score is better.',
+  scoreBand: 'Shaded band: a change inside it is smaller than a meaningful change.',
+  scoreNone: 'These answers have no score to chart. They show in the list below.',
   checkUp: 'check-up',
   checkUpExplain:
     'Your answers are at the "no problem" end and that is good news. The app will continue to ask, so that you see any change early. Your progress shows in your training record and monthly self-check instead.',
+
+  // Tables and chart controls (PFB-006, chart accessibility review items 2 and 9).
   table: 'Show as table',
   chart: 'Show as chart',
+  col: {
+    week: 'Week of',
+    month: 'Month',
+    date: 'Date',
+    days: 'Days trained',
+    avg: 'Days a week',
+    hold: 'Hold (s)',
+    row: 'In a row',
+    quick: 'Quick',
+    value: 'Value',
+    note: 'Note',
+    weeks: 'Weeks',
+    leaks: 'Leaks',
+    situations: 'By situation',
+    questionnaire: 'Questionnaire',
+    score: 'Score',
+    entries: 'Entries',
+    sessions: 'Sessions',
+  },
+  note: {
+    onTarget: 'On target',
+    soFar: 'So far',
+    notStarted: 'Before you started',
+    condition: 'A check condition was missing',
+    technique: 'Not sure of technique',
+    noCheck: 'No check',
+    best: 'Your best',
+    notEnough: 'Not enough entries',
+  },
+  situationCount: (n: number, what: string) => `${n} ${what}`,
+
+  // Chart summaries for screen readers (review item 1) and point labels (hover and keyboard on the web).
+  spoken: {
+    weeks: (range: string, target: number, now: number, on: number, of: number) =>
+      `Days trained each week, ${range}. Target ${target} days. This week ${now} days so far. ${on} of ${of} full weeks on target.`,
+    months: (range: string, target: number, now: string, on: number) =>
+      `Average days trained a week by month, ${range}. Target ${target} days. This month ${now} so far. ${on} months on target.`,
+    line: (title: string, range: string, n: number, latest: string, best: string) =>
+      `${title}, ${range}. ${n} values. Latest ${latest}. Best ${best}.`,
+    leaks: (n: number, blocks: number) => `Logged leaks per 4 weeks, last ${blocks} blocks. ${n} leaks in all.`,
+    score: (name: string, n: number, latest: string) => `${name} score. ${n} results. Latest ${latest}.`,
+    none: 'No values yet.',
+    noValue: 'no value',
+    chartKeys: 'Use the left and right arrow keys to move between values.',
+  },
+  point: (date: string, value: string, note: string | null) => `${date}: ${value}${note ? `. ${note}` : ''}`,
+  dayNote: 'Day note',
+  markerLegend: 'Small triangle under the chart: a day note.',
+
+  // Mac detail panel (decision M3).
+  panelTitle: 'Details',
+  panelEmpty: 'Select a card, a bar or a row to see its details here.',
   noData: 'Nothing to show yet.',
-  // UX audit M5: in place of an empty chart.
-  consistencyEmptyTitle: 'Your chart starts after 2 weeks',
-  consistencyEmpty: 'Each day you train adds to it. Until then, this week shows at the top.',
-  leaksEmptyTitle: 'No leaks logged',
-  leaksEmpty: 'If you log a leak, it shows here. Logging is optional.',
-  range: { since_baseline: 'Since start', '12w': '12 weeks', '12m': '12 months' } as Record<string, string>,
-  summaries: 'Weekly summaries',
-  history: 'History',
-  noCheck: 'no check',
-  firmness: 'Firmness (0 to 4)',
-  control: 'Control (0 to 10)',
-  bother: 'Bother (0 to 10)',
 };
 
 export const MESSAGES = {
@@ -399,6 +535,10 @@ export const SUMMARY = {
   logged: (leaks: number, sex: number) =>
     `Logged: ${[leaks ? `${leaks} leak${leaks === 1 ? '' : 's'}` : '', sex ? `${sex} sexual activit${sex === 1 ? 'y' : 'ies'}` : ''].filter(Boolean).join(', ')}`,
   next: (d: string) => `Next check: ${d}`,
+  // PFB-050: the Summaries history.
+  history: 'Past summaries',
+  historyRow: (n: number, target: number) => `${n} of ${target} days`,
+  historyNone: 'Past summaries show here after your second full week.',
 };
 
 export const BUNDLE = {

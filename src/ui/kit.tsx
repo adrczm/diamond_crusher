@@ -29,8 +29,9 @@ import { motion, radius, space, type, useColors, useIsDark } from './theme';
 const MAX_WIDTH = 640;
 
 /** Page widths on the desktop layout: forms and guided steps stay readable, dashboards use the room. */
-export type PageWidth = 'narrow' | 'regular' | 'medium' | 'wide';
-const DESKTOP_WIDTH: Record<PageWidth, number> = { narrow: 640, regular: 760, medium: 960, wide: 1200 };
+export type PageWidth = 'narrow' | 'regular' | 'medium' | 'wide' | 'full';
+/** `full`: a 1200 page plus the right detail panel on very wide windows (Progress, Mac decision M3). */
+const DESKTOP_WIDTH: Record<PageWidth, number> = { narrow: 640, regular: 760, medium: 960, wide: 1200, full: 1600 };
 
 /** Pointer state from react-native-web's Pressable (not in React Native's types). */
 export type PressState = { pressed: boolean; hovered?: boolean; focused?: boolean };

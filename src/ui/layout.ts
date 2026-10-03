@@ -106,7 +106,7 @@ export function activeNav(pathname: string): NavItem['key'] | null {
   const hit = NAV.find((n) => n.href === pathname);
   if (hit) return hit.key;
   if (pathname === '/about') return 'settings';
-  if (pathname === '/summary') return 'progress';
+  if (pathname === '/summary' || pathname === '/records') return 'progress';
   if (pathname === '/sync') return 'data';
   return null;
 }
