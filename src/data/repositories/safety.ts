@@ -127,3 +127,14 @@ export async function openFlags(db: SqlDb): Promise<SafetyFlagRow[]> {
 export async function respondFlag(db: SqlDb, id: string, response: 'dismissed' | 'will_book' | 'already_seen'): Promise<void> {
   await update(db, 'safety_flag', { dismissed_at: nowIso(), response }, 'id = ?', [id]);
 }
+
+export type FlagResponse = NonNullable<SafetyFlagRow['response']>;
+
+/** Stores one answer on several flags at once: the Today health note answers every open note together (ONB-023). */
+export async function respondFlags(db: SqlDb, ids: readonly string[], response: FlagResponse): Promise<void> {
+  if (!ids.length) return;
+  const at = nowIso();
+  await db.transaction(async () => {
+    for (const id of ids) await update(db, 'safety_flag', { dismissed_at: at, response }, 'id = ?', [id]);
+  });
+}
