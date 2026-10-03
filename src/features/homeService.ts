@@ -3,6 +3,7 @@
 // until something changes (A2), one suggestion queue (critique priority 2) and the level-up card (MOT-032).
 import { Platform } from 'react-native';
 import { groupByDate, weekDots, type WeekDots } from '../domain/adherence';
+import { nextCheckWindow, type CheckWindow } from '../domain/checkins';
 import { addDays, atLocalTime, minutesOfDay, toLocalDate, type LocalDate } from '../domain/dates';
 import { strengthUnlocked } from '../domain/learn';
 import {
@@ -63,6 +64,8 @@ export interface HomeModel {
   nextReminder: Date | null;
   gap: PendingGap | null;
   check: CheckDue | null;
+  /** The next check's window for the "opens …, due …" line (W2); null when none is planned or strength is not unlocked. */
+  checkWindow: CheckWindow | null;
   safetyRecheck: boolean;
   baselineOffer: boolean;
   techniqueCheck: boolean;
@@ -416,7 +419,8 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
   const records = changes as unknown as LevelChangeRecord[];
   const inc = lastIncrease(records);
   const unlocked = strengthUnlocked(programme.learn_status);
-  const reviewDone = (await listScheduledChecks(db)).some((c) => c.kind === 'quarterly_review' && (c.status === 'completed' || c.status === 'skipped'));
+  const scheduled = await listScheduledChecks(db);
+  const reviewDone = scheduled.some((c) => c.kind === 'quarterly_review' && (c.status === 'completed' || c.status === 'skipped'));
   const lastExport = meta?.last_export_at ? toLocalDate(new Date(meta.last_export_at)) : null;
   // "Not now" on the backup card is stored as a content_view key with the date it was pressed.
   const laterOn = [...seen].filter((k) => k.startsWith(BACKUP_LATER)).map((k) => k.slice(BACKUP_LATER.length)).sort().pop();
@@ -481,6 +485,7 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
     nextReminder: await loadNextReminder(db, settings, now, today.slotsDone, today.kind === 'day_done'),
     gap: await pendingGap(db, todayStr),
     check,
+    checkWindow: check ? nextCheckWindow(scheduled) : null,
     safetyRecheck,
     baselineOffer,
     techniqueCheck,

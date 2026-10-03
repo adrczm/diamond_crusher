@@ -10,6 +10,7 @@ import { useLoad } from '../src/features/app';
 import { buildProgress, loadProgress, type ProgressRaw } from '../src/features/progressService';
 import {
   ConsistencyCard,
+  EjacCard,
   FeelCard,
   OtherRecordsCard,
   RecordCard,
@@ -70,6 +71,7 @@ function Body({ raw }: { raw: ProgressRaw }) {
   const feel = <FeelCard {...props} />;
   const record = <RecordCard {...props} />;
   const sexual = <SexualCard {...props} />;
+  const ejac = <EjacCard {...props} />;
   const other = <OtherRecordsCard {...props} />;
 
   if (!wide) {
@@ -79,6 +81,7 @@ function Body({ raw }: { raw: ProgressRaw }) {
         {feel}
         {record}
         {sexual}
+        {ejac}
         {other}
       </>
     );
@@ -88,6 +91,7 @@ function Body({ raw }: { raw: ProgressRaw }) {
       {hero}
       <Side>{[feel, record]}</Side>
       {sexual}
+      {ejac}
       {other}
     </View>
   );

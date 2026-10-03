@@ -330,3 +330,56 @@ export function firstWords(note: string, words = 4): string {
   const parts = note.trim().split(/\s+/);
   return parts.length <= words ? parts.join(' ') : `${parts.slice(0, words).join(' ')}…`;
 }
+
+// ---------- Time to ejaculation by activity type (PFB-016, EVT-031) ----------
+
+/** The logged time ranges in order, shortest first. "Did not ejaculate" and "Not sure" have no place on this scale. */
+export const EJAC_BANDS = ['lt1', '1to2', '2to3', '3to5', '5to10', '10to20', '20to30', 'gt30'] as const;
+export type EjacRange = (typeof EJAC_BANDS)[number];
+
+/** Upper ends of the ranges in minutes: a typed time (EVT-023) falls in the first range it is under. 30 itself is "20 to 30". */
+const BAND_TOP = [1, 2, 3, 5, 10, 20, 30.0001];
+
+/** A logged time as a place on the range scale (0 = under 1 minute), or null when it has none. A typed time wins over a range. */
+export function ejacRank(band: string | null, minutes: number | null): number | null {
+  if (minutes != null) {
+    const i = BAND_TOP.findIndex((top) => minutes < top);
+    return i < 0 ? EJAC_BANDS.length - 1 : i;
+  }
+  const i = EJAC_BANDS.indexOf(band as EjacRange);
+  return i < 0 ? null : i;
+}
+
+export interface EjacEntry {
+  date: LocalDate;
+  activity: string;
+  rank: number;
+}
+
+export interface EjacBlock {
+  from: LocalDate;
+  to: LocalDate;
+  /** Per activity type: the usual range, or null below `min` entries, and the entry count. */
+  byActivity: Record<string, { range: EjacRange | null; count: number }>;
+}
+
+/**
+ * PFB-016: the usual time range per 4 weeks, separately for each activity type (EVT-031: never mixed), oldest block
+ * first and the last block ending today. A range needs `min` entries in its block. With an even count the lower of the
+ * two middle ranges is used, so the value is always a range that was logged. No norm or cut-off is involved.
+ */
+export function ejacBlocks(entries: readonly EjacEntry[], activities: readonly string[], today: LocalDate, blocks: number, min = 3): EjacBlock[] {
+  return Array.from({ length: blocks }, (_, k) => {
+    const to = addDays(today, -28 * (blocks - 1 - k));
+    const from = addDays(to, -27);
+    const byActivity: EjacBlock['byActivity'] = {};
+    for (const a of activities) {
+      const ranks = entries
+        .filter((e) => e.activity === a && e.date >= from && e.date <= to)
+        .map((e) => e.rank)
+        .sort((x, y) => x - y);
+      byActivity[a] = { range: ranks.length >= min ? EJAC_BANDS[ranks[Math.floor((ranks.length - 1) / 2)]] : null, count: ranks.length };
+    }
+    return { from, to, byActivity };
+  });
+}

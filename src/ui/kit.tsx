@@ -22,6 +22,7 @@ import { A11Y, APP_NAME, COMMON, DESKTOP, ERRORS } from '../content/en/strings';
 import { Icon, type IconName } from './icons';
 import { contentClass, isSection, TWO_COLUMNS_MIN, useDesktop, usePointerFine, type ContentClass } from './layout';
 import { useReducedMotion } from './motion';
+import { parseCount, stepKey } from './stepper';
 import { Text } from './text';
 import { motion, radius, space, type, useColors, useIsDark } from './theme';
 
@@ -71,6 +72,7 @@ export function Screen({
   footer,
   headerShown = true,
   width = 'regular',
+  scrollTopKey,
 }: {
   title?: string;
   children: ReactNode;
@@ -79,6 +81,8 @@ export function Screen({
   headerShown?: boolean;
   /** Desktop only: how wide the page may grow. */
   width?: PageWidth;
+  /** When this changes to a new value (not null), the page scrolls back to the top (an entry opened in a form above). */
+  scrollTopKey?: string | null;
 }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -88,6 +92,10 @@ export function Screen({
   const column: ViewStyle = { width: '100%', maxWidth, alignSelf: 'center' };
   const gap = desktop ? space(2.5) : space(2);
   const [measured, setMeasured] = useState<number | null>(null);
+  const scroller = useRef<ScrollView>(null);
+  useEffect(() => {
+    if (scrollTopKey) scroller.current?.scrollTo({ y: 0, animated: false });
+  }, [scrollTopKey]);
   // The page lays out by its own width, not the window's (Mac decision M1).
   const onLayout = (e: { nativeEvent: { layout: { width: number } } }, padded: boolean) => {
     const w = Math.round(e.nativeEvent.layout.width - (padded ? 2 * pad : 0));
@@ -95,6 +103,7 @@ export function Screen({
   };
   const body = scroll ? (
     <ScrollView
+      ref={scroller}
       contentContainerStyle={[column, { padding: pad, paddingBottom: pad + space(2) + (footer ? 0 : insets.bottom), gap }]}
       keyboardShouldPersistTaps="handled"
     >
@@ -751,6 +760,7 @@ export function Stepper({
   onChange,
   suffix,
   label,
+  typeable,
 }: {
   value: number;
   min: number;
@@ -759,6 +769,8 @@ export function Stepper({
   suffix?: string;
   /** What the number is, for screen readers: the buttons read "Less: <label>" (DS-A4). */
   label?: string;
+  /** The value is a spinbutton (Q3): a number can be typed, and ↑ ↓ change it. Typing is kept until Enter or leaving the box. */
+  typeable?: boolean;
 }) {
   const c = useColors();
   const touch = useTouch();
@@ -790,12 +802,82 @@ export function Stepper({
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(2) }}>
       {btn('−', -1, A11Y.less)}
-      <Text accessibilityLiveRegion="polite" style={[type('heading-lg'), { color: c.text, minWidth: 48, textAlign: 'center' }]}>
-        {value}
-        {suffix ? ` ${suffix}` : ''}
-      </Text>
+      {typeable ? (
+        <CountInput value={value} min={min} max={max} onChange={onChange} label={label} />
+      ) : (
+        <Text accessibilityLiveRegion="polite" style={[type('heading-lg'), { color: c.text, minWidth: 48, textAlign: 'center' }]}>
+          {value}
+          {suffix ? ` ${suffix}` : ''}
+        </Text>
+      )}
       {btn('+', 1, A11Y.more)}
     </View>
+  );
+}
+
+/** The typed value of a Stepper: a spinbutton on the web, an adjustable field on phones (Q3). */
+function CountInput({ value, min, max, onChange, label }: { value: number; min: number; max: number; onChange: (v: number) => void; label?: string }) {
+  const c = useColors();
+  const touch = useTouch();
+  const [draft, setDraft] = useState<string | null>(null);
+  const [focused, setFocused] = useState(false);
+  const fixed = min >= max;
+  const commit = (to: number | null) => {
+    setDraft(null);
+    if (to != null && to !== value) onChange(to);
+  };
+  const typed = () => (draft == null ? value : parseCount(draft, min, max));
+  const onKey = (e: { key?: string; nativeEvent?: { key?: string }; preventDefault?: () => void }) => {
+    const next = stepKey(e.key ?? e.nativeEvent?.key, typed() ?? value, min, max);
+    if (next == null) return;
+    e.preventDefault?.();
+    commit(next);
+  };
+  const web = Platform.OS === 'web';
+  // react-native-web passes role and aria-* to the input; the phone gets an adjustable control with swipe up and down.
+  const a11y = web
+    ? { role: 'spinbutton', 'aria-valuenow': value, 'aria-valuemin': min, ...(Number.isFinite(max) ? { 'aria-valuemax': max } : {}) }
+    : {
+        accessibilityRole: 'adjustable',
+        accessibilityValue: { now: value, min, ...(Number.isFinite(max) ? { max } : {}) },
+        accessibilityActions: [{ name: 'increment' }, { name: 'decrement' }],
+        onAccessibilityAction: (e: { nativeEvent: { actionName: string } }) =>
+          commit(Math.max(min, Math.min(max, value + (e.nativeEvent.actionName === 'increment' ? 1 : -1)))),
+      };
+  return (
+    <TextInput
+      {...(a11y as object)}
+      accessibilityLabel={label}
+      value={draft ?? String(value)}
+      editable={!fixed}
+      keyboardType="number-pad"
+      inputMode="numeric"
+      selectTextOnFocus
+      onChangeText={(t) => setDraft(t.replace(/[^0-9]/g, ''))}
+      // ↑ ↓ Home End on a Mac keyboard (react-native-web sends key presses here, not to onKeyDown).
+      onKeyPress={onKey}
+      onSubmitEditing={() => commit(typed())}
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        commit(typed());
+      }}
+      style={[
+        type('heading-lg'),
+        {
+          minWidth: 64,
+          maxWidth: 120,
+          height: touch,
+          textAlign: 'center',
+          color: c.text,
+          borderRadius: radius.md,
+          borderWidth: focused ? 2 : 1,
+          borderColor: focused ? c.focus : fixed ? 'transparent' : c.inputBorder,
+          backgroundColor: fixed ? 'transparent' : c.inputBg,
+          paddingHorizontal: space(1),
+        },
+      ]}
+    />
   );
 }
 
@@ -808,7 +890,8 @@ export function Divider() {
   return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: c.border, marginVertical: space(0.5) }} />;
 }
 
-export function LinkRow({ label, onPress, detail }: { label: string; onPress: () => void; detail?: string }) {
+/** A row that opens another page. `hint` is a second, smaller line under the label. */
+export function LinkRow({ label, onPress, detail, hint }: { label: string; onPress: () => void; detail?: string; hint?: string }) {
   const c = useColors();
   const touch = useTouch();
   return (
@@ -827,7 +910,14 @@ export function LinkRow({ label, onPress, detail }: { label: string; onPress: ()
         opacity: st.pressed ? 0.7 : 1,
       })}
     >
-      <Text style={[type('body-md'), { flex: 1, color: c.text }]}>{label}</Text>
+      {hint ? (
+        <View style={{ flex: 1, paddingVertical: space(0.75) }}>
+          <Text style={[type('body-md'), { color: c.text }]}>{label}</Text>
+          <Text style={[type('body-sm'), { color: c.muted }]}>{hint}</Text>
+        </View>
+      ) : (
+        <Text style={[type('body-md'), { flex: 1, color: c.text }]}>{label}</Text>
+      )}
       {detail ? <Text style={[type('body-sm'), { color: c.muted }]}>{detail}</Text> : null}
       <Icon name="chevron" size={18} color={c.muted} />
     </Pressable>

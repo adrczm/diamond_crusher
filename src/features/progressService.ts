@@ -13,10 +13,13 @@ import { listSessionLogs, listSessionsWithReps } from '../data/repositories/sess
 import { getSettings } from '../data/repositories/settings';
 import type { SqlDb } from '../data/sql';
 import { groupByDate, isTrainedDay, weekDots } from '../domain/adherence';
+import { nextCheckWindow } from '../domain/checkins';
 import { addDays, diffDays, formatShort, toLocalDate, weekStart, type LocalDate } from '../domain/dates';
 import {
   bestIndex,
   compareWithPrevious,
+  ejacBlocks,
+  ejacRank,
   firstTargetWeek,
   firstWords,
   lastWeekStarts,
@@ -34,6 +37,8 @@ import {
   withGaps,
   type Comparison,
   type Dated,
+  type EjacBlock,
+  type EjacEntry,
   type LeakBlock,
   type Range,
 } from '../domain/progress';
@@ -131,6 +136,15 @@ export interface SexualItem {
   comparison: Comparison;
   lowerIsBetter: boolean;
 }
+
+/** Time to ejaculation by activity type (PFB-016, EVT-031): the types with logged times, and the last 3 blocks of 4 weeks. */
+export interface EjacView {
+  activities: { value: string; label: string }[];
+  blocks: EjacBlock[];
+}
+
+/** "3 to 5 minutes", in the words of the log form. */
+export const ejacRangeText = (range: string | null) => (range ? EVENTS.timeOptions.find((o) => o.value === range)?.label ?? range : '–');
 
 export interface ScoreSeries {
   moduleId: string;
@@ -413,6 +427,20 @@ export function buildProgress(raw: ProgressRaw, today: LocalDate) {
     };
   }
 
+  // Time to ejaculation (PFB-016, EVT-031): male profile, with the ejaculatory control goal or times already logged.
+  // An entry without an activity type cannot be put with one, so it is left out.
+  const ejacEntries: EjacEntry[] = male
+    ? sexEvents.flatMap((e) => {
+        const rank = ejacRank(e.ejac_time_band, e.ejac_time_min);
+        return rank != null && e.activity_type ? [{ date: e.local_date, activity: e.activity_type, rank }] : [];
+      })
+    : [];
+  const ejacTypes = EVENTS.activities.filter((a) => ejacEntries.some((e) => e.activity === a.value)).map((a) => ({ value: a.value, label: a.label }));
+  const ejac: EjacView | null =
+    male && (raw.goals.includes('ejaculatory_control') || ejacEntries.length)
+      ? { activities: ejacTypes, blocks: ejacBlocks(ejacEntries, ejacTypes.map((a) => a.value), today, 3) }
+      : null;
+
   // Other records: leaks (PFB-015), questionnaire answers (PFB-012, PFB-013), symptom check-ups (PFB-017).
   const leakEvents = raw.events.filter((e) => e.type === 'leak').map((e) => ({ date: e.local_date, situation: e.leak_situation }));
   const leaks12 = leakEvents.filter((l) => l.date > addDays(today, -84) && l.date <= today).length;
@@ -438,11 +466,8 @@ export function buildProgress(raw: ProgressRaw, today: LocalDate) {
     raw.safety.map((f) => ({ key: f.flag_key, date: at(f.raised_at), open: f.dismissed_at == null })),
     today
   );
-  const nextCheck =
-    raw.scheduled
-      .filter((s) => (s.kind === 'monthly_check' || s.kind === 'quarterly_review' || s.kind === 'baseline') && !['completed', 'skipped', 'missed'].includes(s.status))
-      .map((s) => s.due_on)
-      .sort()[0] ?? null;
+  // W2: the next check as "opens …, due …".
+  const nextCheck = nextCheckWindow(raw.scheduled);
 
   return {
     today,
@@ -462,6 +487,7 @@ export function buildProgress(raw: ProgressRaw, today: LocalDate) {
     milestones,
     sexual,
     sexualSeries,
+    ejac,
     leaks12,
     blocks,
     leakSituations: EVENTS.situations,
