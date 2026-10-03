@@ -207,7 +207,8 @@ function TodayBody({ m }: { m: HomeModel }) {
     <View key="links">
       {note.hidden && !noteOpen ? <LinkRow label={HOME.healthNote.row(note.keys.length)} onPress={() => setNoteOpen(true)} /> : null}
       {note.hidden && noteOpen ? <HealthNoteCard keys={note.keys} anatomy={m.profile.anatomy} onAnswer={answerNote} busy={busy} /> : null}
-      <LinkRow label={HOME.somethingChanged} onPress={() => router.push('/screening?kind=something_changed')} />
+      {/* W3: say what counts as a change, so the row is not only a question. */}
+      <LinkRow label={HOME.somethingChanged} hint={HOME.somethingChangedHint} onPress={() => router.push('/screening?kind=something_changed')} />
     </View>
   );
   // The Mac shows Library in the right column (3 articles and All); in the learn state it shows on any desktop width.

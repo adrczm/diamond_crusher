@@ -36,6 +36,14 @@ export async function listEvents(db: SqlDb, type?: EventRow['type']): Promise<Ev
   return db.all<EventRow>(`SELECT * FROM event ${type ? 'WHERE type = ?' : ''} ORDER BY occurred_at`, type ? [type] : []);
 }
 
+/**
+ * Changes a logged event in place (Q3: edit from the list). `update` sets updated_at, and the row's sync trigger gives it
+ * a new hlc, so the change goes to a paired device like a new row (SYNC-014).
+ */
+export async function updateEvent(db: SqlDb, id: string, patch: Partial<Omit<EventRow, 'id' | 'type' | 'entered_at'>>): Promise<void> {
+  await update(db, 'event', patch as Record<string, SqlValue>, 'id = ?', [id]);
+}
+
 export async function deleteEvent(db: SqlDb, id: string): Promise<void> {
   await db.run('DELETE FROM event WHERE id = ?', [id]);
 }

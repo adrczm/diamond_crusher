@@ -169,6 +169,11 @@ export const EVENTS = {
   showOlder: 'Show older entries',
   deleteAsk: 'Delete this entry?',
   deleteEntry: (what: string) => `Delete: ${what}`,
+  // Q3: an entry in the list opens in the form, to change or delete it.
+  editEntry: (what: string) => `Edit: ${what}`,
+  editHint: 'Select an entry to change or delete it.',
+  editTitle: (what: string) => `Edit entry: ${what}`,
+  editOlderDay: (date: string) => `This entry is for ${date}. To move it, pick a day.`,
   noteFallback: 'Note',
   discardTitle: 'Stop this entry?',
   discardBody: 'Your answers on this form are not saved.',

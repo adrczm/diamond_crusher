@@ -170,6 +170,7 @@ export const HOME = {
   weekNice: (target: number) => `${target} of ${target}. Nice week.`,
   paused: 'Paused',
   somethingChanged: 'Something changed?',
+  somethingChangedHint: 'New pain, leaks or surgery? Update your answers.',
   logSomething: 'Log something',
   level: (n: number, name: string | null, max?: number | null) => `Level ${n}${max ? ` of ${max}` : ''}${name ? `: ${name}` : ''}`,
   next: (what: string) => `Next: ${what}`,
@@ -180,7 +181,8 @@ export const HOME = {
   whenTomorrow: (time: string) => `tomorrow at ${time}`,
   whenDay: (day: string, time: string) => `${day} at ${time}`,
   sessionContents: 'Today’s session',
-  nextCheck: (date: string) => `Next check: ${date}`,
+  // W2 (Adrian, 2026-10-03): one line wherever the next check shows. "Opens" is the first day, "due" the scheduled day.
+  checkLine: (first: boolean, opens: string, due: string) => `${first ? 'First check' : 'Next check'}: opens ${opens}, due ${due}`,
   checkReady: 'Your monthly check is ready',
   reviewReady: 'Your 12-week review is ready',
   shortScreenDue: 'A quick safety re-check is due',
@@ -230,6 +232,8 @@ export const HOME = {
   parts: { relax: 'Relax', holds: 'Holds', flicks: 'Quick squeezes', steady: 'Steady holds' },
   shapeSpoken: (holds: number, flicks: number, steady: number) =>
     `Session shape: relax, ${holds} holds, ${flicks} quick squeezes${steady ? `, ${steady} steady holds` : ''}, then relax.`,
+  /** Mac hover on a day of the week (Q3): "Wed 7 Oct: 2 of 3 sessions". */
+  dayHover: (date: string, n: number, total: number) => `${date}: ${n} of ${total} ${total === 1 ? 'session' : 'sessions'}`,
   daySpoken: (day: string, n: number, total: number, today: boolean) => `${day}${today ? ', today' : ''}: ${n} of ${total} ${total === 1 ? 'session' : 'sessions'}`,
   healthNote: {
     title: 'Worth getting checked',
@@ -423,6 +427,14 @@ export const PROGRESS = {
   sexualNotEnough: 'Needs 3 entries in 4 weeks',
   lowerIsBetter: 'Lower is better',
 
+  // Time to ejaculation by activity type (PFB-016, EVT-031, Q3). No norms and no labels for a time.
+  ejac: 'Time to ejaculation',
+  ejacSub: 'Your usual time range (median) over 4 weeks, for each kind of activity. Each needs 3 entries in 4 weeks.',
+  ejacFrom: (n: number) => `From ${n} ${n === 1 ? 'entry' : 'entries'} in the last 4 weeks`,
+  ejacNone: 'When you log a time with a sexual activity, it shows here.',
+  ejacTable: 'Usual time range per 4 weeks',
+  ejacSpoken: (activity: string, range: string, sub: string) => `${activity}: ${range}. ${sub}.`,
+
   // Other records (tertiary list) and their details (PFB-012, PFB-013, PFB-015, PFB-017).
   otherRecords: 'Other records',
   leaks: 'Logged leaks',
@@ -559,8 +571,7 @@ export const BUNDLE = {
   allDone: 'Check done. See you next time.',
   exportOffer: 'Save a backup file now?',
   notYet: 'This check opens 3 days before it is due.',
-  nextIn: (days: number, min: number) =>
-    days === 0 ? `Next check today · about ${min} minutes` : `Next check in ${days} ${days === 1 ? 'day' : 'days'} · about ${min} minutes`,
+  aboutMinutes: (min: number) => `About ${min} minutes.`,
   opensOn: (date: string) => `Opens ${date}`,
   lockedPart: (part: string, date: string) => `${part}. Opens ${date}.`,
   noneYet: 'No check is planned yet. The first check comes 4 weeks after you start training.',

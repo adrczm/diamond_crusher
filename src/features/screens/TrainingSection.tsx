@@ -40,7 +40,18 @@ function noteLines(change: SessionsChange, s: Settings): { main: string; status:
   return { main, status, off };
 }
 
-export function TrainingSection({ settings: s, profile: p, set }: { settings: Settings; profile: Profile | null; set: (patch: Partial<Settings>) => Promise<void> }) {
+export function TrainingSection({
+  settings: s,
+  profile: p,
+  set,
+  onEditTimes,
+}: {
+  settings: Settings;
+  profile: Profile | null;
+  set: (patch: Partial<Settings>) => Promise<void>;
+  /** The widest Mac layout (c4): "Edit times" opens Reminders in the right panel instead of going to the page (Q3). */
+  onEditTimes?: () => void;
+}) {
   const { db, bump } = useApp();
   const desktop = useDesktop();
   const { data } = useLoad(async (d) => ({ maintenance: (await getProgramme(d)).phase === 'maintenance' }));
@@ -92,13 +103,14 @@ export function TrainingSection({ settings: s, profile: p, set }: { settings: Se
     // On the Mac the evidence line sits in the section's description column, beside the controls.
     <Section title={SETTINGS.training} description={desktop ? `${DESKTOP.settingsNotes.training} ${line}` : DESKTOP.settingsNotes.training}>
       <Label>{SETTINGS.sessionsPerDay}</Label>
-      {/* No upper limit (Adrian, 2026-10-03). Read-only in maintenance: 1 a day (ENG-031). */}
+      {/* No upper limit (Adrian, 2026-10-03). Read-only in maintenance: 1 a day (ENG-031). A number can be typed (Q3). */}
       <Stepper
         label={SETTINGS.sessionsPerDay}
         value={n}
         min={1}
         max={maintenance ? 1 : Infinity}
         onChange={(v) => void step(v)}
+        typeable
       />
       {!desktop ? (
         <P small muted>
@@ -117,7 +129,7 @@ export function TrainingSection({ settings: s, profile: p, set }: { settings: Se
             <Button
               label={note.off ? SETTINGS.turnOn : SETTINGS.editTimes}
               kind="quiet"
-              onPress={() => router.push('/reminders')}
+              onPress={onEditTimes ?? (() => router.push('/reminders'))}
             />
             {isWeb && desktop ? <P small muted>{SETTINGS.undoKey}</P> : null}
           </Row>

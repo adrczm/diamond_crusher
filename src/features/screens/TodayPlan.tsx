@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 import { SESSION, positionHint, positionName } from '../../content/en/exercise';
 import { DESKTOP, HOME } from '../../content/en/strings';
-import { atLocalTime, formatDuration, formatShort, formatTime, toLocalDate } from '../../domain/dates';
+import { atLocalTime, formatDuration, formatTime, toLocalDate } from '../../domain/dates';
 import { durationS, RELAX_IN_S, type SessionPlan } from '../../domain/session/plan';
 import { feedback } from '../../platform/feedback';
 import { Icon } from '../../ui/icons';
@@ -13,6 +13,7 @@ import { isWeb, useDesktop } from '../../ui/layout';
 import { Text } from '../../ui/text';
 import { radius, space, type, useColors } from '../../ui/theme';
 import { openSessionOnce } from '../app';
+import { checkLine } from '../checkService';
 import type { HomeModel, TimelineSlot } from '../homeService';
 import { PositionBadge, SessionShape } from './TodayVisuals';
 import { WeekRings, whenText } from './WeekStrip';
@@ -50,9 +51,9 @@ export function TodayPlanCard({ m }: { m: HomeModel }) {
       )}
       {t.kind === 'day_done' ? <DayDone m={m} /> : null}
       {(t.kind === 'day_done' || t.kind === 'relax') && m.nextReminder ? <P small muted>{HOME.nextReminder(whenText(m.nextReminder))}</P> : null}
-      {m.check && !m.check.open ? (
+      {m.check && !m.check.open && m.checkWindow ? (
         <P small muted>
-          {HOME.nextCheck(formatShort(m.check.row.due_on))}
+          {checkLine(m.checkWindow)}
         </P>
       ) : null}
     </Card>

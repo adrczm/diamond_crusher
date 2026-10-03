@@ -1,11 +1,13 @@
 // Monthly self-check, the check schedule (bundles) and questionnaire answers (06a, 06b, 04 PRG-013, PRG-031).
-import { addDays, diffDays, toLocalDate, tzOffsetMin, type LocalDate } from '../domain/dates';
+import type { CheckWindow } from '../domain/checkins';
+import { addDays, diffDays, formatShort, toLocalDate, tzOffsetMin, type LocalDate } from '../domain/dates';
 import { applyCeiling, enforceCaps, holdCeiling, programmeWeek, startingLoad, type Change } from '../domain/progression';
 import { itemVisible, possiblyRushed, score, type AnswerValue, type ModuleItem, type QuestionnaireModule } from '../domain/questionnaire';
 import { kindForDue, nextDue, occurrence, shortScreenDue, statusOn, type BundleKind } from '../domain/schedule';
 import { confirmedDrop, personalBest, trend, validLyingLongest, type CheckForTrend, type Measure, type Trend } from '../domain/selfcheck';
 import type { Anatomy, Goal } from '../domain/types';
 import { bundleModules, contentHash } from '../content/en/questionnaires';
+import { HOME } from '../content/en/strings';
 import {
   insertResponse,
   insertScheduledCheck,
@@ -207,6 +209,11 @@ export async function ensureSchedule(db: SqlDb, today: LocalDate): Promise<void>
     while (addDays(due, 14) < today) due = addDays(due, 28);
     await create(due);
   }
+}
+
+/** W2: "First check: opens Sat 24 Oct, due Tue 27 Oct", the same line on every screen that names the next check. */
+export function checkLine(w: CheckWindow): string {
+  return HOME.checkLine(w.first, formatShort(w.opensOn), formatShort(w.dueOn));
 }
 
 export interface CheckDue {
