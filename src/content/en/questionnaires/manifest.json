@@ -8,5 +8,10 @@
     "moduleId": "app_monthly_sexual",
     "version": 1,
     "contentHash": "f8ad6651f67c0974b2c67ce5306af13ec41e531a8884746097d4e04eecce76ab"
+  },
+  {
+    "moduleId": "app_symptom_checkin",
+    "version": 1,
+    "contentHash": "5c15fb5a4a83702197e911bac19f16c9e042151698b110e899a5743b4f3b0c1e"
   }
 ]

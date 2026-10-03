@@ -96,14 +96,13 @@ export function holdCeiling(validLyingLongest: readonly number[]): number {
   return clamp(Math.floor(Math.max(...lastTwo)) + 2, LIMITS.holdMin, LIMITS.holdMax);
 }
 
-/** Apply a new ceiling; lowers H at once if it's above (PRG-013). Never raises H (PRG-014). */
+/**
+ * Apply a new ceiling (PRG-013 as changed 2026-10-03, R3). H is never lowered: an H above the ceiling stays where it is and
+ * is only not raised again until the ceiling is above it (PRG-034: the level never drops automatically). Never raises H
+ * (PRG-014). `change` is always null now; it stays in the result for the callers that record changes.
+ */
 export function applyCeiling(p: Prescription, ceiling: number): { next: Prescription; change: Change | null } {
-  const next = { ...p, holdCeiling: ceiling };
-  if (p.holdS > ceiling) {
-    next.holdS = Math.max(LIMITS.holdMin, ceiling);
-    return { next, change: { variable: 'hold_s', before: p.holdS, after: next.holdS } };
-  }
-  return { next, change: null };
+  return { next: { ...p, holdCeiling: ceiling }, change: null };
 }
 
 export const ROTATION: Category[] = ['strength', 'endurance', 'strength', 'position'];
@@ -177,6 +176,8 @@ export interface WeekEvidence {
   painReported: boolean;
   couldNotRelease: boolean;
   regressionHold: boolean;
+  /** PRG-004 condition 5 (2026-10-03): a symptom check-in is open with a "worse" answer (PRG-035). */
+  checkinWorse?: boolean;
 }
 
 export interface Qualification {
@@ -185,10 +186,13 @@ export interface Qualification {
   failedOnlyOnSessions: boolean;
 }
 
-/** PRG-004. */
+/**
+ * PRG-004. Session feel (LOG-011) is not a condition (2026-10-03, R1): self-rated squeeze strength is not valid for this
+ * (progression-l2a.md part 2).
+ */
 export function weekQualifies(w: WeekEvidence, minSessionsPerDay = 2): Qualification {
   const sessionsOk = w.days.filter((d) => d.completeSessions >= minSessionsPerDay).length >= 5;
-  const othersOk = !w.painReported && !w.couldNotRelease && !w.regressionHold;
+  const othersOk = !w.painReported && !w.couldNotRelease && !w.regressionHold && !w.checkinWorse;
   return { qualifies: sessionsOk && othersOk, failedOnlyOnSessions: !sessionsOk && othersOk };
 }
 
@@ -352,9 +356,14 @@ export function maintenanceDue(opts: {
   return true;
 }
 
-/** PRG-022: maintenance change after the monthly self-check. */
-export function maintenanceQualifies(opts: { weeksTargetMet: boolean[]; painReported: boolean; daysSinceLastChange: number | null }): boolean {
-  if (opts.painReported) return false;
+/** PRG-022: maintenance change after the monthly self-check. A "worse" check-in holds it too (PRG-035). */
+export function maintenanceQualifies(opts: {
+  weeksTargetMet: boolean[];
+  painReported: boolean;
+  daysSinceLastChange: number | null;
+  checkinWorse?: boolean;
+}): boolean {
+  if (opts.painReported || opts.checkinWorse) return false;
   if (opts.daysSinceLastChange != null && opts.daysSinceLastChange < 28) return false;
   return opts.weeksTargetMet.slice(-4).filter(Boolean).length >= 3;
 }
@@ -368,13 +377,16 @@ export function extraSessionAllowed(): boolean {
   return true;
 }
 
-/** PRG-040: clamp any prescription into the hard caps (used on import and after every rule). */
+/**
+ * PRG-040: clamp any prescription into the hard caps (used on import and after every rule). The hold ceiling is not a hard
+ * cap: it only stops H rising (PRG-013 as changed 2026-10-03), so H is not clamped to it here (PRG-034).
+ */
 export function enforceCaps(p: Prescription): Prescription {
   const holdCeiling = clamp(p.holdCeiling, LIMITS.holdMin, LIMITS.holdMax);
   return {
     ...p,
     holdCeiling,
-    holdS: clamp(Math.min(p.holdS, Math.max(LIMITS.holdMin, holdCeiling)), LIMITS.holdMin, LIMITS.holdMax),
+    holdS: clamp(p.holdS, LIMITS.holdMin, LIMITS.holdMax),
     holdReps: clamp(p.holdReps, LIMITS.repsMin, LIMITS.repsMax),
     flickReps: LIMITS.flicks,
     enduranceHoldS: clamp(p.enduranceHoldS, LIMITS.enduranceMin, LIMITS.enduranceMax),

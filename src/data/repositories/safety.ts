@@ -110,9 +110,13 @@ export interface SafetyFlagRow {
   response: 'dismissed' | 'will_book' | 'already_seen' | null;
 }
 
-export async function raiseFlag(db: SqlDb, flagKey: string, opts: { signalKey?: string | null; sourceRef?: string | null } = {}): Promise<string> {
+export async function raiseFlag(
+  db: SqlDb,
+  flagKey: string,
+  opts: { signalKey?: string | null; sourceRef?: string | null; raisedAt?: string } = {}
+): Promise<string> {
   const id = uuid();
-  await insert(db, 'safety_flag', { id, flag_key: flagKey, signal_key: opts.signalKey ?? null, raised_at: nowIso(), source_ref: opts.sourceRef ?? null });
+  await insert(db, 'safety_flag', { id, flag_key: flagKey, signal_key: opts.signalKey ?? null, raised_at: opts.raisedAt ?? nowIso(), source_ref: opts.sourceRef ?? null });
   return id;
 }
 

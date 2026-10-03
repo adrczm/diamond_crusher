@@ -1,7 +1,7 @@
 // Monthly self-check, the check schedule (bundles) and questionnaire answers (06a, 06b, 04 PRG-013, PRG-031).
 import { addDays, diffDays, toLocalDate, tzOffsetMin, type LocalDate } from '../domain/dates';
 import { applyCeiling, enforceCaps, holdCeiling, programmeWeek, startingLoad, type Change } from '../domain/progression';
-import { itemVisible, possiblyRushed, score, type AnswerValue, type QuestionnaireModule } from '../domain/questionnaire';
+import { itemVisible, possiblyRushed, score, type AnswerValue, type ModuleItem, type QuestionnaireModule } from '../domain/questionnaire';
 import { kindForDue, nextDue, occurrence, shortScreenDue, statusOn, type BundleKind } from '../domain/schedule';
 import { confirmedDrop, personalBest, trend, validLyingLongest, type CheckForTrend, type Measure, type Trend } from '../domain/selfcheck';
 import type { Anatomy, Goal } from '../domain/types';
@@ -244,9 +244,17 @@ export async function saveQuestionnaire(
   db: SqlDb,
   m: QuestionnaireModule,
   answers: Record<string, AnswerValue>,
-  opts: { startedAt: Date; scheduledCheckId: string | null; context: 'baseline' | 'monthly' | 'quarterly' | 'ad_hoc'; consistencyAction?: 'kept' | 'reviewed' | null }
+  opts: {
+    startedAt: Date;
+    scheduledCheckId: string | null;
+    context: 'baseline' | 'monthly' | 'quarterly' | 'ad_hoc';
+    consistencyAction?: 'kept' | 'reviewed' | null;
+    now?: Date;
+    /** The items that were asked (an app-own item can apply to one profile only); all items when absent. */
+    items?: readonly ModuleItem[];
+  }
 ): Promise<string> {
-  const now = new Date();
+  const now = opts.now ?? new Date();
   const res = score(m, answers);
   const durationS = Math.round((now.getTime() - opts.startedAt.getTime()) / 1000);
   const flags = possiblyRushed(durationS) ? ['possibly_rushed'] : [];
@@ -268,7 +276,7 @@ export async function saveQuestionnaire(
       flags,
       consistency_note_action: opts.consistencyAction ?? null,
     },
-    m.items
+    (opts.items ?? m.items)
       .filter((i) => itemVisible(i, answers))
       .map((i) => {
         const v = answers[i.itemId];

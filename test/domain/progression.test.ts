@@ -65,9 +65,12 @@ describe('progression (spec 04)', () => {
     expect(p).toMatchObject({ holdS: 10, holdReps: 10, flickReps: 10, enduranceHoldS: 10 });
   });
 
-  it('lowers the hold to the ceiling but never raises it (PRG-013, PRG-014)', () => {
+  it('no longer lowers the hold to the ceiling, and never raises it (PRG-013 as changed 2026-10-03, PRG-014, PRG-034)', () => {
     const p = { ...INITIAL_PRESCRIPTION, holdS: 8 };
-    expect(applyCeiling(p, holdCeiling([4, 3])).next.holdS).toBe(6);
+    const r = applyCeiling(p, holdCeiling([4, 3]));
+    expect(r.next.holdS).toBe(8);
+    expect(r.next.holdCeiling).toBe(6);
+    expect(r.change).toBeNull();
     expect(applyCeiling({ ...p, holdS: 3 }, 10).next.holdS).toBe(3);
     expect(holdCeiling([])).toBe(5);
     expect(holdCeiling([20, 25])).toBe(10);

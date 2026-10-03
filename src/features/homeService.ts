@@ -38,6 +38,7 @@ import type { SqlDb } from '../data/sql';
 import type { Goal } from '../domain/types';
 import type { WeeklySummaryRow } from '../data/repositories/misc';
 import { currentCheck, ensureSchedule, forTrend, safetyRecheckDue, type CheckDue } from './checkService';
+import { checkinHome, refreshCheckin, type CheckinHome } from './checkinService';
 import { ensureCautionFlags, healthNoteState, type HealthNoteState } from './safetyService';
 import { ensureLastWeekSummary } from './summaryService';
 import { loadOf, pendingGap, planToday, toDay, type PendingGap, type TodayPlan } from './trainingService';
@@ -94,12 +95,14 @@ export interface HomeModel {
   levelUp: string | null;
   /** Hold length now, for the level name before the first step ("3 s holds", HE-09). */
   holdS: number;
+  /** Symptom check-in offers, the progression hold and the firmer card (06c PFB-048, 04 PRG-035, 01 ONB-034). */
+  checkin: CheckinHome;
 }
 
 export type SetupKey = 'plan' | 'expect' | 'lock';
 
 /** Everything Today can suggest. `safety` comes first and has no "Not now". */
-export type SuggestionKey = 'safety' | 'check' | 'review' | 'technique' | 'baseline' | 'summary' | SetupKey | 'backup';
+export type SuggestionKey = 'safety' | 'checkin' | 'check' | 'review' | 'technique' | 'baseline' | 'summary' | SetupKey | 'backup';
 
 /** At most this many suggestions show; the rest wait behind one "Show more" button (decision 6). */
 export const SUGGESTION_CAP = 2;
@@ -350,6 +353,8 @@ export async function seeLevelUp(db: SqlDb): Promise<void> {
  */
 export function suggestionQueue(input: {
   safety: boolean;
+  /** PFB-048: a symptom check-in is offered. It starts with the urgent and pain questions, so it comes next. */
+  checkin?: boolean;
   check: 'check' | 'review' | null;
   technique: boolean;
   baseline: boolean;
@@ -360,6 +365,7 @@ export function suggestionQueue(input: {
 }): SuggestionKey[] {
   const out: SuggestionKey[] = [];
   if (input.safety) out.push('safety');
+  if (input.checkin) out.push('checkin');
   if (input.check) out.push(input.check);
   if (input.technique) out.push('technique');
   if (input.baseline) out.push('baseline');
@@ -393,13 +399,16 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
     getMeta(db),
   ]);
   const today = await planToday(db, now);
-  const [allSessions, slots, seen, reminders, milestones, flags] = await Promise.all([
+  // PFB-041, PFB-042, PFB-048, PRG-035: new signal cards and check-in offers, before the flags are read.
+  await refreshCheckin(db, now).catch((e) => console.warn('checkin', e));
+  const [allSessions, slots, seen, reminders, milestones, flags, checkin] = await Promise.all([
     listSessions(db),
     listSlots(db),
     seenContent(db),
     listReminders(db),
     listMilestones(db),
     ensureCautionFlags(db),
+    checkinHome(db, now),
   ]);
   const strength = allSessions.filter((s) => s.template_key === 'strength');
   const trainingDates = strength.filter((s) => s.counts_toward_day).map((s) => s.local_date);
@@ -441,6 +450,7 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
   );
   const suggestions = suggestionQueue({
     safety: safetyRecheck && safety.mode !== 'blocked_urgent',
+    checkin: checkin.offers.length > 0 && !isBlocked(safety.mode),
     check: check?.open ? (check.row.kind === 'quarterly_review' ? 'review' : 'check') : null,
     technique: techniqueCheck,
     baseline: baselineOffer,
@@ -505,5 +515,6 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
     hero: todayHero(settings),
     levelUp,
     holdS: programme.hold_s,
+    checkin,
   };
 }

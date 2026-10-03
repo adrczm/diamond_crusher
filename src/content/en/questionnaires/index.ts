@@ -7,9 +7,17 @@ import { canonicalContent, moduleAllowed, type QuestionnaireModule } from '../..
 import type { Anatomy, Goal } from '../../../domain/types';
 import globalChange from './app_global_change.v1.json';
 import monthlySexual from './app_monthly_sexual.v1.json';
+import symptomCheckin from './app_symptom_checkin.v1.json';
 import manifest from './manifest.json';
 
-export const MODULES: QuestionnaireModule[] = [monthlySexual as QuestionnaireModule, globalChange as QuestionnaireModule];
+/** 06c PFB-048: the symptom check-in. Offered on its own (never in a bundle), so it is not in GOAL_MAPPING. */
+export const CHECKIN_MODULE_ID = 'app_symptom_checkin';
+
+export const MODULES: QuestionnaireModule[] = [
+  monthlySexual as QuestionnaireModule,
+  globalChange as QuestionnaireModule,
+  symptomCheckin as QuestionnaireModule,
+];
 
 export function contentHash(m: QuestionnaireModule): string {
   return bytesToHex(sha256(utf8ToBytes(canonicalContent(m))));

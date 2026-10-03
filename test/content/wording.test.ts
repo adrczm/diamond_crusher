@@ -2,6 +2,7 @@
 // research/ux-writing/style-guide.md sections a, b and e).
 import * as fs from 'fs';
 import * as path from 'path';
+import * as checkin from '../../src/content/en/checkin';
 import * as education from '../../src/content/en/education';
 import * as exercise from '../../src/content/en/exercise';
 import * as items from '../../src/content/en/items';
@@ -55,7 +56,7 @@ function fileLiterals(file: string): string[] {
 const root = path.join(__dirname, '../..');
 const nonEvidence = { ...education, EDUCATION: education.EDUCATION.filter((e) => e.id !== 'ED-11') };
 const catalogue = [
-  ...collect([nonEvidence, exercise, items, learn, screening, strings]),
+  ...collect([nonEvidence, exercise, items, learn, screening, strings, checkin]),
   ...literals(path.join(root, 'app')),
   ...literals(path.join(root, 'src/features')),
   ...literals(path.join(root, 'src/ui')),
@@ -63,7 +64,7 @@ const catalogue = [
 ];
 // Copy from the content catalogue only (no screen source), for the STE checks.
 const content = [
-  ...collect([nonEvidence, exercise, items, learn, screening, strings, SYNC]),
+  ...collect([nonEvidence, exercise, items, learn, screening, strings, SYNC, checkin]),
   ...collect(MODULES.filter((m) => !m.validated).map((m) => m.items)),
   ...fileLiterals(path.join(root, 'src/content/en/web.ts')),
 ];
@@ -157,7 +158,7 @@ describe('wording checks', () => {
   });
 
   it('keeps sentences short (CNT-002)', () => {
-    const long = collect([education.EDUCATION, strings, screening, learn])
+    const long = collect([education.EDUCATION, strings, screening, learn, checkin])
       .flatMap((s) => s.split(/(?<=[.?!])\s+/))
       .filter((sentence) => sentence.split(/\s+/).length > 45);
     expect(long).toEqual([]);
@@ -182,7 +183,7 @@ describe('wording checks', () => {
   });
 
   it('keeps app and sync sentences to 25 words or fewer (STE 6.3)', () => {
-    const long = collect([strings, SYNC])
+    const long = collect([strings, SYNC, checkin])
       .concat(fileLiterals(path.join(root, 'src/content/en/web.ts')))
       .flatMap((s) => s.split(/(?<=[.?!])\s+/))
       .filter((sentence) => sentence.split(/\s+/).length > 25);
@@ -203,6 +204,7 @@ describe('wording checks', () => {
       SYNC.entryButton, SYNC.entryButtonPaired, SYNC.pairShow, SYNC.pairScan, SYNC.pairShowNext, SYNC.match, SYNC.noMatch,
       SYNC.send, SYNC.receive, SYNC.sendEverything, SYNC.unpair, SYNC.sendNext, SYNC.sendDone, SYNC.receivedNext,
       SYNC.cameraAllow, SYNC.cancel, SYNC.back,
+      checkin.CHECKIN.start, checkin.CHECKIN.hold.lighterButton, checkin.CHECKIN.hold.checkAgain, checkin.CHECKIN.suggest.action,
     ];
     const bad = buttons.filter((b) => b.split(/\s+/).length > 3 || /[.!?:;,]$/.test(b));
     expect(bad).toEqual([]);

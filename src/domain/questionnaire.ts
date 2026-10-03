@@ -20,6 +20,13 @@ export interface ModuleItem {
   scale?: { min: number; max: number; minLabel: string; maxLabel: string };
   /** Goals this item applies to (app-own modules only). */
   goals?: string[];
+  /** Profiles this item applies to (app-own modules only); all when absent. */
+  profiles?: string[];
+}
+
+/** Whether an item applies to a profile (`profiles` on app-own items, for example erections for the male profile). */
+export function itemForProfile(item: ModuleItem, anatomy: string): boolean {
+  return !item.profiles || item.profiles.includes(anatomy);
 }
 
 export interface Licence {
