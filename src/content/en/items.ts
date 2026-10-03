@@ -61,7 +61,8 @@ export const SELF_CHECK = {
   signTitle: 'Step 1 of 6: Sign check',
   sign: {
     male: 'Squeeze once and watch in a mirror, or rest your fingertips on the skin behind your scrotum. Did the base of your penis pull back slightly and your scrotum lift (or did you feel a lift under your fingers)?',
-    female: 'Did your back passage and the entrance to your vagina lift up and inwards?',
+    // SX-C.8, SX-C.9: the same signs as the Learn mirror (lying propped) and fingertip checks.
+    female: 'Squeeze once. Watch in a mirror, lying propped up, or rest your fingertips on the skin between your vagina and back passage. Did that skin lift up and in, with no widening or bulge at the entrance?',
     other_unspecified: 'Squeeze once and watch in a mirror, or rest your fingertips on the skin between your genitals and back passage. Did you see or feel a lift in and up?',
   } as Record<Anatomy, string>,
   signOptions: [

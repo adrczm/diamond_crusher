@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, View, useWindowDimensions } from 'react-native';
 import { Text } from '../src/ui/text';
 import { BLOCK_NAME, INTENSITY, RELAX_STEP_TEXT, SESSION, VOICE, voiceBlock } from '../src/content/en/exercise';
-import { REMINDER_CUES, cueText } from '../src/content/en/learn';
+import { REMINDER_CUES, sessionCueText } from '../src/content/en/learn';
 import { PAIN_CHOICE, RELAX_ONLY_HOME } from '../src/content/en/screening';
 import { APP_QUESTION_LABEL, SESSION_LOG } from '../src/content/en/items';
 import { COMMON, DESKTOP, HOME, MILESTONES, NEXT_NAME } from '../src/content/en/strings';
@@ -172,7 +172,7 @@ export default function SessionScreen() {
         audio={data.settings.audio_mode}
         timerView={data.settings.timer_view}
         vibration={data.settings.vibration}
-        cue={cueText(data.profile?.preferred_cue_key ?? null, data.profile?.anatomy ?? 'other_unspecified')}
+        cue={sessionCueText(data.profile?.preferred_cue_key ?? null, data.profile?.anatomy ?? 'other_unspecified')}
         painAsk={stage === 'painAsk'}
         onPain={() => setStage('painAsk')}
         onPainAnswer={() => setStage('running')}

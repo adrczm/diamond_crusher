@@ -8,6 +8,9 @@ import { Text } from '../src/ui/text';
 import { EDUCATION } from '../src/content/en/education';
 import {
   CUES,
+  FEMALE_MIRROR_ANSWERS,
+  INSIDE_ANSWERS,
+  INSIDE_CHECK,
   LEAK_QUESTION,
   LEARN,
   LIFT_ANSWERS,
@@ -18,9 +21,10 @@ import {
   STOP_TEST,
   TOUCH_ANSWERS,
   TOUCH_CHECK,
+  cueKeysFor,
   cueText,
 } from '../src/content/en/learn';
-import { CAUTION_CARD, TODO_BANNER } from '../src/content/en/screening';
+import { CAUTION_CARD } from '../src/content/en/screening';
 import { COMMON } from '../src/content/en/strings';
 import { markContentSeen, seenContent } from '../src/data/repositories/misc';
 import { getProfile } from '../src/data/repositories/profile';
@@ -28,8 +32,11 @@ import { getProgramme } from '../src/data/repositories/programme';
 import { getSafetyState } from '../src/data/repositories/safety';
 import {
   classifyAttempt,
+  insideCheckAllowed,
+  mirrorCheckRequired,
   retryTips,
   sittingShouldEnd,
+  type InsideCheck,
   type LiftAnswer,
   type MirrorCheck,
   type Mistakes,
@@ -39,6 +46,7 @@ import {
 } from '../src/domain/learn';
 import { strengthAllowed } from '../src/domain/safety';
 import { useApp, useLoad } from '../src/features/app';
+import { profileFacts } from '../src/features/safetyService';
 import { markStopTestShown, saveSitting, setPreferredCue, startAnyway, type AttemptRecord } from '../src/features/learnService';
 import { reconcileReminders } from '../src/features/reminderService';
 import { confirmLeave, FlowScreen, leaveFlow } from '../src/features/screens/GuidedFlow';
@@ -84,6 +92,7 @@ export default function Learn() {
     prog: await getProgramme(d),
     safety: await getSafetyState(d),
     seen: await seenContent(d),
+    facts: await profileFacts(d),
   }));
   const [step, setStep] = useState<Step | null>(null);
   const [eduIndex, setEduIndex] = useState(0);
@@ -94,6 +103,9 @@ export default function Learn() {
   const [method, setMethod] = useState<'mirror' | 'touch'>('touch');
   const [mirror, setMirror] = useState<MirrorCheck>('not_done');
   const [touch, setTouch] = useState<TouchCheck>('not_done');
+  const [inside, setInside] = useState<InsideCheck>('not_done');
+  // Female: extra checks under the required mirror check, opened on request.
+  const [extra, setExtra] = useState<{ touch: boolean; inside: boolean }>({ touch: false, inside: false });
   const [release, setRelease] = useState<ReleaseAnswer | undefined>();
   const [releaseAsked, setReleaseAsked] = useState(false);
   const [mistakes, setMistakes] = useState<Mistakes>(EMPTY_MISTAKES);
@@ -117,8 +129,8 @@ export default function Learn() {
     if (!data || step) return;
     const needEdu = !recheck && eduScreens.some((e) => !data.seen.has(e.id));
     setStep(needEdu ? 'edu' : 'intro');
-    const set = CUES[data.profile?.anatomy ?? 'other_unspecified'];
-    const pref = data.profile?.preferred_cue_key ? set.keys.indexOf(data.profile.preferred_cue_key) : -1;
+    const keys = cueKeysFor(data.profile?.anatomy ?? 'other_unspecified', data.facts);
+    const pref = data.profile?.preferred_cue_key ? keys.indexOf(data.profile.preferred_cue_key) : -1;
     if (pref >= 0) setCueIdx(pref);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
@@ -126,10 +138,14 @@ export default function Learn() {
   if (!data || !step) return <Loading error={loadError} onRetry={loadRetry} />;
   const anatomy = data.profile?.anatomy ?? 'other_unspecified';
   const cues = CUES[anatomy];
-  const cueKey = cues.keys[cueIdx % cues.keys.length];
+  const cueKeys = cueKeysFor(anatomy, data.facts);
+  const cueKey = cueKeys[cueIdx % cueKeys.length];
   const touchCheck = TOUCH_CHECK[anatomy];
-  // Without a fingertip check (female set), the hand-mirror check is the lying check.
-  const useTouch = !!touchCheck && method === 'touch';
+  // Female (SX-C.8): the lying mirror check is required; fingertips and the inside check are extra.
+  const female = mirrorCheckRequired(anatomy);
+  const showInside = insideCheckAllowed(anatomy, data.facts);
+  const pregnant = data.facts.pregnant;
+  const useTouch = !female && !!touchCheck && method === 'touch';
   const allowed = strengthAllowed(data.safety.mode);
 
   if (!allowed) {
@@ -145,6 +161,7 @@ export default function Learn() {
     setStartedAt(new Date().toISOString());
     setMirror('not_done');
     setTouch('not_done');
+    setInside('not_done');
     setRelease(undefined);
     setReleaseAsked(false);
     setMistakes(EMPTY_MISTAKES);
@@ -154,12 +171,15 @@ export default function Learn() {
 
   const finishAttempt = async (m: Mistakes) => {
     // LRN-020: the standing mirror check makes this a standing attempt.
-    const standing = !!touchCheck && method === 'mirror' && mirror !== 'not_done';
+    // Female: the mirror check is lying propped, so the attempt stays lying.
+    const standing = !female && !!touchCheck && method === 'mirror' && mirror !== 'not_done';
     const rec: AttemptRecord = {
       startedAt,
       cueKey,
+      anatomy,
       checkMirror: mirror,
       checkTouch: touch,
+      checkInside: female ? inside : undefined,
       feltRelease: release ?? 'unsure',
       mistakes: m,
       position: standing ? 'standing' : 'lying',
@@ -215,7 +235,6 @@ export default function Learn() {
           <P>{recheck ? LEARN.recheckIntro : LEARN.intro}</P>
           {!recheck ? <PelvicFloorDiagram /> : null}
           {!recheck ? <P muted>{LEARN.howItWorks}</P> : null}
-          {cues.todo ? <Banner text={TODO_BANNER} /> : null}
         </>
       );
       footer = <Button label={COMMON.continue} onPress={newAttempt} />;
@@ -225,7 +244,8 @@ export default function Learn() {
       body = (
         <>
           <Label>{attemptLabel}</Label>
-          <H2>{attempts.length === 0 ? LEARN.relax : LEARN.relaxShort}</H2>
+          <H2>{attempts.length === 0 ? (pregnant ? LEARN.relaxPregnant : LEARN.relax) : LEARN.relaxShort}</H2>
+          {pregnant ? <P muted>{LEARN.pregnantDizzy}</P> : null}
           <BigCount seconds={attempts.length === 0 ? 30 : 10} label={LEARN.breatheSlowly} onDone={() => setStep('cue')} />
         </>
       );
@@ -235,14 +255,14 @@ export default function Learn() {
       body = (
         <>
           <Label>{LEARN.cueTitle}</Label>
-          <H1>{cueText(cueKey, anatomy)}</H1>
+          <H1>{cueText(cueKey, anatomy, data.facts)}</H1>
           <PelvicFloorDiagram caption={false} />
         </>
       );
       footer = (
         <>
           <Button label={LEARN.ready} onPress={() => setStep('squeeze')} />
-          {cues.keys.length > 1 ? <Button label={LEARN.anotherCue} kind="quiet" onPress={() => setCueIdx(cueIdx + 1)} /> : null}
+          {cueKeys.length > 1 ? <Button label={LEARN.anotherCue} kind="quiet" onPress={() => setCueIdx(cueIdx + 1)} /> : null}
         </>
       );
       hot = () => setStep('squeeze');
@@ -251,14 +271,50 @@ export default function Learn() {
       body = (
         <>
           <H2>{LEARN.squeeze}</H2>
-          <LiftCircle squeezing seconds={3} label={cueText(cueKey, anatomy)} onDone={() => setStep('check')} />
+          <LiftCircle squeezing seconds={3} label={cueText(cueKey, anatomy, data.facts)} onDone={() => setStep('check')} />
         </>
       );
       break;
     case 'check': {
       const answered = useTouch ? touch !== 'not_done' : mirror !== 'not_done';
-      body =
-        useTouch && touchCheck ? (
+      body = female ? (
+        <>
+          <H2>{LEARN.mirrorTitleLying}</H2>
+          <P muted>{LEARN.mirrorIntroLying}</P>
+          <P>{MIRROR_CHECK.female.text}</P>
+          <Choice
+            label={MIRROR_CHECK.female.text}
+            options={FEMALE_MIRROR_ANSWERS.map((a) => ({ value: a.value as MirrorCheck, label: a.label }))}
+            value={mirror === 'not_done' ? undefined : mirror}
+            onChange={setMirror}
+          />
+          <P small muted>
+            {MIRROR_CHECK.female.note}
+          </P>
+          {touchCheck && extra.touch ? (
+            <Card>
+              <P>{touchCheck.text}</P>
+              <Choice label={touchCheck.text} options={TOUCH_ANSWERS.map((a) => ({ value: a.value as TouchCheck, label: a.label }))} value={touch === 'not_done' ? undefined : touch} onChange={setTouch} />
+            </Card>
+          ) : touchCheck ? (
+            <Button label={LEARN.alsoFingertips} kind="quiet" onPress={() => setExtra({ ...extra, touch: true })} />
+          ) : null}
+          {showInside && extra.inside ? (
+            <Card>
+              <H2>{LEARN.insideTitle}</H2>
+              <P>{INSIDE_CHECK.text}</P>
+              <Choice
+                label={INSIDE_CHECK.text}
+                options={INSIDE_ANSWERS.map((a) => ({ value: a.value as InsideCheck, label: a.label }))}
+                value={inside === 'not_done' ? undefined : inside}
+                onChange={setInside}
+              />
+            </Card>
+          ) : showInside ? (
+            <Button label={LEARN.addInside} kind="quiet" onPress={() => setExtra({ ...extra, inside: true })} />
+          ) : null}
+        </>
+      ) : useTouch && touchCheck ? (
           <>
             <H2>{LEARN.checkTitle}</H2>
             <P muted>{LEARN.checkLying}</P>
@@ -370,16 +426,17 @@ export default function Learn() {
       if (!result) break;
       const triedLying = true;
       const tips = retryTips(triedLying).map((t) =>
-        t === 'another_cue' ? LEARN.tipAnotherCue : t === 'lie_down' ? LEARN.tipLieDown : t === 'other_check' ? LEARN.tipOtherCheck : LEARN.tipTomorrow,
+        t === 'another_cue' ? LEARN.tipAnotherCue : t === 'lie_down' ? (pregnant ? LEARN.tipLieDownPregnant : LEARN.tipLieDown) : t === 'other_check' ? LEARN.tipOtherCheck : LEARN.tipTomorrow,
       );
       const pass = result.result === 'pass';
       const goHome = () => router.replace('/');
-      const next = pass ? (!recheck && cues.keys.length > 1 ? () => setStep('whichCue') : goNext) : null;
+      const next = pass ? (!recheck && cueKeys.length > 1 ? () => setStep('whichCue') : goNext) : null;
       body = (
         <>
           <H1>{pass ? LEARN.resultPass : result.result === 'push_down' ? LEARN.resultPushDown : LEARN.resultNotSure}</H1>
           <P>{pass ? LEARN.resultPassBody : result.result === 'push_down' ? LEARN.resultPushDownBody : LEARN.resultNotSureBody}</P>
           {!pass ? tips.map((t, i) => <P key={i}>{`• ${t}`}</P>) : null}
+          {female ? <P muted>{LEARN.physioExam}</P> : null}
           {result.raisedQG5 ? (
             <Card tone="warn">
               <P>{CAUTION_CARD['Q-G5']}</P>
@@ -417,7 +474,7 @@ export default function Learn() {
       body = (
         <>
           <H2>{LEARN.whichCue}</H2>
-          <Choice label={LEARN.whichCue} options={cues.keys.map((k) => ({ value: k, label: cues.text[k] }))} value={cueKey} onChange={(k) => setCueIdx(cues.keys.indexOf(k))} />
+          <Choice label={LEARN.whichCue} options={cueKeys.map((k) => ({ value: k, label: cues.text[k] }))} value={cueKey} onChange={(k) => setCueIdx(cueKeys.indexOf(k))} />
         </>
       );
       footer = <Button label={COMMON.continue} onPress={next} />;

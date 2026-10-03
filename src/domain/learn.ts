@@ -1,8 +1,11 @@
 // Learn the squeeze: attempt classification, sitting result and retry rules (spec 02).
-import type { LearnStatus } from './types';
+import type { Anatomy, LearnStatus } from './types';
 
+/** Female mirror check (SX-C.8): yes = lifted in, no = widened or bulged (a push-down sign), unsure. */
 export type MirrorCheck = 'yes' | 'no' | 'unsure' | 'not_done';
 export type TouchCheck = 'lifted' | 'bulged' | 'unsure' | 'not_done';
+/** Optional female inside check (SX-C.10). "pushed" is a push-down sign. */
+export type InsideCheck = 'lifted' | 'pushed' | 'nothing' | 'unsure' | 'not_done';
 export type ReleaseAnswer = 'yes' | 'no' | 'unsure';
 export type LiftAnswer = 'lift' | 'push' | 'unsure';
 
@@ -18,6 +21,10 @@ export interface Mistakes {
 export interface AttemptInput {
   checkMirror: MirrorCheck;
   checkTouch: TouchCheck;
+  /** Female only; absent or not_done elsewhere. */
+  checkInside?: InsideCheck;
+  /** The profile changes what a mirror "No" means: for the female check it is "Widened or bulged". */
+  anatomy?: Anatomy;
   feltRelease: ReleaseAnswer;
   mistakes: Mistakes;
 }
@@ -27,19 +34,47 @@ export interface AttemptClass {
   good: boolean;
 }
 
-/** LRN-021, LRN-022: push-down signs are a "bulged down" fingertip check, "push out", or a leak. */
+/**
+ * LRN-021, LRN-022: push-down signs are a "bulged down" fingertip check, "push out", or a leak. Female (SX-C.8,
+ * SX-C.10): also a mirror "Widened or bulged" and an inside check "Felt a push out".
+ */
 export function hasPushDownSign(a: AttemptInput): boolean {
-  return a.checkTouch === 'bulged' || a.mistakes.lift === 'push' || a.mistakes.leak === true;
+  const femaleMirrorBulge = a.anatomy === 'female' && a.checkMirror === 'no';
+  return (
+    a.checkTouch === 'bulged' || a.checkInside === 'pushed' || femaleMirrorBulge || a.mistakes.lift === 'push' || a.mistakes.leak === true
+  );
 }
 
-/** LRN-023: self-check Yes/Lifted, release Yes, no push-down sign, items 1 to 4 all Yes. */
+/**
+ * LRN-023: self-check Yes/Lifted, release Yes, no push-down sign, items 1 to 4 all Yes. Female pass rule (SX-C.12):
+ * at least one clear lift on the mirror, outside touch or inside check, and no push-down sign.
+ */
 export function classifyAttempt(a: AttemptInput): AttemptClass {
   const pushDownSign = hasPushDownSign(a);
-  const selfCheckOk = a.checkMirror === 'yes' || a.checkTouch === 'lifted';
+  const selfCheckOk = a.checkMirror === 'yes' || a.checkTouch === 'lifted' || a.checkInside === 'lifted';
   const m = a.mistakes;
   const itemsOk = m.breathing === true && m.buttocks === true && m.thighs === true && m.tummy === true;
   const good = selfCheckOk && a.feltRelease === 'yes' && !pushDownSign && itemsOk;
   return { pushDownSign, good };
+}
+
+/** What the inside check reads from profileFacts. */
+export interface InsideCheckFacts {
+  painWithInsertion: boolean;
+  birthWithin6Weeks: boolean;
+}
+
+/** SX-C.10, Adrian SX30 note: the optional inside check is female only, and hidden with pain with sex or tampons
+ * (Q-F3) and in the first 6 weeks after birth. */
+export function insideCheckAllowed(anatomy: Anatomy, facts: InsideCheckFacts | null | undefined): boolean {
+  if (anatomy !== 'female') return false;
+  if (!facts) return false;
+  return !facts.painWithInsertion && !facts.birthWithin6Weeks;
+}
+
+/** Female: the mirror check is lying propped and required on every attempt (SX-C.8). Male and other: optional, standing. */
+export function mirrorCheckRequired(anatomy: Anatomy): boolean {
+  return anatomy === 'female';
 }
 
 export type SittingResult = 'pass' | 'not_sure' | 'push_down';

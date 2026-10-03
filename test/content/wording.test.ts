@@ -139,6 +139,33 @@ describe('wording checks', () => {
     expect(hits).toEqual([]);
   });
 
+  // SX-C.6, summary item 10: "breathe out ... draw in the tummy" made 84% of women push down (Ben Ami and Dar 2018).
+  it('never joins "breathe out" with a tummy, belly or draw-in cue in one cue, fix or tip', () => {
+    const cueStrings = collect([
+      learn.CUES,
+      learn.REMINDER_CUES,
+      learn.MISTAKES,
+      learn.LEARN,
+      learn.MIRROR_CHECK,
+      learn.TOUCH_CHECK,
+      learn.INSIDE_CHECK,
+      exercise.KNACK,
+      exercise.AFTER_PEE,
+      exercise.URGE_CONTROL,
+      exercise.ADD_ONS,
+      exercise.INTENSITY,
+      // RELAX_STEP_TEXT is left out on purpose: its let-go breath softens the belly and asks for no squeeze.
+      exercise.everydaySqueezes('male', { bulge: true, urgency: true }),
+      exercise.everydaySqueezes('female', { bulge: true, urgency: true }),
+      Object.values(learn.CUES).flatMap((c) => Object.keys(c.text).map((k) => learn.sessionCueText(k, 'male'))),
+    ]);
+    expect(cueStrings.length).toBeGreaterThan(30);
+    const joined = cueStrings.filter((s) => /breathe\s+out/i.test(s) && /\b(tummy|belly|draw(s)?\s+in)\b/i.test(s));
+    expect(joined).toEqual([]);
+    // The check itself catches the pairing.
+    expect(/breathe\s+out/i.test('Breathe out and draw in your tummy') && /\b(tummy|belly|draw(s)?\s+in)\b/i.test('Breathe out and draw in your tummy')).toBe(true);
+  });
+
   it('keeps notification text discreet (CNT-040, REM-021)', () => {
     const texts = [
       ...reminders.DEFAULT_TEXTS,

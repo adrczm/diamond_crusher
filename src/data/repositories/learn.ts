@@ -1,4 +1,4 @@
-import type { Mistakes, MirrorCheck, SittingResult, TouchCheck } from '../../domain/learn';
+import type { InsideCheck, Mistakes, MirrorCheck, SittingResult, TouchCheck } from '../../domain/learn';
 import { uuid } from '../ids';
 import { bool, fromBool, insert, parseJson, type SqlDb, update } from '../sql';
 
@@ -12,6 +12,8 @@ export interface LearnAttemptRow {
   cue_key: string;
   check_mirror: MirrorCheck;
   check_touch: TouchCheck;
+  /** Schema 4: the optional female inside check (SX-C.10). Null on rows from before schema 4. */
+  check_inside: InsideCheck | null;
   felt_release: 'yes' | 'no' | 'unsure' | null;
   mistakes: Mistakes;
   push_down_sign: boolean;
@@ -31,6 +33,7 @@ export async function insertAttempt(db: SqlDb, a: Omit<LearnAttemptRow, 'id'>): 
     cue_key: a.cue_key,
     check_mirror: a.check_mirror,
     check_touch: a.check_touch,
+    check_inside: a.check_inside,
     felt_release: a.felt_release,
     mistakes: JSON.stringify(a.mistakes),
     push_down_sign: bool(a.push_down_sign),

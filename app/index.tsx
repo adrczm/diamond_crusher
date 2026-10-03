@@ -15,7 +15,7 @@ import { diffDays, isoWeekday, toLocalDate } from '../src/domain/dates';
 import { useApp, useLoad } from '../src/features/app';
 import { loadHome, seeLevelUp, suggestionLater, SUGGESTION_CAP, type HomeModel, type SuggestionKey } from '../src/features/homeService';
 import { reconcileReminders } from '../src/features/reminderService';
-import { answerHealthNote, clear } from '../src/features/safetyService';
+import { answerHealthNote, clear, profileFacts, type ProfileFacts } from '../src/features/safetyService';
 import { outcomeCopy } from '../src/features/screens/ScreeningFlow';
 import { HeroCard, levelNameOf } from '../src/features/screens/TodayHero';
 import { HealthNoteCard, LevelUpCard, SuggestionCard, TipLine } from '../src/features/screens/TodayNotes';
@@ -26,7 +26,11 @@ import { TWO_COLUMNS_MIN, useDesktop } from '../src/ui/layout';
 import { space } from '../src/ui/theme';
 
 export default function Home() {
-  const { data: m, reload: loadRetry, error: loadError } = useLoad((d) => loadHome(d));
+  // Profile facts drive the tip (knack wording, urge control) and the education list (SX4, SX6, SX16).
+  const { data: m, reload: loadRetry, error: loadError } = useLoad(async (d) => {
+    const home = await loadHome(d);
+    return home ? { ...home, facts: await profileFacts(d) } : null;
+  });
   if (!m) return <Loading error={loadError} onRetry={loadRetry} />;
   if (!m.profile.onboarding_completed_at) return <Redirect href="/onboarding" />;
   return (
@@ -37,7 +41,7 @@ export default function Home() {
 }
 
 /** Inside Screen, so the layout follows the page's measured width (Mac decision M1). */
-function TodayBody({ m }: { m: HomeModel }) {
+function TodayBody({ m }: { m: HomeModel & { facts: ProfileFacts } }) {
   const { db, bump } = useApp();
   const desktop = useDesktop();
   const wide = useContentWidth() >= TWO_COLUMNS_MIN;
@@ -188,7 +192,7 @@ function TodayBody({ m }: { m: HomeModel }) {
   // ---- The tip and the link rows. ----
   const tip =
     m.settings.functional_cues_enabled && m.programme.learn_status !== 'not_started' && t.kind !== 'blocked' ? (
-      <TipLine key="tip" anatomy={m.profile.anatomy ?? 'other_unspecified'} day={diffDays('2000-01-01', today)} />
+      <TipLine key="tip" anatomy={m.profile.anatomy ?? 'other_unspecified'} day={diffDays('2000-01-01', today)} facts={m.facts} />
     ) : null;
   const links = (
     <View key="links">
@@ -202,7 +206,7 @@ function TodayBody({ m }: { m: HomeModel }) {
     wide || (desktop && t.kind === 'learn') ? (
       <Card key="library">
         <H2>{DESKTOP.nav.library}</H2>
-        {educationFor(m.profile.anatomy ?? 'other_unspecified')
+        {educationFor(m.profile.anatomy ?? 'other_unspecified', m.facts)
           .slice(0, 3)
           .map((e) => (
             <LinkRow key={e.id} label={e.title} onPress={() => router.push(`/library?id=${e.id}`)} />
