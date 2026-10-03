@@ -175,3 +175,21 @@ describe("women's monthly sexual items (SX27)", () => {
     expect(await ids()).not.toContain('app_monthly_sexual_f');
   });
 });
+
+describe('leak at orgasm item (SX item 23)', () => {
+  const { valuesOf, eventPatch } = require('../../src/features/logEdit');
+  it('stores, reopens and changes the optional answer', async () => {
+    const { insertEvent, listEvents } = require('../../src/data/repositories/events');
+    const db = await freshDb();
+    await insertEvent(db, {
+      type: 'sexual_activity', occurred_at: '2026-03-02T20:00:00.000Z', local_date: '2026-03-02', tz_offset_min: 0, entered_at: '2026-03-02T20:00:00.000Z',
+      leak_situation: null, leak_amount: null, activity_type: 'solo', hardness: null, ejac_time_band: null, ejac_time_min: null,
+      control_0_10: null, bother_0_10: null, item_set_version: 1, orgasm_leak: 'yes',
+    });
+    const row = (await listEvents(db))[0];
+    expect(row.orgasm_leak).toBe('yes');
+    const v = valuesOf({ type: 'event', row });
+    expect(v.orgasmLeak).toBe('yes');
+    expect(eventPatch(row, { ...v, orgasmLeak: 'no' }, false, new Date()).orgasm_leak).toBe('no');
+  });
+});

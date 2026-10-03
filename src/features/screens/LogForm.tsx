@@ -26,6 +26,7 @@ import { Banner, Button, Choice, Field, H2, Label, P, Segments, type PressState,
 import { Text } from '../../ui/text';
 import { radius, space, type, useColors } from '../../ui/theme';
 import { useApp, useLoad } from '../app';
+import { profileFacts } from '../safetyService';
 import { answersChanged, eventPatch, flagPatch, valuesOf, type LogEntry, type LogKind, type LogValues } from '../logEdit';
 import { DayStrip, TimeOfDaySlider } from './WhenPicker';
 
@@ -98,7 +99,7 @@ export interface LogFormParts {
 
 export function useLogForm({ onDone, initialType, editing }: LogFormProps = {}): LogFormParts {
   const { db, bump } = useApp();
-  const { data } = useLoad(async (d) => ({ profile: await getProfile(d), goals: await activeGoals(d) }));
+  const { data } = useLoad(async (d) => ({ profile: await getProfile(d), goals: await activeGoals(d), facts: await profileFacts(d) }));
   const [now, setNow] = useState(() => new Date());
   const [kind, setKind] = useState<LogKind | undefined>(initialType);
   const [day, setDay] = useState(() => defaultDay(new Date()));
@@ -110,6 +111,7 @@ export function useLogForm({ onDone, initialType, editing }: LogFormProps = {}):
   const [band, setBand] = useState<EjacBand | undefined>();
   const [control, setControl] = useState<number | undefined>();
   const [bother, setBother] = useState<number | undefined>();
+  const [orgasmLeak, setOrgasmLeak] = useState<'yes' | 'no' | undefined>();
   const [note, setNote] = useState('');
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -147,6 +149,7 @@ export function useLogForm({ onDone, initialType, editing }: LogFormProps = {}):
     setBand(v.band);
     setControl(v.control);
     setBother(v.bother);
+    setOrgasmLeak(v.orgasmLeak);
     setNote(v.note);
     setTimeTouched(false);
     setSaved(false);
@@ -166,7 +169,7 @@ export function useLogForm({ onDone, initialType, editing }: LogFormProps = {}):
   const male = anatomy === 'male';
   // An old note saved with a kind and no text can keep having no text.
   const canSave = !!kind && (kind !== 'context' || note.trim().length > 0 || (editing?.type === 'flag' && editing.row.kind !== 'other'));
-  const values: LogValues = { kind, day, when, situation, amount, activity, firm, band, control, bother, note };
+  const values: LogValues = { kind, day, when, situation, amount, activity, firm, band, control, bother, orgasmLeak, note };
 
   const reset = () => {
     const n = new Date();
@@ -181,12 +184,13 @@ export function useLogForm({ onDone, initialType, editing }: LogFormProps = {}):
     setBand(undefined);
     setControl(undefined);
     setBother(undefined);
+    setOrgasmLeak(undefined);
     setNote('');
   };
   // Answers typed so far, so Cancel can ask before it throws them away (DS-E9). For an opened entry: answers changed.
   const filled = editing
     ? timeTouched || answersChanged(values, opened.current ?? values)
-    : !!(situation || amount || activity || firm !== undefined || band || control !== undefined || bother !== undefined || note.trim());
+    : !!(situation || amount || activity || firm !== undefined || band || control !== undefined || bother !== undefined || orgasmLeak || note.trim());
   const cancel = () => {
     const done = () => {
       reset();
@@ -229,6 +233,7 @@ export function useLogForm({ onDone, initialType, editing }: LogFormProps = {}):
         ejac_time_band: band ?? null,
         control_0_10: control ?? null,
         bother_0_10: bother ?? null,
+        orgasm_leak: orgasmLeak ?? null,
       });
     // EVT-033 (round 2): free text only, stored as kind `other`, on the picked day.
     if (kind === 'context' && note.trim()) await insertContextFlag(db, { kind: 'other', from_date: day, to_date: null, note: note.trim().slice(0, EVENTS.noteMax) });
@@ -387,6 +392,12 @@ export function useLogForm({ onDone, initialType, editing }: LogFormProps = {}):
               <H2>{EVENTS.bother}</H2>
               <Segments label={EVENTS.bother} options={scale} value={bother} onChange={setBother} />
               <P small muted>{`0 = ${EVENTS.botherEnds[0]}, 10 = ${EVENTS.botherEnds[1]}`}</P>
+            </>
+          ) : null}
+          {male && data?.facts.prostateTreatment ? (
+            <>
+              <H2>{EVENTS.orgasmLeak}</H2>
+              <Segments label={EVENTS.orgasmLeak} options={EVENTS.orgasmLeakOptions.map((o) => ({ value: o.value as 'yes' | 'no', label: o.label }))} value={orgasmLeak} onChange={setOrgasmLeak} />
             </>
           ) : null}
         </>

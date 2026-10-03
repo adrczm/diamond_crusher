@@ -226,6 +226,12 @@ export const EVENTS = {
   controlEnds: ['No control at all', 'Complete control'],
   bother: 'How much did the timing bother you this time?',
   botherEnds: ['Not at all', 'Very much'],
+  // SX item 23: an optional item for men after prostate treatment (leaking at orgasm, SX-E.19).
+  orgasmLeak: 'Did you leak pee at orgasm?',
+  orgasmLeakOptions: [
+    { value: 'no', label: 'No' },
+    { value: 'yes', label: 'Yes' },
+  ],
   saved: 'Saved',
   /** Kinds of notes saved before round 2 (EVT-033 v1). New notes are kind `other` with free text only. */
   contextKinds: EVENTS_KINDS,

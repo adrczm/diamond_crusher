@@ -24,6 +24,8 @@ export interface EventRow {
   item_set_version: number;
   /** DATA-090 (schema 3): the part of the day picked on the slider; null = the exact time "now" (or an entry from before round 2). */
   occurred_period: Period | null;
+  /** Schema 4: leaking at orgasm, an optional item after prostate treatment (SX item 23). */
+  orgasm_leak?: 'yes' | 'no' | null;
 }
 
 export async function insertEvent(db: SqlDb, e: Omit<EventRow, 'id' | 'occurred_period'> & { occurred_period?: Period | null }): Promise<string> {

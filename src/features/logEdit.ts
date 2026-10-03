@@ -22,6 +22,7 @@ export interface LogValues {
   band: EjacBand | undefined;
   control: number | undefined;
   bother: number | undefined;
+  orgasmLeak?: 'yes' | 'no' | undefined;
   note: string;
 }
 
@@ -43,6 +44,7 @@ export function valuesOf(e: LogEntry): LogValues {
     band: r.ejac_time_band ?? undefined,
     control: r.control_0_10 ?? undefined,
     bother: r.bother_0_10 ?? undefined,
+    orgasmLeak: r.orgasm_leak ?? undefined,
     note: '',
   };
 }
@@ -70,6 +72,7 @@ export function eventPatch(row: EventRow, v: LogValues, timeChanged: boolean, no
     ...(v.band !== (row.ejac_time_band ?? undefined) ? { ejac_time_min: null } : {}),
     control_0_10: v.control ?? null,
     bother_0_10: v.bother ?? null,
+    orgasm_leak: v.orgasmLeak ?? null,
   };
 }
 
