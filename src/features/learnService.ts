@@ -68,6 +68,7 @@ export async function saveSitting(
         cue_key: a.cueKey,
         check_mirror: a.checkMirror,
         check_touch: a.checkTouch,
+        check_inside: a.checkInside ?? (a.anatomy === 'female' ? 'not_done' : null),
         felt_release: a.feltRelease,
         mistakes: a.mistakes,
         push_down_sign: classes[i].pushDownSign,

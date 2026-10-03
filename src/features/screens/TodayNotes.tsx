@@ -2,7 +2,7 @@
 // level-up card (MOT-032) and the everyday-squeeze tip on the page background.
 import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
-import { everydaySqueezes } from '../../content/en/exercise';
+import { everydaySqueezes, type EverydayFacts } from '../../content/en/exercise';
 import { cautionCardText } from '../../content/en/screening';
 import { COMMON, HOME } from '../../content/en/strings';
 import type { FlagResponse } from '../../data/repositories/safety';
@@ -101,9 +101,9 @@ export function LevelUpCard({ name, onSeen }: { name: string; onSeen: () => void
 }
 
 /** Everyday squeezes as one line on the page, no card: the knack or the after-pee squeeze, a different one each day. */
-export function TipLine({ anatomy, day }: { anatomy: Anatomy; day: number }) {
+export function TipLine({ anatomy, day, facts }: { anatomy: Anatomy; day: number; facts?: EverydayFacts | null }) {
   const c = useColors();
-  const tips = everydaySqueezes(anatomy);
+  const tips = everydaySqueezes(anatomy, facts);
   const tip = tips[day % tips.length];
   const split = tip.indexOf(': ');
   const head = split > 0 ? tip.slice(0, split) : '';

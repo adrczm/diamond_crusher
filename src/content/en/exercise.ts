@@ -110,19 +110,40 @@ export const SESSION = {
 export const KNACK = {
   title: 'The knack',
   body: 'Just before you cough, sneeze, laugh or lift something, do a quick, firm squeeze. Hold it through the effort. Then let go.',
+  // SX4: with heaviness or a bulge (Q-F1), also squeeze before you stand up or carry.
+  bodyBulge: 'Just before you cough, sneeze, lift, stand up or carry something, do a quick, firm squeeze. Hold it through the effort. Then let go.',
   practice: 'Practise 3 times: squeeze, pretend to cough, let go.',
   practiceStep: ['Squeeze', 'Cough', 'Let go'],
+  // Summary item 8, SX-E.2, SX-F #6.
+  basisMale: 'Tested mainly in women. In men after prostate surgery, it has not been shown to reduce measured leaks.',
 };
 
 export const AFTER_PEE = {
   title: 'Squeeze after you pee',
   body: 'When you finish peeing, do one firm squeeze to push out the last drops. Then let go fully.',
   note: 'Do this after the flow stops. It does not stop the flow.',
+  // SX-E.16: dribble copy for younger men.
+  dribble: 'A few drops after peeing is common in men. If it comes with a weak stream, straining or frequent peeing, get it checked.',
 };
 
-export function everydaySqueezes(anatomy: Anatomy): string[] {
-  const out = [`${KNACK.title}: ${KNACK.body}`];
+/** Urge control (SX6, SX-B.12, Burgio): untimed like the knack (ENG-042), for anyone who reports urgency. */
+export const URGE_CONTROL = {
+  title: 'When a sudden urge comes',
+  body: 'Stop, stay still, squeeze several times, relax, wait for the urge to pass, then walk calmly.',
+  note: 'This may help the urge pass.',
+};
+
+/** The facts everyday squeezes read (from profileFacts). */
+export interface EverydayFacts {
+  bulge?: boolean;
+  urgency?: boolean;
+}
+
+export function everydaySqueezes(anatomy: Anatomy, facts?: EverydayFacts | null): string[] {
+  const knack = anatomy === 'female' && facts?.bulge ? KNACK.bodyBulge : KNACK.body;
+  const out = [`${KNACK.title}: ${knack}`];
   if (anatomy === 'male') out.push(`${AFTER_PEE.title}: ${AFTER_PEE.body} ${AFTER_PEE.note}`);
+  if (facts?.urgency) out.push(`${URGE_CONTROL.title}: ${URGE_CONTROL.body} ${URGE_CONTROL.note}`);
   return out;
 }
 
@@ -148,6 +169,21 @@ export const ADD_ONS: AddOn[] = [
     items: ['Use the knack before you cough, sneeze or lift.'],
     profiles: ['female'],
     findingIds: ['B1.5', 'B2.3'],
+  },
+  // ENG-054, SX-C.17, SX-C.21: no in-sex add-on for women. The knack only.
+  {
+    goal: 'pregnancy_birth',
+    title: 'For pregnancy and after birth',
+    items: ['Use the knack before you cough, sneeze or lift.'],
+    profiles: ['female'],
+    findingIds: ['SX-C.15', 'B2.3'],
+  },
+  {
+    goal: 'sexual_function',
+    title: 'For sexual function',
+    items: ['Use the knack before you cough, sneeze or lift.'],
+    profiles: ['female'],
+    findingIds: ['SX-C.17', 'SX-C.21'],
   },
   {
     goal: 'erection',

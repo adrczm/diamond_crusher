@@ -201,7 +201,7 @@ function TodayBody({ m }: { m: HomeModel }) {
   // ---- The tip and the link rows. ----
   const tip =
     m.settings.functional_cues_enabled && m.programme.learn_status !== 'not_started' && t.kind !== 'blocked' ? (
-      <TipLine key="tip" anatomy={m.profile.anatomy ?? 'other_unspecified'} day={diffDays('2000-01-01', today)} />
+      <TipLine key="tip" anatomy={m.profile.anatomy ?? 'other_unspecified'} day={diffDays('2000-01-01', today)} facts={m.facts} />
     ) : null;
   const links = (
     <View key="links">
@@ -215,7 +215,7 @@ function TodayBody({ m }: { m: HomeModel }) {
     wide || (desktop && t.kind === 'learn') ? (
       <Card key="library">
         <H2>{DESKTOP.nav.library}</H2>
-        {educationFor(m.profile.anatomy ?? 'other_unspecified')
+        {educationFor(m.profile.anatomy ?? 'other_unspecified', m.facts)
           .slice(0, 3)
           .map((e) => (
             <LinkRow key={e.id} label={e.title} onPress={() => router.push(`/library?id=${e.id}`)} />

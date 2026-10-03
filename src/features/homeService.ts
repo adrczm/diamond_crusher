@@ -39,7 +39,7 @@ import type { Goal } from '../domain/types';
 import type { WeeklySummaryRow } from '../data/repositories/misc';
 import { currentCheck, ensureSchedule, forTrend, safetyRecheckDue, type CheckDue } from './checkService';
 import { checkinHome, refreshCheckin, type CheckinHome } from './checkinService';
-import { ensureCautionFlags, healthNoteState, profileFacts, type HealthNoteState } from './safetyService';
+import { ensureCautionFlags, healthNoteState, profileFacts, type HealthNoteState, type ProfileFacts } from './safetyService';
 import { ensureLastWeekSummary } from './summaryService';
 import { loadOf, pendingGap, planToday, toDay, type PendingGap, type TodayPlan } from './trainingService';
 
@@ -71,6 +71,8 @@ export interface HomeModel {
   maintenanceOffer: boolean;
   /** SX4: a heaviness or bulge answer makes the build 16 weeks, with a get-checked line at the end. */
   longBuild: boolean;
+  /** Life-stage facts from the safety answers (tips, education: SX4, SX6, SX16). */
+  facts: ProfileFacts;
   exportReminder: boolean;
   cautions: QuestionKey[];
   /** Setup cards moved out of onboarding (C2), in the order to show them. */
@@ -506,6 +508,7 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
       buildWeeks: facts.bulge ? 16 : 12,
     }),
     longBuild: facts.bulge,
+    facts,
     exportReminder,
     cautions: safety.reasons.filter((r) => CAUTION.includes(r)),
     setup,
