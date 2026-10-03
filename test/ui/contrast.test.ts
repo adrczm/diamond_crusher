@@ -69,6 +69,14 @@ const PAIRS: [Key | '#FFFFFF', Key, number, string][] = [
   ['celebrate', 'card', LARGE, 'completion ring'],
   ['focus', 'nav', LARGE, 'focus ring in the sidebar'],
   ['celebrate', 'goodSoft', LARGE, 'completion mark'],
+  // Round 2 Today (A1, A3).
+  ['squeeze', 'card', LARGE, 'Today rings: sessions today'],
+  ['inputBorder', 'card', LARGE, 'Today day rings and path: empty parts'],
+  ['text', 'infoSoft', TEXT, 'Today timeline: next session'],
+  ['text', 'goodSoft', TEXT, 'Today timeline: done sessions'],
+  ['muted', 'soft', TEXT, 'Today timeline: later sessions'],
+  ['good', 'card', LARGE, 'Today path stations and good-week pips'],
+  ['inputBorder', 'soft', LARGE, 'Today best tiles: earlier checks'],
 ];
 
 describe.each(Object.entries(palettes))('%s theme', (_, c) => {

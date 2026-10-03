@@ -3,9 +3,9 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert } from '../src/platform/dialog';
 import { GOAL_LABEL, VOICE } from '../src/content/en/exercise';
-import { COMMON, DESKTOP, ONBOARDING, SETTINGS } from '../src/content/en/strings';
+import { COMMON, DESKTOP, HOME, ONBOARDING, SETTINGS } from '../src/content/en/strings';
 import { activeGoals, getProfile, setGoals, updateProfile } from '../src/data/repositories/profile';
-import { getSettings, updateSettings, type Settings } from '../src/data/repositories/settings';
+import { getSettings, setTodayHeroSync, updateSettings, type Settings } from '../src/data/repositories/settings';
 import { setLock, setLockTimeout } from '../src/data/vault';
 import type { AgeBand, Anatomy, AudioMode, Goal } from '../src/domain/types';
 import { useApp, useLoad, withoutRelock } from '../src/features/app';
@@ -161,6 +161,13 @@ export default function SettingsScreen() {
 
       <Section title={SETTINGS.theme} description={DESKTOP.settingsNotes.appearance}>
         <Segments label={SETTINGS.theme} options={SETTINGS.themeOptions.map((o) => ({ value: o.value as Settings['theme'], label: o.label }))} value={s.theme} onChange={(v) => set({ theme: v })} />
+        {/* Round 2 A1: the Today card (Path or Rings) is kept per device unless the person syncs it. */}
+        <ToggleRow
+          label={HOME.heroSync}
+          hint={HOME.heroSyncHint}
+          value={s.today_hero_sync}
+          onChange={(v) => void setTodayHeroSync(db, s, v).then(() => (bump(), reload()))}
+        />
         {isWeb ? (
           <>
             <Label>{SETTINGS.textSize}</Label>

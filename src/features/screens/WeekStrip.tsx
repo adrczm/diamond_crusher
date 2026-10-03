@@ -5,6 +5,9 @@ import { HOME } from '../../content/en/strings';
 import type { WeekDots } from '../../domain/adherence';
 import { formatTime, isoWeekday } from '../../domain/dates';
 import { Dots, P } from '../../ui/kit';
+import { Text } from '../../ui/text';
+import { radius, type, useColors } from '../../ui/theme';
+import { SegRing } from './TodayVisuals';
 
 export function WeekStrip({ week, target }: { week: WeekDots; target: number }) {
   const today = week.days.findIndex((d) => d.isToday);
@@ -23,6 +26,44 @@ export function WeekStrip({ week, target }: { week: WeekDots; target: number }) 
         label={spoken}
       />
       <P>{count}</P>
+    </View>
+  );
+}
+
+/**
+ * Today's week (round 2, A3): one small ring per day that fills per session, with a tick when the day's plan is done.
+ * Today's letter is bold and outlined. No red, no crosses (MOT-003).
+ */
+export function WeekRings({ week, sessions, dose }: { week: WeekDots; sessions: number[]; dose: number }) {
+  const c = useColors();
+  const spoken = week.days
+    .map((d, i) => HOME.daySpoken(HOME.dayNames[isoWeekday(d.date) - 1], sessions[i] ?? 0, dose, d.isToday))
+    .join('. ');
+  return (
+    <View accessible accessibilityLabel={spoken} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+      {week.days.map((d, i) => {
+        const n = sessions[i] ?? 0;
+        return (
+          <View
+            key={d.date}
+            style={{
+              alignItems: 'center',
+              gap: 4,
+              paddingVertical: 4,
+              paddingHorizontal: 2,
+              minWidth: 36,
+              borderRadius: radius.md,
+              borderWidth: d.isToday ? 1.5 : 0,
+              borderColor: c.text,
+            }}
+          >
+            <Text style={[type('body-sm'), { color: d.isToday ? c.text : c.muted, fontWeight: d.isToday ? '700' : '400' }]}>
+              {HOME.dayLetters[isoWeekday(d.date) - 1]}
+            </Text>
+            <SegRing done={n} total={dose} size={28} stroke={4} color={c.good} tick={n >= dose} />
+          </View>
+        );
+      })}
     </View>
   );
 }

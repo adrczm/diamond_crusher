@@ -11,10 +11,20 @@ import {
   type QuestionKey,
   type ScreeningKind,
 } from '../domain/safety';
+import { CAUTION } from '../domain/safety';
 import type { Anatomy, SafetyMode } from '../domain/types';
 import { getProfile } from '../data/repositories/profile';
 import { addLevelChange, getProgramme, updateProgramme } from '../data/repositories/programme';
-import { getSafetyState, insertScreeningRun, raiseFlag, setSafetyState } from '../data/repositories/safety';
+import {
+  getSafetyState,
+  insertScreeningRun,
+  listFlags,
+  raiseFlag,
+  respondFlags,
+  setSafetyState,
+  type FlagResponse,
+  type SafetyFlagRow,
+} from '../data/repositories/safety';
 import { listSessionLogs } from '../data/repositories/sessions';
 import { listSelfChecks } from '../data/repositories/checks';
 import { nowIso, type SqlDb } from '../data/sql';
@@ -63,6 +73,10 @@ export async function completeScreening(
       clearanceAt: input.ticks?.painCleared ? nowIso() : undefined,
       pausedReason: mode === 'relax_only' ? (reasons.includes('Q-P4') ? 'pain_report' : 'screen') : 'none',
     });
+    // ONB-023 (round 2, A2): a caution answer that turns from no to yes starts a new health note on Today.
+    for (const k of reasons.filter((r) => !prev.reasons.includes(r) && CAUTION.includes(r))) {
+      await raiseFlag(db, CAUTION_FLAG, { signalKey: k, sourceRef: runId });
+    }
     if (input.answers['Q-S3'] !== undefined) {
       await updateProgramme(db, { planned_surgery_date: input.answers['Q-S3'] === 'yes' ? input.surgeryDate ?? null : null });
     }
@@ -105,6 +119,7 @@ export async function raiseQG5(db: SqlDb): Promise<void> {
   if (prev.reasons.includes('Q-G5')) return;
   const reasons = [...prev.reasons, 'Q-G5' as QuestionKey];
   await setSafetyState(db, { mode: modeFromReasons(reasons), reasons, runId: prev.set_by_run_id });
+  await raiseFlag(db, CAUTION_FLAG, { signalKey: 'Q-G5' });
 }
 
 export async function clearQG5(db: SqlDb): Promise<void> {
@@ -146,4 +161,86 @@ export async function clear(db: SqlDb, kind: ClearanceKind): Promise<ScreeningRe
 
 export function todayLocal(now = new Date()): string {
   return toLocalDate(now);
+}
+
+// ---------- Health note on Today (ONB-023, ONB-032 as changed by round 2 decision A2, 2026-10-03) ----------
+
+/** safety_flag.flag_key for a caution answer (signal_key = the question, e.g. Q-G1). */
+export const CAUTION_FLAG = 'caution';
+
+/**
+ * Logged-result signals (06c PFB-040 to PFB-042) and the caution card text each one uses. Nothing raises these flags
+ * yet: when the signal checks are built, an open row of one of these keys brings the note back on its own.
+ */
+export const SIGNAL_FLAG_CARD: Record<string, QuestionKey> = {
+  symptom_worsening: 'Q-G1',
+  new_leaks: 'Q-G1',
+  erection_change: 'Q-G2',
+};
+
+export interface HealthNoteState {
+  /** Caution card keys to show, in order, without repeats. */
+  keys: QuestionKey[];
+  /** Open flags that an answer on the card closes. */
+  openIds: string[];
+  /** Active caution reasons with no flag row yet (from before round 2): they count as open. */
+  missing: QuestionKey[];
+  /** The card shows at the top of Today. */
+  show: boolean;
+  /** Every note was answered: Today shows the quiet "1 health note" row instead. */
+  hidden: boolean;
+}
+
+/**
+ * Whether the doctor note shows (A2). It shows while any active caution reason has an open flag (or none at all), or a
+ * logged-result signal is open. An answer closes them all. It comes back only when something changes: a caution
+ * answer turns from no to yes (completeScreening raises a new flag), or a new signal flag is raised. A re-check with
+ * the same "yes" answers raises nothing, so the note stays hidden. Only shown in caution mode, as before.
+ */
+export function healthNoteState(mode: SafetyMode, reasons: readonly QuestionKey[], flags: readonly SafetyFlagRow[]): HealthNoteState {
+  const cautions = mode === 'caution' ? reasons.filter((r) => CAUTION.includes(r)) : [];
+  const openIds: string[] = [];
+  const missing: QuestionKey[] = [];
+  let open = false;
+  for (const r of cautions) {
+    const rows = flags.filter((f) => f.flag_key === CAUTION_FLAG && f.signal_key === r);
+    if (!rows.length) {
+      missing.push(r);
+      open = true;
+    }
+    for (const f of rows) {
+      if (f.dismissed_at) continue;
+      openIds.push(f.id);
+      open = true;
+    }
+  }
+  const signalKeys: QuestionKey[] = [];
+  if (mode === 'normal' || mode === 'caution') {
+    for (const f of flags) {
+      const card = SIGNAL_FLAG_CARD[f.flag_key];
+      if (!card || f.dismissed_at) continue;
+      openIds.push(f.id);
+      signalKeys.push(card);
+      open = true;
+    }
+  }
+  const keys = Array.from(new Set<QuestionKey>([...cautions, ...signalKeys]));
+  return { keys, openIds, missing, show: open && keys.length > 0, hidden: !open && keys.length > 0 };
+}
+
+/** Gives active caution reasons from before round 2 their flag row, so an answer can be stored on it. */
+export async function ensureCautionFlags(db: SqlDb): Promise<SafetyFlagRow[]> {
+  const safety = await getSafetyState(db);
+  const flags = await listFlags(db);
+  const { missing } = healthNoteState(safety.mode, safety.reasons, flags);
+  if (!missing.length) return flags;
+  for (const k of missing) await raiseFlag(db, CAUTION_FLAG, { signalKey: k, sourceRef: safety.set_by_run_id });
+  return listFlags(db);
+}
+
+/** Got it / I will book a check / Already seen someone: hides the note and keeps the answer on each flag (PFB-047). */
+export async function answerHealthNote(db: SqlDb, response: FlagResponse): Promise<void> {
+  const flags = await ensureCautionFlags(db);
+  const safety = await getSafetyState(db);
+  await respondFlags(db, healthNoteState(safety.mode, safety.reasons, flags).openIds, response);
 }

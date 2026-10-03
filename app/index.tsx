@@ -1,35 +1,50 @@
-// Home: today's session, safety state, week dots, and anything due (08 MOT-001 to MOT-004, 01 §6).
+// Today (08 MOT-001 to MOT-004, MOT-031, MOT-032, 01 §6), round 2 (2026-10-03):
+// safety first (decision 6), a heading that says where the day is (D5, HE-08), the level path or rings (A1),
+// one "This week + Today" card (A3), one suggestion queue capped at 2, a one-line tip, and quiet link rows.
+// Below c3 one column in the phone order; at c3 and wider 8 + 4 columns with the level card on the right (M6).
 import { Redirect, router } from 'expo-router';
-import { useState } from 'react';
-import { Platform, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { View } from 'react-native';
 import { Alert } from '../src/platform/dialog';
-import { feedback } from '../src/platform/feedback';
-import { AFTER_PEE, KNACK, SESSION } from '../src/content/en/exercise';
-import { CAUTION_CARD, CLEARANCE, OUTCOME, RELAX_ONLY_HOME } from '../src/content/en/screening';
-import { COMMON, EXPECTATION, HOME, LEVEL_NAME, MAINTENANCE, NEXT_NAME, SETUP, WELCOME_BACK } from '../src/content/en/strings';
-import { formatShort } from '../src/domain/dates';
-import { openSessionOnce, useApp, useLoad } from '../src/features/app';
-import { backupLater, dismissSetup, loadHome, type HomeModel, type SetupKey } from '../src/features/homeService';
-import { SessionContents } from '../src/features/screens/SessionContents';
-import { WeekStrip, whenText } from '../src/features/screens/WeekStrip';
-import { reconcileReminders } from '../src/features/reminderService';
-import { clear } from '../src/features/safetyService';
-import { outcomeCopy } from '../src/features/screens/ScreeningFlow';
-import { applyGapChoice, keepBuilding, switchToMaintenance } from '../src/features/trainingService';
-import { toLocalDate } from '../src/domain/dates';
-import { Button, Card, Columns, H1, H2, Label, LinkRow, Loading, P, Row, Screen } from '../src/ui/kit';
-import { isWeb, useDesktop } from '../src/ui/layout';
-import { DESKTOP } from '../src/content/en/strings';
+import { CLEARANCE, OUTCOME, RELAX_ONLY_HOME } from '../src/content/en/screening';
+import { COMMON, DESKTOP, EXPECTATION, HOME, MAINTENANCE, SETUP, WELCOME_BACK } from '../src/content/en/strings';
 import { educationFor } from '../src/content/en/education';
+import { setTodayHero, type TodayHero } from '../src/data/repositories/settings';
+import type { FlagResponse } from '../src/data/repositories/safety';
+import { diffDays, isoWeekday, toLocalDate } from '../src/domain/dates';
+import { useApp, useLoad } from '../src/features/app';
+import { loadHome, seeLevelUp, suggestionLater, SUGGESTION_CAP, type HomeModel, type SuggestionKey } from '../src/features/homeService';
+import { reconcileReminders } from '../src/features/reminderService';
+import { answerHealthNote, clear } from '../src/features/safetyService';
+import { outcomeCopy } from '../src/features/screens/ScreeningFlow';
+import { HeroCard, levelNameOf } from '../src/features/screens/TodayHero';
+import { HealthNoteCard, LevelUpCard, SuggestionCard, TipLine } from '../src/features/screens/TodayNotes';
+import { TodayPlanCard } from '../src/features/screens/TodayPlan';
+import { applyGapChoice, keepBuilding, switchToMaintenance } from '../src/features/trainingService';
+import { Button, Card, H1, H2, LinkRow, Loading, P, Screen, useContentWidth } from '../src/ui/kit';
+import { TWO_COLUMNS_MIN, useDesktop } from '../src/ui/layout';
+import { space } from '../src/ui/theme';
 
 export default function Home() {
-  const { db, bump } = useApp();
-  const desktop = useDesktop();
   const { data: m, reload: loadRetry, error: loadError } = useLoad((d) => loadHome(d));
-  const [busy, setBusy] = useState(false);
-  const [allPrompts, setAllPrompts] = useState(false);
   if (!m) return <Loading error={loadError} onRetry={loadRetry} />;
   if (!m.profile.onboarding_completed_at) return <Redirect href="/onboarding" />;
+  return (
+    <Screen title={HOME.todayTitle} width="wide">
+      <TodayBody m={m} />
+    </Screen>
+  );
+}
+
+/** Inside Screen, so the layout follows the page's measured width (Mac decision M1). */
+function TodayBody({ m }: { m: HomeModel }) {
+  const { db, bump } = useApp();
+  const desktop = useDesktop();
+  const wide = useContentWidth() >= TWO_COLUMNS_MIN;
+  const [busy, setBusy] = useState(false);
+  const [allSuggestions, setAllSuggestions] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [hero, setHero] = useState<TodayHero>(m.hero);
 
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -46,204 +61,108 @@ export default function Home() {
       { text: COMMON.cancel, style: 'cancel' },
       { text: COMMON.yes, onPress: () => act(() => clear(db, kind)) },
     ]);
+  const pickHero = (v: TodayHero) => {
+    setHero(v);
+    void setTodayHero(db, m.settings, v).catch((e) => console.warn('hero', e));
+  };
+  const answerNote = (r: FlagResponse) => {
+    setNoteOpen(false);
+    void act(() => answerHealthNote(db, r));
+  };
 
   const mode = m.safety.mode;
   const t = m.today;
-  const levelName = m.levelName ? (LEVEL_NAME[m.levelName.variable]?.(m.levelName.after) ?? null) : null;
-  // C2: setup moved out of onboarding, one or two cards at a time. The app lock exists on Android only.
-  const setup = m.setup.filter((k) => k !== 'lock' || Platform.OS === 'android').slice(0, 2);
-  // Decision 6 (2026-09-29): at most two prompts show, safety first; the rest wait behind one button.
-  const prompts = [
-    m.safetyRecheck && mode !== 'blocked_urgent' ? { key: 'safety', text: HOME.shortScreenDue, go: () => router.push('/screening?kind=periodic') } : null,
-    m.check?.open ? { key: 'check', text: m.check.row.kind === 'quarterly_review' ? HOME.reviewReady : HOME.checkReady, go: () => router.push('/check') } : null,
-    m.techniqueCheck ? { key: 'technique', text: HOME.techniqueCheck, go: () => router.push('/learn?mode=recheck') } : null,
-    m.baselineOffer ? { key: 'baseline', text: HOME.baselineOffer, go: () => router.push('/selfcheck?kind=baseline') } : null,
-    m.summary ? { key: 'summary', text: HOME.summaryReady, go: () => router.push('/summary') } : null,
-  ].filter((x): x is { key: string; text: string; go: () => void } => !!x);
-  const openSetup = (k: SetupKey) => {
-    if (k === 'plan') router.push('/reminders');
-    else if (k === 'lock') router.push('/settings');
-    else {
-      void act(() => dismissSetup(db, 'expect'));
-      router.push('/library?id=ED-07');
-    }
-  };
+  const today = toLocalDate(new Date());
+  const note = m.healthNote;
+  const showsProgress = t.kind === 'strength' || t.kind === 'day_done' || t.kind === 'relax';
 
-  return (
-    <Screen title={HOME.todayTitle} width="wide">
-      <Row>
-        <View style={{ flex: 1 }}>
-          {desktop ? <P muted>{new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</P> : null}
-          <H1>{HOME.greeting(m.profile.nickname)}</H1>
-          {t.kind !== 'learn' && t.kind !== 'blocked' ? <P muted>{HOME.level(m.level, levelName, m.levelMax)}</P> : null}
-        </View>
-      </Row>
+  // ---- Safety first (decision 6): stops, relax only, and the doctor note. ----
+  const safety: ReactNode[] = [];
+  if (mode === 'blocked_urgent' || mode === 'blocked_until_cleared') {
+    safety.push(
+      <Card key="blocked" tone="warn">
+        <P>{outcomeCopy(mode, m.safety.reasons).body}</P>
+        {mode === 'blocked_urgent' ? (
+          <Button label={CLEARANCE.clearedButton} kind="secondary" onPress={() => confirmClear('urgent', CLEARANCE.urgentTick)} busy={busy} />
+        ) : (
+          <Button label={CLEARANCE.clearedButton} kind="secondary" onPress={() => confirmClear('surgery', CLEARANCE.preSurgeryHome)} busy={busy} />
+        )}
+      </Card>
+    );
+  }
+  if (mode === 'relax_only') {
+    safety.push(
+      <Card key="relax" tone="warn">
+        <H2>{OUTCOME.relax_only.title}</H2>
+        <P>{RELAX_ONLY_HOME}</P>
+        <Button label={CLEARANCE.clearedButton} kind="secondary" onPress={() => confirmClear('pain', CLEARANCE.painTick)} busy={busy} />
+      </Card>
+    );
+  }
+  // A2: the note shows until it is answered, and comes back only when answers or logged results change.
+  if (note.show) safety.push(<HealthNoteCard key="note" keys={note.keys} onAnswer={answerNote} busy={busy} />);
 
-      <Columns ratio={[3, 2]}>
-        <>
-          {mode === 'blocked_urgent' || mode === 'blocked_until_cleared' ? (
-            <Card tone="warn">
-              <H2>{HOME.blocked}</H2>
-              <P>{outcomeCopy(mode, m.safety.reasons).body}</P>
-              {mode === 'blocked_urgent' ? (
-                <Button label={CLEARANCE.clearedButton} kind="secondary" onPress={() => confirmClear('urgent', CLEARANCE.urgentTick)} busy={busy} />
-              ) : (
-                <Button label={CLEARANCE.clearedButton} kind="secondary" onPress={() => confirmClear('surgery', CLEARANCE.preSurgeryHome)} busy={busy} />
-              )}
-            </Card>
-          ) : null}
-
-          {mode === 'relax_only' ? (
-            <Card tone="warn">
-              <H2>{OUTCOME.relax_only.title}</H2>
-              <P>{RELAX_ONLY_HOME}</P>
-              <Button label={CLEARANCE.clearedButton} kind="secondary" onPress={() => confirmClear('pain', CLEARANCE.painTick)} busy={busy} />
-            </Card>
-          ) : null}
-
-          {/* Decision 6 (2026-09-29): safety cautions come first, above the session and any prompts. */}
-          {m.cautions.length && mode === 'caution' ? (
-            <Card tone="warn">
-              {m.cautions.map((k) => (
-                <P key={k}>{CAUTION_CARD[k]}</P>
-              ))}
-            </Card>
-          ) : null}
-
-          {m.gap && t.kind !== 'blocked' ? (
-            <Card tone="soft">
-              <H2>{WELCOME_BACK.title}</H2>
-              <P>{WELCOME_BACK.body}</P>
-              <Button label={WELCOME_BACK.easier} onPress={() => act(() => applyGapChoice(db, toLocalDate(new Date()), false))} busy={busy} />
-              <Button label={WELCOME_BACK.pickUp} kind="quiet" onPress={() => act(() => applyGapChoice(db, toLocalDate(new Date()), true))} disabled={busy} />
-              {m.gap.band === 'long' ? (
-                <P small muted>
-                  {WELCOME_BACK.reviewPlan}
-                </P>
-              ) : null}
-            </Card>
-          ) : null}
-
-          {!m.gap ? <TodayCard m={m} /> : null}
-
-          {m.maintenanceOffer ? (
-            <Card tone="soft">
-              <H2>{MAINTENANCE.offerTitle}</H2>
-              <P>{MAINTENANCE.offerBody}</P>
-              <Button label={MAINTENANCE.switch} onPress={() => act(() => switchToMaintenance(db))} busy={busy} />
-              <Button label={MAINTENANCE.keepBuilding} kind="quiet" onPress={() => act(() => keepBuilding(db))} disabled={busy} />
-            </Card>
-          ) : null}
-
-          {setup.map((k) => (
-            <SetupCard key={k} k={k} onOpen={() => openSetup(k)} onDismiss={() => act(() => dismissSetup(db, k))} busy={busy} />
-          ))}
-
-          {prompts.slice(0, allPrompts ? prompts.length : 2).map((p) => (
-            <Prompt key={p.key} text={p.text} onPress={p.go} />
-          ))}
-          {!allPrompts && prompts.length > 2 ? <Button label={HOME.morePrompts(prompts.length - 2)} kind="quiet" onPress={() => setAllPrompts(true)} /> : null}
-        </>
-        <>
-          {t.kind !== 'learn' && t.kind !== 'blocked' ? (
-            <Card>
-              <Label>{HOME.weekTitle}</Label>
-              <WeekStrip week={m.week} target={m.weekTarget} />
-              {m.next ? <P muted>{nextLine(m)}</P> : null}
-              {m.next && m.next !== 'top' && m.weeksToNext != null ? (
-                <P small muted>
-                  {HOME.goodWeek(m.goodDaySessions)}
-                </P>
-              ) : null}
-              {m.nextReminder ? <P muted>{HOME.nextReminder(whenText(m.nextReminder))}</P> : null}
-              {m.check && !m.check.open ? <P muted>{HOME.nextCheck(formatShort(m.check.row.due_on))}</P> : null}
-            </Card>
-          ) : null}
-
-          {desktop && t.kind === 'learn' ? (
-            <Card>
-              <H2>{DESKTOP.nav.library}</H2>
-              {educationFor(m.profile.anatomy ?? 'other_unspecified')
-                .slice(0, 4)
-                .map((e) => (
-                  <LinkRow key={e.id} label={e.title} onPress={() => router.push(`/library?id=${e.id}`)} />
-                ))}
-            </Card>
-          ) : null}
-
-
-          {m.settings.functional_cues_enabled && m.programme.learn_status !== 'not_started' && t.kind !== 'blocked' ? (
-            <Card>
-              <H2>{HOME.everyday}</H2>
-              <P>{`${KNACK.title}: ${KNACK.body}`}</P>
-              <P muted>{`${AFTER_PEE.title}: ${AFTER_PEE.body}`}</P>
-            </Card>
-          ) : null}
-
-          {m.exportReminder ? (
-            <Card tone="soft">
-              <P>{HOME.exportReminder}</P>
-              <Row>
-                <Button label={HOME.saveBackup} kind="secondary" onPress={() => router.push('/data')} />
-                <Button
-                  label={COMMON.notNow}
-                  kind="quiet"
-                  onPress={() => act(() => backupLater(db, toLocalDate(new Date())))}
-                />
-              </Row>
-            </Card>
-          ) : null}
-
-          <Card>
-            {/* The sidebar (desktop) and the tab bar (phones) link the sections. */}
-            <LinkRow label={HOME.somethingChanged} onPress={() => router.push('/screening?kind=something_changed')} />
-          </Card>
-        </>
-      </Columns>
-    </Screen>
+  // ---- Heading (D5, HE-08): the date, then where the day is. The nickname stays as a small hello. ----
+  const [, month, dayOfMonth] = today.split('-').map(Number);
+  const heading = m.gap && t.kind !== 'blocked'
+    ? WELCOME_BACK.title
+    : t.kind === 'learn'
+      ? HOME.firstStep
+      : t.kind === 'blocked'
+        ? HOME.blocked
+        : t.kind === 'relax'
+          ? HOME.headRelax
+          : t.kind === 'day_done'
+            ? HOME.headDone
+            : HOME.sessionOf(t.slotsDone + 1, t.slotsTotal);
+  const head = (
+    <View key="head" style={{ gap: space(0.5) }}>
+      <P muted>{HOME.dateLine(HOME.dayNames[isoWeekday(today) - 1], dayOfMonth, HOME.monthNames[month - 1])}</P>
+      <H1>{heading}</H1>
+      {m.profile.nickname ? (
+        <P small muted>
+          {HOME.greeting(m.profile.nickname)}
+        </P>
+      ) : null}
+    </View>
   );
-}
 
-function nextLine(m: HomeModel): string {
-  if (!m.next) return '';
-  if (m.next === 'top') return MAINTENANCE.topOfProgramme;
-  return m.weeksToNext != null ? HOME.nextAfter(NEXT_NAME[m.next], m.weeksToNext) : HOME.next(NEXT_NAME[m.next]);
-}
+  // ---- State cards that replace or lead the day: level up, welcome back, maintenance offer. ----
+  const lead: ReactNode[] = [];
+  if (m.levelUp && showsProgress) {
+    lead.push(<LevelUpCard key="levelup" name={levelNameOf(m)} onSeen={() => act(() => seeLevelUp(db))} />);
+  }
+  if (m.gap && t.kind !== 'blocked') {
+    lead.push(
+      <Card key="gap" tone="soft">
+        <P>{WELCOME_BACK.body}</P>
+        <Button label={WELCOME_BACK.easier} onPress={() => act(() => applyGapChoice(db, today, false))} busy={busy} />
+        <Button label={WELCOME_BACK.pickUp} kind="quiet" onPress={() => act(() => applyGapChoice(db, today, true))} disabled={busy} />
+        {m.gap.band === 'long' ? (
+          <P small muted>
+            {WELCOME_BACK.reviewPlan}
+          </P>
+        ) : null}
+      </Card>
+    );
+  }
+  if (m.maintenanceOffer) {
+    lead.push(
+      <Card key="maint" tone="soft">
+        <H2>{MAINTENANCE.offerTitle}</H2>
+        <P>{MAINTENANCE.offerBody}</P>
+        <Button label={MAINTENANCE.switch} onPress={() => act(() => switchToMaintenance(db))} busy={busy} />
+        <Button label={MAINTENANCE.keepBuilding} kind="quiet" onPress={() => act(() => keepBuilding(db))} disabled={busy} />
+      </Card>
+    );
+  }
 
-function SetupCard({ k, onOpen, onDismiss, busy }: { k: SetupKey; onOpen: () => void; onDismiss: () => void; busy: boolean }) {
-  const copy = SETUP[k];
-  return (
-    <Card tone="soft">
-      <H2>{copy.title}</H2>
-      <P>{copy.body}</P>
-      <Row>
-        <Button label={copy.action} kind="secondary" onPress={onOpen} disabled={busy} />
-        <Button label={COMMON.notNow} kind="quiet" onPress={onDismiss} disabled={busy} />
-      </Row>
-    </Card>
-  );
-}
-
-function Prompt({ text, onPress }: { text: string; onPress: () => void }) {
-  return (
-    <Card tone="soft" onPress={onPress}>
-      <Row>
-        <View style={{ flex: 1 }}>
-          <P>{text}</P>
-        </View>
-        <P muted>›</P>
-      </Row>
-    </Card>
-  );
-}
-
-function TodayCard({ m }: { m: HomeModel }) {
-  const t = m.today;
-  if (t.kind === 'blocked') return null;
+  // ---- The top card (A1) and the merged card (A3). ----
+  const heroCard = showsProgress ? <HeroCard key="hero" m={{ ...m, hero }} onChange={pickHero} /> : null;
+  let planCard: ReactNode = null;
   if (t.kind === 'learn') {
-    return (
-      <Card>
-        <H2>{HOME.firstStep}</H2>
+    planCard = (
+      <Card key="plan">
         <P>{HOME.learnHint}</P>
         <Button label={HOME.learnFirst} onPress={() => router.push('/learn')} />
         <P small muted>
@@ -251,54 +170,98 @@ function TodayCard({ m }: { m: HomeModel }) {
         </P>
       </Card>
     );
+  } else if (showsProgress && !m.gap) {
+    planCard = <TodayPlanCard key="plan" m={m} />;
   }
-  if (t.kind === 'relax') {
-    return (
-      <Card>
-        <H2>{HOME.upNext}</H2>
-        <Button label={HOME.relaxPractice} onPress={() => router.push('/session?relax=1')} />
+
+  // ---- One suggestion queue (critique priority 2): safety first, at most 2, the rest behind one button. ----
+  const shown = allSuggestions ? m.suggestions : m.suggestions.slice(0, SUGGESTION_CAP);
+  const suggestions: ReactNode[] = shown.map((k) => (
+    <Suggestion key={k} k={k} busy={busy} onLater={k === 'safety' ? undefined : () => act(() => suggestionLater(db, k, today))} />
+  ));
+  if (!allSuggestions && m.suggestions.length > SUGGESTION_CAP) {
+    suggestions.push(<Button key="more" label={HOME.morePrompts(m.suggestions.length - SUGGESTION_CAP)} kind="quiet" onPress={() => setAllSuggestions(true)} />);
+  }
+
+  // ---- The tip and the link rows. ----
+  const tip =
+    m.settings.functional_cues_enabled && m.programme.learn_status !== 'not_started' && t.kind !== 'blocked' ? (
+      <TipLine key="tip" anatomy={m.profile.anatomy ?? 'other_unspecified'} day={diffDays('2000-01-01', today)} />
+    ) : null;
+  const links = (
+    <View key="links">
+      {note.hidden && !noteOpen ? <LinkRow label={HOME.healthNote.row(note.keys.length)} onPress={() => setNoteOpen(true)} /> : null}
+      {note.hidden && noteOpen ? <HealthNoteCard keys={note.keys} onAnswer={answerNote} busy={busy} /> : null}
+      <LinkRow label={HOME.somethingChanged} onPress={() => router.push('/screening?kind=something_changed')} />
+    </View>
+  );
+  // The Mac shows Library in the right column (3 articles and All); in the learn state it shows on any desktop width.
+  const library =
+    wide || (desktop && t.kind === 'learn') ? (
+      <Card key="library">
+        <H2>{DESKTOP.nav.library}</H2>
+        {educationFor(m.profile.anatomy ?? 'other_unspecified')
+          .slice(0, 3)
+          .map((e) => (
+            <LinkRow key={e.id} label={e.title} onPress={() => router.push(`/library?id=${e.id}`)} />
+          ))}
+        <LinkRow label={HOME.allArticles} onPress={() => router.push('/library')} />
       </Card>
+    ) : null;
+
+  if (!wide) {
+    return (
+      <>
+        {safety}
+        {head}
+        {lead}
+        {heroCard}
+        {planCard}
+        {suggestions}
+        {tip}
+        {library}
+        {links}
+      </>
     );
   }
-  if (t.kind === 'day_done') {
-    return (
-      <Card>
-        <H2>{HOME.upNext}</H2>
-        <P>{SESSION.dayDone}</P>
-        {t.extraAllowed ? (
-          <Button label={SESSION.extraStart} kind="secondary" onPress={() => router.push('/session?extra=1')} />
-        ) : (
-          <P muted>{SESSION.extraBlocked}</P>
-        )}
-        <Button label={HOME.relaxPractice} kind="quiet" onPress={() => router.push('/session?relax=1')} />
-      </Card>
-    );
-  }
-  // M6: one Start. The session's 30 s relax is the lead-in, so there is no ready screen from here.
-  // On the web, sound needs a user gesture, so the players are made inside this tap.
-  const start = () =>
-    openSessionOnce(() => {
-      void feedback.prepare().catch(() => undefined);
-      router.push('/session?go=1');
-    });
+  // c3 and wider: the safety note spans both columns; left 8/12, right 4/12 (Mac M6).
   return (
-    <Card>
-      <H2>{HOME.upNext}</H2>
-      <Label>{HOME.sessionOf(t.slotsDone + 1, t.slotsTotal)}</Label>
-      {t.plan ? <SessionContents plan={t.plan} /> : null}
-      <Button label={HOME.startSession} onPress={start} />
-      <KeyHint />
-    </Card>
+    <>
+      {safety}
+      {head}
+      <View style={{ flexDirection: 'row', gap: space(2.5), alignItems: 'flex-start' }}>
+        <View style={{ flex: 2, minWidth: 0, gap: space(2.5) }}>
+          {lead}
+          {planCard}
+          {suggestions}
+          {tip}
+        </View>
+        <View style={{ flex: 1, minWidth: 0, gap: space(2.5) }}>
+          {heroCard}
+          {library}
+          {links}
+        </View>
+      </View>
+    </>
   );
 }
 
-/** On a Mac, a quiet reminder that S starts the session (shortcut discoverability). */
-function KeyHint() {
-  const desktop = useDesktop();
-  if (!desktop || !isWeb) return null;
-  return (
-    <P small muted center>
-      {DESKTOP.startKey}
-    </P>
-  );
+function Suggestion({ k, busy, onLater }: { k: SuggestionKey; busy: boolean; onLater?: () => void }) {
+  const copy = k === 'plan' || k === 'expect' || k === 'lock' ? SETUP[k] : HOME.suggest[k];
+  const open = () => {
+    if (k === 'safety') router.push('/screening?kind=periodic');
+    else if (k === 'check' || k === 'review') router.push('/check');
+    else if (k === 'technique') router.push('/learn?mode=recheck');
+    else if (k === 'baseline') router.push('/selfcheck?kind=baseline');
+    else if (k === 'summary') router.push('/summary');
+    else if (k === 'plan') router.push('/reminders');
+    else if (k === 'lock') router.push('/settings');
+    else if (k === 'backup') router.push('/data');
+    else if (k === 'expect') {
+      // Opening "What to expect" counts as read (C2).
+      onLater?.();
+      router.push('/library?id=ED-07');
+    }
+  };
+  return <SuggestionCard title={copy.title} body={copy.body} action={copy.action} onOpen={open} onLater={onLater} busy={busy} />;
 }
