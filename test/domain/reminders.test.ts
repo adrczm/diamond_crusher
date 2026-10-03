@@ -1,5 +1,5 @@
 import { addDays, atLocalTime } from '../../src/domain/dates';
-import { nextReminderAt, planNotifications, type PlanInput } from '../../src/domain/reminders';
+import { keepInStep, nextFreeTime, nextReminderAt, planNotifications, type PlanInput, type StepSlot } from '../../src/domain/reminders';
 
 const today = '2026-03-02'; // a Monday
 const base = (over: Partial<PlanInput> = {}): PlanInput => ({
@@ -86,5 +86,73 @@ describe('next reminder (UX audit M11)', () => {
     expect(nextReminderAt(plan, now, { paused: true, pausedUntil: until })).toEqual(atLocalTime(addDays(today, 2), '12:30'));
     expect(nextReminderAt(plan, now, { mode: 'blocked_urgent' })).toBeNull();
     expect(nextReminderAt(plan, now, { mode: 'relax_only' })).toEqual(atLocalTime(today, '12:30'));
+  });
+});
+
+describe('reminders keep in step with sessions a day (REM-001, round 2: update automatically, with Undo)', () => {
+  const slot = (slotNo: number, timeLocal: string, enabled = true, anchorKey: string | null = null): StepSlot => ({ slotNo, timeLocal, enabled, anchorKey });
+  const three = [slot(1, '07:45', true, 'teeth'), slot(2, '12:30', true, 'lunch'), slot(3, '22:30', true, 'bed')];
+  const on = (r: ReturnType<typeof keepInStep>) => (r.kind === 'updated' ? r.slots.filter((s) => s.enabled).map((s) => s.timeLocal).sort() : []);
+
+  it('changes nothing when reminders and sessions did not match before', () => {
+    expect(keepInStep(three, 2, 3)).toEqual({ kind: 'mismatch', reminders: 3 });
+    expect(keepInStep([], 3, 4)).toEqual({ kind: 'mismatch', reminders: 0 });
+    expect(keepInStep([slot(1, '07:45'), slot(2, '22:30', false)], 2, 1)).toEqual({ kind: 'mismatch', reminders: 1 });
+  });
+
+  it('removing a session turns off the middle reminder, not deletes it', () => {
+    const r = keepInStep(three, 3, 2);
+    if (r.kind !== 'updated') throw new Error('expected an update');
+    expect(r.turnedOff.map((s) => s.timeLocal)).toEqual(['12:30']);
+    expect(r.added).toEqual([]);
+    expect(r.slots).toHaveLength(3);
+    expect(on(r)).toEqual(['07:45', '22:30']);
+  });
+
+  it('going back brings back the same time', () => {
+    const down = keepInStep(three, 3, 2);
+    if (down.kind !== 'updated') throw new Error('expected an update');
+    const custom = down.slots.map((s) => (s.slotNo === 2 ? { ...s, timeLocal: '13:15' } : s));
+    const up = keepInStep(custom, 2, 3);
+    if (up.kind !== 'updated') throw new Error('expected an update');
+    expect(up.added.map((s) => [s.slotNo, s.timeLocal])).toEqual([[2, '13:15']]);
+    expect(up.slots).toHaveLength(3);
+  });
+
+  it('adding a session adds lunch 12:30 for the middle slot', () => {
+    const r = keepInStep([slot(1, '07:45', true, 'teeth'), slot(2, '22:30', true, 'bed')], 2, 3);
+    if (r.kind !== 'updated') throw new Error('expected an update');
+    expect(r.added).toEqual([{ slotNo: 3, timeLocal: '12:30', enabled: true, anchorKey: 'lunch' }]);
+  });
+
+  it('beyond 3, a new reminder goes in the middle of the longest gap', () => {
+    const four = keepInStep(three, 3, 4);
+    if (four.kind !== 'updated') throw new Error('expected an update');
+    expect(four.added.map((s) => [s.slotNo, s.timeLocal, s.anchorKey])).toEqual([[4, '17:30', null]]);
+    const five = keepInStep(four.slots, 4, 5);
+    expect(on(five)).toEqual(['07:45', '12:30', '17:30', '20:00', '22:30']);
+    expect(nextFreeTime(['07:45', '12:30', '17:30', '20:00', '22:30'])).toBe('15:00');
+  });
+
+  it('removing after an add undoes the last add first, and keeps morning and evening', () => {
+    const four = keepInStep(three, 3, 4);
+    if (four.kind !== 'updated') throw new Error('expected an update');
+    const back = keepInStep(four.slots, 4, 3);
+    if (back.kind !== 'updated') throw new Error('expected an update');
+    expect(back.turnedOff.map((s) => s.slotNo)).toEqual([4]);
+    expect(on(back)).toEqual(['07:45', '12:30', '22:30']);
+  });
+
+  it('from 2 to 1 keeps the first reminder of the day, from 1 to 2 adds the evening', () => {
+    expect(on(keepInStep([slot(1, '07:45'), slot(2, '22:30')], 2, 1))).toEqual(['07:45']);
+    expect(on(keepInStep([slot(1, '07:45')], 1, 2))).toEqual(['07:45', '22:30']);
+  });
+
+  it('works in several steps at once and for any number of slots', () => {
+    const r = keepInStep(three, 3, 8);
+    if (r.kind !== 'updated') throw new Error('expected an update');
+    expect(r.slots.filter((s) => s.enabled)).toHaveLength(8);
+    expect(new Set(r.slots.map((s) => s.slotNo)).size).toBe(8);
+    expect(new Set(r.slots.map((s) => s.timeLocal)).size).toBe(8);
   });
 });

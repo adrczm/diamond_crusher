@@ -19,6 +19,7 @@ import { useReducedMotion } from '../../ui/motion';
 import { radius, space, ThemePrefContext, type, useColors, useIsDark } from '../../ui/theme';
 import { openSessionOnce, useApp, useLoad } from '../app';
 import { planToday } from '../trainingService';
+import { LogForm } from './LogForm';
 import { feedback } from '../../platform/feedback';
 
 const ORDER: Settings['theme'][] = ['system', 'light', 'dark'];
@@ -135,7 +136,10 @@ export function DesktopFrame({ children }: { children: ReactNode }) {
               if (today && !today.done) openToday(today.href);
             },
             // M5: L logs something from any page, in a panel over it.
-            l: () => setLogOpen(true),
+            // On the Log page the form is already open (and a second form would add a second ⌘↵).
+            l: () => {
+              if (pathname !== '/log') setLogOpen(true);
+            },
             ...Object.fromEntries(NAV.map((n, i) => [String(i + 1), () => router.navigate(n.href)])),
           }),
     },
@@ -670,7 +674,7 @@ function LogPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: space(2), gap: space(2) }}>
-            <LogFormSlot onDone={onClose} />
+            <LogForm onDone={onClose} />
           </ScrollView>
         </View>
       </View>
@@ -678,7 +682,3 @@ function LogPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
-// TEMP: replaced by the Log builder's LogForm when the branches merge.
-function LogFormSlot(_: { onDone: () => void }) {
-  return null;
-}

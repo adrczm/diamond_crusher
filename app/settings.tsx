@@ -2,17 +2,17 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert } from '../src/platform/dialog';
-import { GOAL_LABEL, VOICE } from '../src/content/en/exercise';
+import { GOAL_LABEL } from '../src/content/en/exercise';
 import { COMMON, DESKTOP, HOME, ONBOARDING, SETTINGS } from '../src/content/en/strings';
 import { activeGoals, getProfile, setGoals, updateProfile } from '../src/data/repositories/profile';
 import { getSettings, setTodayHeroSync, updateSettings, type Settings } from '../src/data/repositories/settings';
 import { setLock, setLockTimeout } from '../src/data/vault';
-import type { AgeBand, Anatomy, AudioMode, Goal } from '../src/domain/types';
+import type { AgeBand, Anatomy, Goal } from '../src/domain/types';
 import { useApp, useLoad, withoutRelock } from '../src/features/app';
 import { reconcileReminders } from '../src/features/reminderService';
+import { TrainingSection } from '../src/features/screens/TrainingSection';
 import { auth } from '../src/platform/auth';
-import { feedback } from '../src/platform/feedback';
-import { Banner, Button, Card, Choice, Field, Label, LinkRow, Loading, MultiChoice, P, Screen, Section, Segments, Stepper, ToggleRow } from '../src/ui/kit';
+import { Banner, Card, Choice, Field, Label, LinkRow, Loading, MultiChoice, P, Screen, Section, Segments, ToggleRow } from '../src/ui/kit';
 import { isWeb, useDesktop } from '../src/ui/layout';
 import { setTextScale, textScale } from '../src/ui/textSize';
 
@@ -112,52 +112,8 @@ export default function SettingsScreen() {
         />
       </Section>
 
-      <Section title={SETTINGS.training} description={DESKTOP.settingsNotes.training}>
-        <Label>{SETTINGS.sessionsPerDay}</Label>
-        <Segments
-          label={SETTINGS.sessionsPerDay}
-          options={[
-            { value: 2, label: '2' },
-            { value: 3, label: '3' },
-          ]}
-          value={s.sessions_per_day_target}
-          onChange={(n) => set({ sessions_per_day_target: n })}
-        />
-        <P small muted>
-          {SETTINGS.sessionsPerDayNote}
-        </P>
-        <Label>{SETTINGS.weeklyTarget}</Label>
-        <Stepper label={SETTINGS.weeklyTarget} value={s.weekly_days_target} min={3} max={7} onChange={(n) => set({ weekly_days_target: n })} />
-        <Label>{SETTINGS.maintenanceTarget}</Label>
-        <Stepper
-          label={SETTINGS.maintenanceTarget}
-          value={s.maintenance_days_target ?? (p?.age_band === '60_74' || p?.age_band === '75_plus' ? 5 : 4)}
-          min={3}
-          max={7}
-          onChange={(n) => set({ maintenance_days_target: n })}
-        />
-        <Label>{SETTINGS.weekStart}</Label>
-        <Segments
-          label={SETTINGS.weekStart}
-          options={SETTINGS.weekDays}
-          value={s.week_start_day}
-          onChange={(n) => set({ week_start_day: n })}
-        />
-        <Label>{SETTINGS.sound}</Label>
-        <Segments label={SETTINGS.sound} options={SETTINGS.soundOptions.map((o) => ({ value: o.value as AudioMode, label: o.label }))} value={s.audio_mode} onChange={(v) => set({ audio_mode: v })} />
-        {/* Safari on a Mac cannot vibrate, so the switch is for phones only. */}
-        {!isWeb ? <ToggleRow label={SETTINGS.vibration} value={s.vibration} onChange={(v) => set({ vibration: v })} /> : null}
-        <Button
-          kind="secondary"
-          label={SETTINGS.tryCues}
-          onPress={async () => {
-            await feedback.prepare().catch(() => undefined);
-            await feedback.cue('squeeze', { audio: s.audio_mode, vibration: s.vibration, words: VOICE.squeeze });
-          }}
-        />
-        <ToggleRow label={SETTINGS.functionalCues} value={s.functional_cues_enabled} onChange={(v) => set({ functional_cues_enabled: v })} />
-        {desktop ? <LinkRow label={SETTINGS.reminders} onPress={() => router.push('/reminders')} /> : null}
-      </Section>
+      {/* Sessions a day (no upper limit), reminders kept in step, targets and cues: src/features/screens/TrainingSection.tsx. */}
+      <TrainingSection settings={s} profile={p} set={set} />
 
       <Section title={SETTINGS.theme} description={DESKTOP.settingsNotes.appearance}>
         <Segments label={SETTINGS.theme} options={SETTINGS.themeOptions.map((o) => ({ value: o.value as Settings['theme'], label: o.label }))} value={s.theme} onChange={(v) => set({ theme: v })} />

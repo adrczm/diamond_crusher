@@ -131,6 +131,9 @@ export const PLAN = {
   daysShort: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
   daysLong: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
   sessionLabel: (n: number) => `Session ${n}`,
+  /** A slot added for a 4th or later session has no daily moment yet. */
+  noAnchor: 'Pick a daily moment for this session.',
+  reminderOn: 'Remind me',
   timeLine: (time: string) => `Reminder at ${time}`,
   change: 'Change',
   changeLabel: (n: number) => `Change session ${n}`,
@@ -461,7 +464,26 @@ export const SETTINGS = {
   ],
   vibration: 'Vibration',
   tryCues: 'Try sound and vibration',
-  sessionsPerDayNote: 'To match, change your reminder plan in Reminders.',
+  // Round 2 (2026-10-03): no upper limit. Above 3 a day, one line says that trials did not test it (B1.3, B4.3).
+  sessionsUntested: 'Trials used 2 or 3 sessions a day. More than 3 has not been tested. Stop a session when the squeeze gets weak.',
+  sessionsTested: 'Trials used 2 or 3 sessions a day.',
+  // ENG-031: 1 a day in maintenance, so the number cannot change there.
+  sessionsMaintenance: '1 a day while you keep your results.',
+  // Reminders keep in step with sessions a day, with Undo (round 2 decision, REM-001).
+  remindersUpdated: (added: readonly string[], off: readonly string[]) => {
+    const list = (t: readonly string[]) => (Array.isArray(t) ? (t.length > 1 ? `${t.slice(0, -1).join(', ')} and ${t[t.length - 1]}` : t[0] ?? '') : '');
+    const parts = [list(added) ? `added ${list(added)}` : '', list(off) ? `turned off ${list(off)}` : ''].filter(Boolean);
+    return parts.length ? `Reminders updated: ${parts.join(', ')}.` : 'Reminders updated.';
+  },
+  remindersDiffer: (n: number) => `Your reminders: ${n} a day. They did not change.`,
+  remindersAreOff: 'Reminders are off.',
+  remindersPausedUntil: (d: string) => `Reminders are paused until ${d}.`,
+  remindersPaused: 'Reminders are paused.',
+  remindersMacOnly: 'On this Mac, reminders show only while the app is open.',
+  undo: 'Undo',
+  undoKey: 'or press ⌘Z',
+  editTimes: 'Edit times',
+  turnOn: 'Turn on',
   weekDays: [
     { value: 1, label: 'Monday' },
     { value: 7, label: 'Sunday' },
