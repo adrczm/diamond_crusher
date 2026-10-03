@@ -6,6 +6,7 @@ import { Redirect, router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { Alert } from '../src/platform/dialog';
+import { CHECKIN } from '../src/content/en/checkin';
 import { CLEARANCE, OUTCOME, RELAX_ONLY_HOME } from '../src/content/en/screening';
 import { COMMON, DESKTOP, EXPECTATION, HOME, MAINTENANCE, SETUP, WELCOME_BACK } from '../src/content/en/strings';
 import { educationFor } from '../src/content/en/education';
@@ -15,7 +16,9 @@ import { diffDays, isoWeekday, toLocalDate } from '../src/domain/dates';
 import { useApp, useLoad } from '../src/features/app';
 import { loadHome, seeLevelUp, suggestionLater, SUGGESTION_CAP, type HomeModel, type SuggestionKey } from '../src/features/homeService';
 import { reconcileReminders } from '../src/features/reminderService';
+import { answerEscalation, startLighterWeek } from '../src/features/checkinService';
 import { answerHealthNote, clear } from '../src/features/safetyService';
+import { CheckinEscalationCard, CheckinHoldCard } from '../src/features/screens/CheckinCards';
 import { outcomeCopy } from '../src/features/screens/ScreeningFlow';
 import { HeroCard, levelNameOf } from '../src/features/screens/TodayHero';
 import { GentlePainLock } from '../src/features/screens/GentleSqueeze';
@@ -105,6 +108,10 @@ function TodayBody({ m }: { m: HomeModel }) {
   }
   // A2: the note shows until it is answered, and comes back only when answers or logged results change.
   if (note.show) safety.push(<HealthNoteCard key="note" keys={note.keys} anatomy={m.profile.anatomy} onAnswer={answerNote} busy={busy} />);
+  // ONB-034: the firmer card after a repeated "worse" check-in, or a hold at programme week 12. Training continues.
+  if (m.checkin.escalation.ids.length && mode !== 'blocked_urgent' && mode !== 'blocked_until_cleared') {
+    safety.push(<CheckinEscalationCard key="checkin-esc" why={m.checkin.escalation.why} onAnswer={(r) => act(() => answerEscalation(db, r))} busy={busy} />);
+  }
 
   // ---- Heading (D5, HE-08): the date, then where the day is. The nickname stays as a small hello. ----
   const [, month, dayOfMonth] = today.split('-').map(Number);
@@ -149,6 +156,10 @@ function TodayBody({ m }: { m: HomeModel }) {
         ) : null}
       </Card>
     );
+  }
+  // PRG-035: a "worse" check-in holds the plan; training continues, with an opt-in lighter week.
+  if (m.checkin.hold.active && showsProgress && t.kind !== 'relax') {
+    lead.push(<CheckinHoldCard key="checkin-hold" hold={m.checkin.hold} onLighter={() => act(() => startLighterWeek(db, today))} busy={busy} />);
   }
   if (m.maintenanceOffer) {
     lead.push(
@@ -251,9 +262,10 @@ function TodayBody({ m }: { m: HomeModel }) {
 }
 
 function Suggestion({ k, busy, onLater }: { k: SuggestionKey; busy: boolean; onLater?: () => void }) {
-  const copy = k === 'plan' || k === 'expect' || k === 'lock' ? SETUP[k] : HOME.suggest[k];
+  const copy = k === 'plan' || k === 'expect' || k === 'lock' ? SETUP[k] : k === 'checkin' ? CHECKIN.suggest : HOME.suggest[k];
   const open = () => {
     if (k === 'safety') router.push('/screening?kind=periodic');
+    else if (k === 'checkin') router.push('/checkin');
     else if (k === 'check' || k === 'review') router.push('/check');
     else if (k === 'technique') router.push('/learn?mode=recheck');
     else if (k === 'baseline') router.push('/selfcheck?kind=baseline');

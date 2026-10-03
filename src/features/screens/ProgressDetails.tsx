@@ -1,7 +1,8 @@
 // Progress details: logged leaks (PFB-015), questionnaire answers (PFB-012, PFB-013), all milestones (MOT-032), and the
 // Mac's right panel (decision M3) that shows the selected card's detail and table without a page change.
 import { View } from 'react-native';
-import { MODULES } from '../../content/en/questionnaires';
+import { CHECKIN } from '../../content/en/checkin';
+import { CHECKIN_MODULE_ID, MODULES } from '../../content/en/questionnaires';
 import { BUNDLE, PROGRESS, SUMMARY } from '../../content/en/strings';
 import { toLocalDate } from '../../domain/dates';
 import { BarChart, ChartEmpty, DataTable, LineChart, type Point } from '../../ui/charts';
@@ -66,7 +67,8 @@ export function QuestionnaireDetail({ m }: { m: ProgressModel }) {
     .map((r) => [
       shortDate(toLocalDate(new Date(r.started_at))),
       name(r.instrument_key),
-      r.total_score != null ? String(r.total_score) : '–',
+      // PFB-048: the check-in shows its "Compared with a month ago" answer as a word, not a score.
+      r.instrument_key === CHECKIN_MODULE_ID ? CHECKIN.overall[r.total_score ?? -1] ?? '–' : r.total_score != null ? String(r.total_score) : '–',
       // The research label stays inside this detail only (round 2 §6).
       r.flags.includes('possibly_rushed') ? BUNDLE.rushed : '',
     ]);

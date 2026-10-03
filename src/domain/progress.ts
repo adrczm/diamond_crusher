@@ -312,7 +312,8 @@ export function symptomStatus(
 ): { status: SymptomStatus; last: LocalDate | null } {
   const done = responses.filter((r) => r.complete).map((r) => r.date).sort();
   const last = done.length ? done[done.length - 1] : null;
-  const SIGNALS = ['symptom_worsening', 'new_leaks', 'erection_change', 'see_someone_12w'];
+  // PFB-048: a "worse" check-in raises symptom_worsening or erection_change; its firmer card is checkin_escalation.
+  const SIGNALS = ['symptom_worsening', 'new_leaks', 'erection_change', 'see_someone_12w', 'checkin_escalation'];
   const changed = flags.some((f) => SIGNALS.includes(f.key) && (f.open || diffDays(f.date, today) <= 28));
   if (changed) return { status: 'changed', last };
   return { status: last ? 'no_change' : 'none', last };

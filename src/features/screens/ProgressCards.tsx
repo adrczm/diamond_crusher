@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path, Polygon, Polyline } from 'react-native-svg';
+import { CHECKIN } from '../../content/en/checkin';
 import { SESSION_LOG } from '../../content/en/items';
 import { HOME, PROGRESS, SUMMARY } from '../../content/en/strings';
 import { addDays, formatShort, isoWeekday } from '../../domain/dates';
@@ -476,6 +477,7 @@ export function OtherRecordsCard({ m, panel, onDetail }: CardProps) {
         detail={symptomText(m)}
         onPress={() => (panel ? onDetail({ kind: 'questionnaires' }) : router.push('/records?show=questionnaires'))}
       />
+      <LinkRow label={CHECKIN.progressRow} detail={CHECKIN.progressDetail} onPress={() => router.push('/checkin')} />
     </Card>
   );
 }

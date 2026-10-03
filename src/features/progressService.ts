@@ -1,7 +1,7 @@
 // Progress tab data (06c): loads the records once and turns them into what each card shows. Rules live in
 // src/domain/progress.ts; this file joins them to the stored rows and the copy.
 import { EVENTS, SESSION_LOG } from '../content/en/items';
-import { MODULES } from '../content/en/questionnaires';
+import { CHECKIN_MODULE_ID, MODULES } from '../content/en/questionnaires';
 import { LEVEL_NAME, MESSAGES, MEASURE_NAME, PROGRESS } from '../content/en/strings';
 import { listResponses, listScheduledChecks, listSelfChecks } from '../data/repositories/checks';
 import { listContextFlags, listEvents } from '../data/repositories/events';
@@ -420,7 +420,8 @@ export function buildProgress(raw: ProgressRaw, today: LocalDate) {
   const blocks: LeakBlock[] = leakBlocks(leakEvents, today, 13, leakSince);
 
   const done = raw.responses.filter((r) => r.status === 'complete');
-  const scores: ScoreSeries[] = MODULES.map((m) => {
+  // The symptom check-in has no score to chart: its answers show as words in the table (PFB-048).
+  const scores: ScoreSeries[] = MODULES.filter((m) => m.moduleId !== CHECKIN_MODULE_ID).map((m) => {
     const pts = done
       .filter((r) => r.instrument_key === m.moduleId && r.total_score != null)
       .map((r) => ({ date: at(r.started_at), score: r.total_score as number, rushed: r.flags.includes('possibly_rushed') }));

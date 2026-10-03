@@ -24,7 +24,9 @@ import { gentleState } from './gentleService';
 import { profileFacts } from './safetyService';
 import type { Completion, SafetyMode, SessionPosition } from '../domain/types';
 import { strengthUnlocked } from '../domain/learn';
-import { listSelfChecks } from '../data/repositories/checks';
+import { checkinRecords, holdState, lighterLoad, lighterWeekUntil } from '../domain/symptomCheckin';
+import { CHECKIN_MODULE_ID } from '../content/en/questionnaires';
+import { listResponses, listSelfChecks } from '../data/repositories/checks';
 import { markContentSeen, reachMilestone, seenContent } from '../data/repositories/misc';
 import { addLevelChange, fromPrescription, getProgramme, toPrescription, updateProgramme, type ProgrammeRow } from '../data/repositories/programme';
 import { getSafetyState, listScreeningRuns } from '../data/repositories/safety';
@@ -68,6 +70,8 @@ export interface TodayPlan {
   extraAllowed: boolean;
   holdsToday: number;
   maintenance: boolean;
+  /** PRG-035: the person chose a lighter week; today's plan uses the lighter load (the stored level is unchanged). */
+  lighter: boolean;
 }
 
 export function isMaintenance(prog: ProgrammeRow): boolean {
@@ -98,16 +102,19 @@ async function planTodayFor(db: SqlDb, now: Date): Promise<TodayPlan> {
     extraAllowed: false,
     holdsToday,
     maintenance: isMaintenance(prog),
+    lighter: false,
   };
   if (isBlocked(safety.mode)) return { ...base, kind: 'blocked' };
   // ENG-061: in relaxation-only mode the gentle squeeze joins once the let-go is confirmed and no exercise pain locks it.
   const gentle = gentleState(safety.mode, prog.gentle_unlocked_at, prog.gentle_pain_lock) === 'on';
   if (!strengthAllowed(safety.mode)) return { ...base, kind: 'relax', plan: relaxPlan('lying', gentle) };
   if (!strengthUnlocked(prog.learn_status)) return { ...base, kind: 'learn', plan: relaxPlan('lying') };
-  const load = loadOf(toPrescription(prog));
+  const lighter = lighterWeekUntil(await seenContent(db), today) != null;
+  const stored = loadOf(toPrescription(prog));
+  const load = lighter ? lighterLoad(stored) : stored;
   const slots = dayPlan(load, settings.sessions_per_day_target, isMaintenance(prog));
   const done = sessions.filter((s) => s.template_key === 'strength' && s.counts_toward_day).length;
-  const res = { ...base, slotsDone: Math.min(done, slots.length), slotsTotal: slots.length };
+  const res = { ...base, lighter, slotsDone: Math.min(done, slots.length), slotsTotal: slots.length };
   if (done < slots.length) {
     const slot = slots[done];
     return { ...res, kind: 'strength', slotNo: slot.slotNo, plan: strengthPlan(load, slot.endurance, slot.position) };
@@ -222,6 +229,9 @@ export async function evaluateProgression(db: SqlDb, today: LocalDate): Promise<
     const sessions = (await listSessionsWithReps(db, prog.build_started_on ?? undefined)).filter((s) => s.template_key === 'strength');
     const logs = await listSessionLogs(db, prog.build_started_on ?? undefined);
     const checks = await listSelfChecks(db);
+    // PRG-004 condition 5, PRG-035: a "worse" check-in open at the week's end, or now, holds the week.
+    const checkins = checkinRecords(await listResponses(db), CHECKIN_MODULE_ID);
+    const worseNow = holdState(checkins).active;
     for (let w = lastWeek + 1; w <= weeksDone; w++) {
       const wk = dates.slice((w - 1) * 7, w * 7);
       const inWeek = (d: string) => wk.includes(d);
@@ -234,7 +244,8 @@ export async function evaluateProgression(db: SqlDb, today: LocalDate): Promise<
         checks.some((c) => inWeek(c.local_date) && (c.pain === 'yes' || c.pain === 'a_little'));
       const couldNotRelease = logs.some((l) => inWeek(l.local_date) && (l.off_ticks ?? []).includes('could_not_release'));
       const regressionHold = prog.regression_hold_until != null && wk[wk.length - 1] <= prog.regression_hold_until;
-      const q = weekQualifies({ days, painReported, couldNotRelease, regressionHold }, Math.min(2, settings.sessions_per_day_target));
+      const checkinWorse = worseNow || holdState(checkins, wk[wk.length - 1]).active;
+      const q = weekQualifies({ days, painReported, couldNotRelease, regressionHold, checkinWorse }, Math.min(2, settings.sessions_per_day_target));
       if (q.qualifies) {
         p = countTier2Week(p);
         const res = chooseChange(p, w);
