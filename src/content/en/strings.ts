@@ -572,6 +572,20 @@ export const DESKTOP = {
     data: 'Backup and data',
   },
   navGroups: { train: 'Train', track: 'Track', app: 'App' },
+  /** Short names under the icons of the narrow rail (768 to 1039 wide, or a collapsed sidebar). */
+  navShort: {
+    home: 'Today',
+    progress: 'Progress',
+    log: 'Log',
+    check: 'Check-ins',
+    library: 'Library',
+    reminders: 'Reminders',
+    settings: 'Settings',
+    data: 'Backup',
+  },
+  collapse: 'Hide sidebar',
+  expand: 'Show sidebar',
+  quickLog: 'Log something',
   /** Phone tab bar: the same names as the sidebar, plus More (Settings and the other sections). */
   tabs: 'Sections',
   keyHint: (key: number) => `Press ${key}`,
@@ -587,9 +601,12 @@ export const DESKTOP = {
   shortcutsTitle: 'Keyboard shortcuts',
   shortcuts: [
     { keys: 'S', what: 'Start today’s session' },
+    { keys: 'L', what: 'Log a leak, sexual activity or a note' },
     { keys: '1 to 8', what: 'Go to a section in the sidebar' },
+    { keys: '⌘ \\', what: 'Hide or show the sidebar' },
     { keys: 'T', what: 'Switch light, dark or automatic appearance' },
     { keys: 'Space', what: 'Pause or resume a running session' },
+    { keys: 'V', what: 'In a session, switch between the ring and the wave' },
     { keys: 'Esc', what: 'Go back or close this panel. In a session, pause, then end.' },
     { keys: '?', what: 'Show these shortcuts' },
   ],
