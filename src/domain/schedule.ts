@@ -38,10 +38,11 @@ export function nextDue(prevDue: LocalDate, completedOn: LocalDate | null): Loca
 
 /**
  * QST-051: the 12-week review replaces the monthly bundle on the first due date on or after the start of
- * programme week 12, 24, 36 …  `reviewsDone` counts reviews already held.
+ * programme week 12, 24, 36 …  `reviewsDone` counts reviews already held. With a bulge answer the build is 16 weeks,
+ * so the first review is at week 16, then every 12 weeks (summary item 17, SX-B.11).
  */
-export function kindForDue(programmeWeekAtDue: number, reviewsDone: number): BundleKind {
-  const nextReviewWeek = 12 * (reviewsDone + 1);
+export function kindForDue(programmeWeekAtDue: number, reviewsDone: number, firstReviewWeek = 12): BundleKind {
+  const nextReviewWeek = firstReviewWeek + 12 * reviewsDone;
   return programmeWeekAtDue >= nextReviewWeek ? 'quarterly_review' : 'monthly_check';
 }
 

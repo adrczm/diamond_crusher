@@ -12,7 +12,7 @@ import { isBlocked, type QuestionKey } from '../src/domain/safety';
 import { useApp, useLoad } from '../src/features/app';
 import { checkinHome, checkinItems, saveCheckin, type CheckinOutcome } from '../src/features/checkinService';
 import { reconcileReminders } from '../src/features/reminderService';
-import { completeScreening, type ScreeningResult } from '../src/features/safetyService';
+import { completeScreening, profileFacts, type ScreeningResult } from '../src/features/safetyService';
 import { confirmLeave, leaveFlow } from '../src/features/screens/GuidedFlow';
 import { ScreeningFlow, ScreeningOutcome } from '../src/features/screens/ScreeningFlow';
 import { Button, Card, Choice, H1, H2, Label, Loading, P, Screen } from '../src/ui/kit';
@@ -22,7 +22,7 @@ type Step = 'intro' | 'safety' | 'items' | 'result';
 export default function CheckinScreen() {
   const params = useLocalSearchParams<{ reason?: string }>();
   const { db, bump } = useApp();
-  const { data, reload, error } = useLoad(async (d) => ({ profile: await getProfile(d), home: await checkinHome(d) }));
+  const { data, reload, error } = useLoad(async (d) => ({ profile: await getProfile(d), home: await checkinHome(d), facts: await profileFacts(d) }));
   const [step, setStep] = useState<Step>('intro');
   const [screen, setScreen] = useState<ScreeningResult | null>(null);
   const [ii, setIi] = useState(0);
@@ -58,12 +58,13 @@ export default function CheckinScreen() {
           kind="something_changed"
           topics={['pain']}
           anatomy={anatomy}
+          facts={data.facts}
           busy={busy}
           onDone={async (a) => {
             setBusy(true);
             try {
               // ONB-034: never delayed by any cooldown. The screening_run kind stays `something_changed`.
-              const r = await completeScreening(db, { kind: 'something_changed', answers: a.answers, startedAt: a.startedAt, sourceRef: 'symptom_checkin' });
+              const r = await completeScreening(db, { kind: 'something_changed', answers: a.answers, dates: a.dates, startedAt: a.startedAt, sourceRef: 'symptom_checkin' });
               setScreen(r);
               reconcileReminders(db);
               bump();

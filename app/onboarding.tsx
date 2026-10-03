@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { GOAL_HINT, GOAL_LABEL, GOAL_NOTE } from '../src/content/en/exercise';
 import { OTHER_PROFILE_PHYSIO } from '../src/content/en/screening';
-import { APP_NAME, COMMON, DISCLAIMER, DISCLAIMER_VERSION, ONBOARDING } from '../src/content/en/strings';
+import { APP_NAME, COMMON, disclaimerFor, DISCLAIMER_VERSION, ONBOARDING } from '../src/content/en/strings';
 import { activeGoals, getProfile, setGoals, updateProfile } from '../src/data/repositories/profile';
 import { answersForRun, getSafetyState } from '../src/data/repositories/safety';
 import { nowIso } from '../src/data/sql';
@@ -136,7 +136,7 @@ export default function Onboarding() {
       body = (
         <>
           <H1>{ONBOARDING.disclaimerTitle}</H1>
-          <P>{DISCLAIMER}</P>
+          <P>{disclaimerFor(null)}</P>
         </>
       );
       actions = (

@@ -193,3 +193,19 @@ describe('leak at orgasm item (SX item 23)', () => {
     expect(eventPatch(row, { ...v, orgasmLeak: 'no' }, false, new Date()).orgasm_leak).toBe('no');
   });
 });
+
+describe('hormone therapy card and profile wording (SX15, summary item 12)', () => {
+  const { questionsFor, deriveReasons, modeFromReasons } = require('../../src/domain/safety');
+  const { disclaimerFor, DISCLAIMER } = require('../../src/content/en/strings');
+  it('asks men about hormone therapy and shows a card only', () => {
+    expect(questionsFor('full', 'male')).toContain('Q-H1');
+    expect(questionsFor('full', 'female')).not.toContain('Q-H1');
+    const reasons = deriveReasons([], { 'Q-H1': 'yes' });
+    expect(modeFromReasons(reasons)).toBe('caution');
+  });
+  it('keeps erection wording out of the female disclaimer', () => {
+    expect(disclaimerFor('male')).toBe(DISCLAIMER);
+    expect(disclaimerFor('female')).not.toMatch(/erection/);
+    expect(disclaimerFor(null)).not.toMatch(/erection/);
+  });
+});

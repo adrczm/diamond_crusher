@@ -5,6 +5,14 @@ export const APP_TAGLINE = 'Pelvic floor training and tracking.';
 export const DISCLAIMER_VERSION = 1;
 export const DISCLAIMER =
   "Diamond Crusher is a training aid. It guides and tracks pelvic floor exercises as part of a healthy lifestyle. It does not diagnose any condition, and it is not medical advice or a replacement for care from a health professional. If you have pain, leaks, erection problems or any symptom that worries you, see a doctor or a pelvic health physiotherapist. In an emergency, contact emergency services. The app's own questions are not validated tests.";
+/**
+ * Summary item 12 (SX-C.21): the female profile has no erection wording. Before a profile is picked (onboarding step 1)
+ * and for "Other", the list names problems with sex. The male text stays the approved version 1 text.
+ */
+export function disclaimerFor(anatomy: string | null | undefined): string {
+  if (anatomy === 'male') return DISCLAIMER;
+  return DISCLAIMER.replace('erection problems', anatomy === 'female' ? 'pain with sex' : 'problems with sex');
+}
 
 export const COMMON = {
   continue: 'Continue',
@@ -246,7 +254,7 @@ export const HOME = {
   suggest: {
     safety: { title: 'A quick safety re-check is due', body: 'A few short questions about your health since the last check.', action: 'Start re-check' },
     check: { title: 'Your monthly check is ready', body: 'A self-check and a few questions. It shows how your training is going.', action: 'Open check' },
-    review: { title: 'Your 12-week review is ready', body: 'Look back at 12 weeks of training, then choose what comes next.', action: 'Open review' },
+    review: { title: 'Your 12-week review is ready', body: 'Look back at your training so far, then choose what comes next.', action: 'Open review' },
     technique: { title: 'Quick technique check', body: 'A short check that your squeeze is still correct.', action: 'Check technique' },
     baseline: { title: 'Do your starting self-check', body: 'It gives you a starting point, so you can see your progress later.', action: 'Start self-check' },
     summary: { title: 'Your weekly summary is ready', body: 'See how last week went.', action: 'Read summary' },

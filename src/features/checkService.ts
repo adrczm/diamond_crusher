@@ -184,9 +184,10 @@ export async function ensureSchedule(db: SqlDb, today: LocalDate): Promise<void>
   const active = await computeActiveDates(db, today);
   const weekNow = programmeWeek(active.length);
   const reviewsDone = () => rows.filter((r) => r.kind === 'quarterly_review' && (r.status === 'completed' || r.status === 'skipped')).length;
+  const firstReviewWeek = (await profileFacts(db, today)).bulge ? 16 : 12;
   const create = async (due: LocalDate) => {
     const weekAtDue = weekNow + Math.max(0, Math.floor(diffDays(today, due) / 7));
-    const kind = kindForDue(weekAtDue, reviewsDone());
+    const kind = kindForDue(weekAtDue, reviewsDone(), firstReviewWeek);
     const o = occurrence(kind, due);
     await insertScheduledCheck(db, { kind, due_on: due, window_open: o.windowOpen, window_close: o.windowClose, status: statusOn(o, today, false) });
     rows = (await listScheduledChecks(db)).filter(isBundle);

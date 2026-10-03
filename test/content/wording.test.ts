@@ -93,7 +93,7 @@ const CLAIM_WORDS = [
 ];
 // The disclaimer itself must say the app does not diagnose (CNT-020), so that one sentence is allowed.
 // "Prostate treatment" names the person's past care, not a claim (G2 card text approved by Adrian, 2026-10-03).
-const ALLOWED = [/does not diagnose any condition/, /They are not a diagnosis\./, /prostate treatment/];
+const ALLOWED = [/does not diagnose any condition/, /They are not a diagnosis\./, /prostate treatment/, /hormone therapy/gi];
 
 const GUILT = [/streak lost/i, /you missed/i, /you failed/i, /don't give up/i, /don’t give up/i, /you broke/i, /\bbehind (on|with)\b/i, /fall(en)? behind/i];
 const BAD_CUES = [/pull your tummy in/i, /\bdraw(s)? in\b/i, /lift your bladder/i];

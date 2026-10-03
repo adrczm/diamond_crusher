@@ -51,6 +51,8 @@ const Q: Record<QuestionKey, string | Partial<Record<Anatomy, string>>> = {
   'Q-B1': 'Have you had blood in your poo, bleeding from your bottom, a change in your poo lasting weeks, or weight loss without trying?',
   'Q-X1': 'Have you ever had radiotherapy to your pelvis, or surgery for a cancer in your pelvis?',
   'Q-M1': 'Have you ever had prostate surgery, or radiotherapy for prostate cancer?',
+  // SX15 (SX-E.13): optional, an information card only.
+  'Q-H1': 'Are you on hormone therapy for prostate cancer?',
   'Q-F1': 'Do you feel heaviness, dragging or a bulge in your vagina?',
   'Q-F1b': 'Can you see or feel a bulge at or outside the opening of your vagina?',
   'Q-F1c': 'Do you use a pessary (a support device in your vagina)?',
@@ -158,6 +160,7 @@ export const CAUTION_CARD: Record<string, string> = {
   'Q-B1': 'These are worth getting checked by a GP soon. You can keep training.',
   'Q-X1':
     'After pelvic radiotherapy or cancer surgery, a specialist pelvic health physiotherapist can tailor training to you. Bladder changes after radiotherapy can come months or years later. New leaks, urgency or blood in your pee are worth checking. You can keep training.',
+  'Q-H1': 'Hormone therapy can weaken the pelvic floor muscles. Training is low risk, but it has not been tested in men on hormone therapy. You can keep training.',
   'Q-F1': 'This is worth checking with a doctor or pelvic health physiotherapist. Training is often part of what they suggest, and you can keep training.',
   'Q-F1b': 'A bulge at or outside the opening is worth getting checked by a GP soon. You can keep training while you wait.',
   'Q-F1c': 'You can do pelvic floor exercises with your pessary in. Contact your team if you have bleeding, unusual discharge, pain, or you cannot pee.',

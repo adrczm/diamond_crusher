@@ -6,7 +6,7 @@ export type QuestionKey =
   | 'Q-S1' | 'Q-S2' | 'Q-S2b' | 'Q-S3'
   | 'Q-P1' | 'Q-P2' | 'Q-P3' | 'Q-P4'
   | 'Q-G1' | 'Q-G2' | 'Q-G3' | 'Q-G4' | 'Q-G5' | 'Q-G6' | 'Q-G7'
-  | 'Q-B1' | 'Q-X1' | 'Q-M1'
+  | 'Q-B1' | 'Q-X1' | 'Q-M1' | 'Q-H1'
   | 'Q-F1' | 'Q-F1b' | 'Q-F1c'
   | 'Q-F2' // until 1.5.0: "pregnant or given birth in the last 3 months"; kept for old answers
   | 'Q-F2a' | 'Q-F2a1' | 'Q-F2a2' | 'Q-F2a3'
@@ -36,6 +36,8 @@ export const PAIN: QuestionKey[] = ['Q-P1', 'Q-P2', 'Q-P3', 'Q-P4', 'Q-F3'];
 export const WAIT: QuestionKey[] = ['Q-S1', 'Q-S2', 'Q-F2a1'];
 export const CAUTION: QuestionKey[] = [
   'Q-G1', 'Q-G2', 'Q-G3', 'Q-G4', 'Q-G5', 'Q-G6', 'Q-G7', 'Q-B1', 'Q-X1',
+  // SX15: an information card only; training goes on as before.
+  'Q-H1',
   'Q-F1', 'Q-F1b', 'Q-F1c', 'Q-F2', 'Q-F2a3', 'Q-F2b2', 'Q-F2b3', 'Q-F4', 'Q-F5', 'Q-F6', 'Q-F7b', 'Q-F8', 'Q-F9', 'Q-F10',
 ];
 /** Facts, not reasons: they set what is asked next and how training is shaped (pregnancy, birth, prostate treatment, mesh). */
@@ -55,7 +57,7 @@ const PROFILES: Record<QuestionKey, Anatomy[]> = {
   'Q-P3': M_O,
   'Q-P4': ALL,
   'Q-G1': ALL, 'Q-G2': ['male'], 'Q-G3': ALL, 'Q-G4': ALL, 'Q-G5': ALL, 'Q-G6': ALL, 'Q-G7': M_O,
-  'Q-B1': ALL, 'Q-X1': ALL, 'Q-M1': M_O,
+  'Q-B1': ALL, 'Q-X1': ALL, 'Q-M1': M_O, 'Q-H1': M_O,
   'Q-F1': F, 'Q-F1b': F, 'Q-F1c': F, 'Q-F2': F,
   'Q-F2a': F, 'Q-F2a1': F, 'Q-F2a2': F, 'Q-F2a3': F,
   'Q-F2b': F, 'Q-F2b1': F, 'Q-F2b2': F, 'Q-F2b3': F,
@@ -64,7 +66,7 @@ const PROFILES: Record<QuestionKey, Anatomy[]> = {
 
 const FULL_ORDER: QuestionKey[] = [
   'Q-R1', 'Q-R2', 'Q-R3', 'Q-R4', 'Q-R5',
-  'Q-S1', 'Q-S2', 'Q-S2b', 'Q-S3', 'Q-M1', 'Q-G7',
+  'Q-S1', 'Q-S2', 'Q-S2b', 'Q-S3', 'Q-M1', 'Q-G7', 'Q-H1',
   'Q-F2a', 'Q-F2a2', 'Q-F2a1', 'Q-F2a3',
   'Q-F2b', 'Q-F2b1', 'Q-F2b2', 'Q-F2b3',
   'Q-P1', 'Q-P2', 'Q-P3', 'Q-F3', 'Q-F10',
@@ -114,7 +116,7 @@ const CHANGE_QUESTIONS: Record<Exclude<ChangeTopic, 'other'>, QuestionKey[]> = {
   pain: ['Q-P1', 'Q-P2', 'Q-P3', 'Q-F3', 'Q-F2b3'],
   leaks: ['Q-G1', 'Q-G3', 'Q-B1', 'Q-P3', 'Q-F10', 'Q-G6', 'Q-M1', 'Q-G7', 'Q-F1', 'Q-F1b', 'Q-F1c', 'Q-F6', 'Q-F8'],
   surgery_health: [
-    'Q-S1', 'Q-S2', 'Q-S2b', 'Q-S3', 'Q-M1', 'Q-G7', 'Q-G2', 'Q-G4', 'Q-X1',
+    'Q-S1', 'Q-S2', 'Q-S2b', 'Q-S3', 'Q-M1', 'Q-G7', 'Q-H1', 'Q-G2', 'Q-G4', 'Q-X1',
     'Q-F1', 'Q-F1b', 'Q-F1c', 'Q-F4', 'Q-F5', 'Q-F7', 'Q-F7b', 'Q-F9',
   ],
   pregnancy: ['Q-F2a', 'Q-F2a2', 'Q-F2a1', 'Q-F2a3', 'Q-F2b', 'Q-F2b1', 'Q-F2b2', 'Q-F2b3'],
