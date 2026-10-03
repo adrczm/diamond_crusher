@@ -154,7 +154,7 @@ function TodayBody({ m }: { m: HomeModel }) {
     lead.push(
       <Card key="maint" tone="soft">
         <H2>{MAINTENANCE.offerTitle}</H2>
-        <P>{MAINTENANCE.offerBody}</P>
+        <P>{m.longBuild ? MAINTENANCE.offerBody16 : MAINTENANCE.offerBody}</P>
         <Button label={MAINTENANCE.switch} onPress={() => act(() => switchToMaintenance(db))} busy={busy} />
         <Button label={MAINTENANCE.keepBuilding} kind="quiet" onPress={() => act(() => keepBuilding(db))} disabled={busy} />
       </Card>

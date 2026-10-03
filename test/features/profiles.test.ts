@@ -83,3 +83,41 @@ describe('life-stage facts from the safety answers', () => {
     expect(await profileFacts(db, '2026-03-02')).toMatchObject({ postnatal: true, birthDate: '2026-02-25', birthWithin6Weeks: true });
   });
 });
+
+describe('after prostate treatment (SX16)', () => {
+  it('unlocks standing after the first lying pass', async () => {
+    const { saveSitting } = require('../../src/features/learnService');
+    const good = {
+      startedAt: '2026-03-01T09:00:00.000Z',
+      cueKey: 'cue.male.hold_wind',
+      checkMirror: 'yes',
+      checkTouch: 'not_done',
+      feltRelease: 'yes',
+      mistakes: { breathing: true, buttocks: true, thighs: true, tummy: true, lift: 'lift', leak: false },
+    };
+    for (const treated of [true, false]) {
+      const db = await freshDb();
+      await updateProfile(db, { anatomy: 'male' });
+      await completeScreening(db, { kind: 'onboarding', answers: { 'Q-M1': treated ? 'yes' : 'no' }, startedAt: '2026-03-01T08:00:00.000Z' });
+      await saveSitting(db, [good, good, good], 'sitting', 'lying', new Date('2026-03-01T09:10:00.000Z'));
+      const p = await getProgramme(db);
+      expect(p.learn_status).toBe('passed');
+      expect(p.position_tier).toBe(treated ? 2 : 0);
+    }
+  });
+});
+
+describe('16-week build with a heaviness or bulge answer (SX4)', () => {
+  it('offers the lighter routine from week 17 instead of week 13', () => {
+    const { maintenanceDue } = require('../../src/domain/progression');
+    const base = { phase: 'build', reviewDoneOrSkipped: true, keepBuildingUntilActiveDay: null };
+    const { programmeWeek } = require('../../src/domain/progression');
+    let d13 = 0;
+    while (programmeWeek(d13) < 13) d13++;
+    let d17 = 0;
+    while (programmeWeek(d17) < 17) d17++;
+    expect(maintenanceDue({ ...base, activeDays: d13 })).toBe(true);
+    expect(maintenanceDue({ ...base, activeDays: d13, buildWeeks: 16 })).toBe(false);
+    expect(maintenanceDue({ ...base, activeDays: d17, buildWeeks: 16 })).toBe(true);
+  });
+});

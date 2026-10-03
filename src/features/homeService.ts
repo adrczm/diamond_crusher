@@ -20,7 +20,7 @@ import {
   type Prescription,
 } from '../domain/progression';
 import { weekdayBit } from '../domain/reminders';
-import { isBlocked, type QuestionKey } from '../domain/safety';
+import { CAUTION, isBlocked, type QuestionKey } from '../domain/safety';
 import { personalBest, type CheckForTrend, type Measure } from '../domain/selfcheck';
 import { dayPlan } from '../domain/session/plan';
 import type { Position } from '../domain/types';
@@ -38,7 +38,7 @@ import type { SqlDb } from '../data/sql';
 import type { Goal } from '../domain/types';
 import type { WeeklySummaryRow } from '../data/repositories/misc';
 import { currentCheck, ensureSchedule, forTrend, safetyRecheckDue, type CheckDue } from './checkService';
-import { ensureCautionFlags, healthNoteState, type HealthNoteState } from './safetyService';
+import { ensureCautionFlags, healthNoteState, profileFacts, type HealthNoteState } from './safetyService';
 import { ensureLastWeekSummary } from './summaryService';
 import { loadOf, pendingGap, planToday, toDay, type PendingGap, type TodayPlan } from './trainingService';
 
@@ -68,6 +68,8 @@ export interface HomeModel {
   techniqueCheck: boolean;
   summary: WeeklySummaryRow | null;
   maintenanceOffer: boolean;
+  /** SX4: a heaviness or bulge answer makes the build 16 weeks, with a get-checked line at the end. */
+  longBuild: boolean;
   exportReminder: boolean;
   cautions: QuestionKey[];
   /** Setup cards moved out of onboarding (C2), in the order to show them. */
@@ -393,6 +395,7 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
     getMeta(db),
   ]);
   const today = await planToday(db, now);
+  const facts = await profileFacts(db, todayStr);
   const [allSessions, slots, seen, reminders, milestones, flags] = await Promise.all([
     listSessions(db),
     listSlots(db),
@@ -490,9 +493,11 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
       activeDays: programme.active_days,
       reviewDoneOrSkipped: reviewDone,
       keepBuildingUntilActiveDay: programme.keep_building_until_active_day,
+      buildWeeks: facts.bulge ? 16 : 12,
     }),
+    longBuild: facts.bulge,
     exportReminder,
-    cautions: safety.reasons.filter((r) => ['Q-G1', 'Q-G2', 'Q-G3', 'Q-G4', 'Q-G5', 'Q-F1', 'Q-F2'].includes(r)),
+    cautions: safety.reasons.filter((r) => CAUTION.includes(r)),
     setup,
     healthNote: healthNoteState(safety.mode, safety.reasons, flags),
     suggestions,

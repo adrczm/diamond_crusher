@@ -294,6 +294,8 @@ export const WELCOME_BACK = {
 export const MAINTENANCE = {
   offerTitle: 'Build phase done',
   offerBody: 'That is 12 weeks of training. From now on, a lighter routine keeps what you built. Your monthly check shows how it holds. Or you can build for 4 more weeks.',
+  offerBody16:
+    'That is 16 weeks of training. It is a good idea to have a professional check the heaviness or bulge now. From now on, a lighter routine keeps what you built.',
   switch: 'Start lighter routine',
   keepBuilding: 'Add 4 weeks',
   targetChanged: (n: number) => `Your weekly target is now ${n} days, to match the lighter routine. You can change it in Settings.`,

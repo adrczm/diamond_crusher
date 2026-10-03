@@ -6,7 +6,7 @@ import { addLevelChange, getProgramme, updateProgramme } from '../data/repositor
 import { updateProfile } from '../data/repositories/profile';
 import { newId } from '../data/repositories/sessions';
 import { nowIso, type SqlDb } from '../data/sql';
-import { clearQG5, raiseQG5 } from './safetyService';
+import { clearQG5, profileFacts, raiseQG5 } from './safetyService';
 
 export interface AttemptRecord extends AttemptInput {
   startedAt: string;
@@ -36,6 +36,11 @@ async function startBuild(db: SqlDb, now: Date) {
     baseline_offer_until: addDays(toLocalDate(now), BASELINE_OFFER_DAYS),
   });
   await addLevelChange(db, { reason: 'initial', variable: 'none', before: null, after: null });
+  // SX16 (SX-E.20): after prostate treatment, standing unlocks after the first lying pass (PRG-011 exception).
+  if (prog.learn_status === 'passed' && prog.position_tier < 2 && (await profileFacts(db, toLocalDate(now))).prostateTreatment) {
+    await updateProgramme(db, { position_tier: 2, unlocked_positions: ['lying', 'sitting', 'standing'] });
+    await addLevelChange(db, { reason: 'position_unlock', variable: 'position', before: prog.position_tier, after: 2 });
+  }
 }
 
 export async function saveSitting(

@@ -338,15 +338,19 @@ export function maintenanceTarget(ageBand: AgeBand | null, setting: number | nul
   return ageBand === '60_74' || ageBand === '75_plus' ? 5 : 4;
 }
 
-/** PRG-020: maintenance is offered once programme week 13 begins and the 12-week review is done or skipped. */
+/**
+ * PRG-020: maintenance is offered once programme week 13 begins and the 12-week review is done or skipped.
+ * SX4 (2026-10-03): with a heaviness or bulge answer the build lasts 16 weeks (NICE NG123 1.7.5, POPPY), so week 17.
+ */
 export function maintenanceDue(opts: {
   phase: Phase;
   activeDays: number;
   reviewDoneOrSkipped: boolean;
   keepBuildingUntilActiveDay: number | null;
+  buildWeeks?: number;
 }): boolean {
   if (opts.phase !== 'build') return false;
-  if (programmeWeek(opts.activeDays) < 13) return false;
+  if (programmeWeek(opts.activeDays) < (opts.buildWeeks ?? 12) + 1) return false;
   if (!opts.reviewDoneOrSkipped) return false;
   if (opts.keepBuildingUntilActiveDay != null && opts.activeDays < opts.keepBuildingUntilActiveDay) return false;
   return true;
