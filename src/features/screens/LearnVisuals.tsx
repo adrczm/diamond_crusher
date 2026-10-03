@@ -1,6 +1,6 @@
 // Pictures for Learn the squeeze (UX audit H6): a plain pelvic floor diagram and the lift / let-go circle.
 import { useEffect, useRef } from 'react';
-import { Animated, Platform, View } from 'react-native';
+import { Animated, Easing, View } from 'react-native';
 import Svg, { Ellipse, Path, Polyline } from 'react-native-svg';
 import { LEARN } from '../../content/en/learn';
 import { P } from '../../ui/kit';
@@ -9,6 +9,7 @@ import { useReducedMotion } from '../../ui/motion';
 import { useColors } from '../../ui/theme';
 import { Text } from '../../ui/text';
 import { useCountdown } from '../../ui/useCountdown';
+import { RELEASE_S } from '../../domain/session/plan';
 
 /**
  * A neutral outline of the pelvis with the pelvic floor as a hammock across the bottom: dashed at rest, solid and
@@ -46,22 +47,38 @@ export function PelvicFloorDiagram({ caption = true }: { caption?: boolean }) {
   );
 }
 
+const AnimatedText = Animated.createAnimatedComponent(Text);
+
 /**
- * The session circle, reused: it swells on a squeeze and settles on the let-go (a spring, as in the session), with
- * the seconds left inside. Still when Reduce motion is on.
+ * The session circle, reused with the session's rules (motion 3.3): it swells over 400 ms on a squeeze and settles
+ * across the whole 2 s let-go, and its colour fades with it instead of flipping (MO-2, MO-5). The seconds left are
+ * inside. Still when Reduce motion is on.
  */
 export function LiftCircle({ squeezing, seconds, label, onDone }: { squeezing: boolean; seconds: number; label: string; onDone: () => void }) {
   const c = useColors();
   const desktop = useDesktop();
   const reduced = useReducedMotion();
   const left = useCountdown(seconds, true, onDone);
-  const scale = useRef(new Animated.Value(squeezing ? 0.85 : 1)).current;
+  // 0 = let go (smaller, grey), 1 = squeezing (full size, blue). Each step mounts at the other end and moves across.
+  const k = useRef(new Animated.Value(squeezing ? 0 : 1)).current;
   useEffect(() => {
-    const to = squeezing ? 1 : 0.85;
-    if (reduced) scale.setValue(to);
-    else Animated.spring(scale, { toValue: to, friction: 7, tension: 60, useNativeDriver: Platform.OS !== 'web' }).start();
-  }, [squeezing, reduced, scale]);
+    const to = squeezing ? 1 : 0;
+    if (reduced) k.setValue(to);
+    else
+      Animated.timing(k, {
+        toValue: to,
+        // body.recruit: 400 ms ease-out. body.letgo: the whole 2 s let-go, eased like the session circle.
+        duration: squeezing ? 400 : Math.min(seconds, RELEASE_S) * 1000,
+        easing: squeezing ? Easing.bezier(0.22, 1, 0.36, 1) : Easing.inOut(Easing.sin),
+        useNativeDriver: false,
+      }).start();
+  }, [squeezing, reduced, k, seconds]);
   const D = desktop ? 220 : 180;
+  // On a squeeze the colour arrives in the first 150 ms of the 400 ms swell. On the let-go it fades across the 2 s.
+  const at = squeezing ? [0, 0.375, 1] : [0, 0.999, 1];
+  const scale = k.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] });
+  const backgroundColor = k.interpolate({ inputRange: at, outputRange: [c.soft, c.squeeze, c.squeeze] });
+  const color = k.interpolate({ inputRange: at, outputRange: [c.primary, c.onSqueeze, c.onSqueeze] });
   return (
     <View style={{ alignItems: 'center', paddingVertical: 16, gap: 12 }} accessibilityLiveRegion="polite">
       <Animated.View
@@ -69,13 +86,13 @@ export function LiftCircle({ squeezing, seconds, label, onDone }: { squeezing: b
           width: D,
           height: D,
           borderRadius: D / 2,
-          backgroundColor: squeezing ? c.squeeze : c.soft,
+          backgroundColor,
           alignItems: 'center',
           justifyContent: 'center',
           transform: [{ scale }],
         }}
       >
-        <Text style={{ fontSize: 64, fontWeight: '700', color: squeezing ? c.onSqueeze : c.primary }}>{left}</Text>
+        <AnimatedText style={{ fontSize: 64, fontWeight: '700', color }}>{left}</AnimatedText>
       </Animated.View>
       <Text style={{ fontSize: 20, color: c.muted, textAlign: 'center' }}>{label}</Text>
     </View>

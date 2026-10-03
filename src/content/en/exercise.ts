@@ -84,6 +84,17 @@ export const SESSION = {
   holdLabel: (rep: number, reps: number) => `Hold ${rep} of ${reps}`,
   flickLabel: (rep: number, reps: number) => `Quick squeeze ${rep} of ${reps}`,
   enduranceLabel: (rep: number, reps: number) => `Steady hold ${rep} of ${reps}`,
+  // MO-7, HE-14: during Rest and Get ready, what comes next.
+  nextRep: (label: string) => `Next: ${label}`,
+  nextBlock: { relax: 'Next: Relax', hold: 'Next: Holds', flick: 'Next: Quick squeezes', endurance: 'Next: Steady holds' },
+  // Reduce motion: the breathing pacer becomes words (MO-4, D1).
+  breatheIn: 'Breathe in',
+  breatheOut: 'Breathe out',
+  // Wave view: the top line and the baseline, as words, so colour is not the only cue.
+  waveTop: 'Squeeze',
+  waveBase: 'Let go',
+  sessionBar: 'Session',
+  percent: (n: number) => `${n}%`,
   walkingOption: 'Do the steady holds as you walk',
   positionName: { lying: 'Lying down', sitting: 'Sitting', standing: 'Standing', moving: 'Walking', mixed: 'Mixed' },
   positionHint: {

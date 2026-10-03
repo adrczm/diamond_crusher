@@ -590,6 +590,7 @@ export const DESKTOP = {
     { keys: '1 to 8', what: 'Go to a section in the sidebar' },
     { keys: 'T', what: 'Switch light, dark or automatic appearance' },
     { keys: 'Space', what: 'Pause or resume a running session' },
+    { keys: 'V', what: 'Switch the timer view in a running session' },
     { keys: 'Esc', what: 'Go back or close this panel. In a session, pause, then end.' },
     { keys: '?', what: 'Show these shortcuts' },
   ],
@@ -610,4 +611,12 @@ export const DESKTOP = {
   helpAndChanges: 'Help and changes',
   more: 'More',
   sessionProgress: (pct: number) => `${pct}% of this session done`,
+  // Session timer views (T1, M2): ring and wave, switched with a control, the dots or V.
+  sessionKeysView: 'Space pauses · Esc twice ends · V switches the view',
+  sessionView: 'Timer view',
+  sessionViewRing: 'Ring',
+  sessionViewWave: 'Wave',
+  sessionRingAlt: (left: number, pct: number) => `Timer ring. ${left} seconds left in this step. ${pct}% of this session done.`,
+  sessionWaveAlt: (left: number, pct: number) =>
+    `Timer wave. Up is squeeze and the line at the bottom is let go. ${left} seconds left in this step. ${pct}% of this session done.`,
 };

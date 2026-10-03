@@ -15,6 +15,8 @@ export interface Colors {
   soft: string;
   border: string;
   danger: string;
+  /** Red line and icon of a safety control on a card (Pain, HE-05): at least 3:1 in light and dark. */
+  critical: string;
   warn: string;
   warnSoft: string;
   good: string;
@@ -73,6 +75,7 @@ function fromPolaris(t: (typeof polaris)['light'] | (typeof polaris)['dark'], da
     soft: dark ? DARK.soft : t['bg-surface-secondary'],
     border: dark ? t['border-secondary'] : t['border'],
     danger: t['bg-fill-critical'],
+    critical: dark ? '#FF7A85' : t['bg-fill-critical'],
     warn: dark ? DARK.warn : t['text-warning'],
     warnSoft: dark ? DARK.warnSoft : t['bg-surface-warning'],
     good: dark ? '#29B28A' : t['bg-fill-success'],
