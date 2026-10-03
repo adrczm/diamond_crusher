@@ -8,7 +8,7 @@ import { View } from 'react-native';
 import { Alert } from '../src/platform/dialog';
 import { CHECKIN } from '../src/content/en/checkin';
 import { CLEARANCE, OUTCOME, RELAX_ONLY_HOME } from '../src/content/en/screening';
-import { COMMON, DESKTOP, EXPECTATION, HOME, MAINTENANCE, SETUP, WELCOME_BACK } from '../src/content/en/strings';
+import { COMMON, DESKTOP, expectationFor, HOME, MAINTENANCE, SETUP, WELCOME_BACK } from '../src/content/en/strings';
 import { educationFor } from '../src/content/en/education';
 import { setTodayHero, type TodayHero } from '../src/data/repositories/settings';
 import type { FlagResponse } from '../src/data/repositories/safety';
@@ -181,7 +181,7 @@ function TodayBody({ m }: { m: HomeModel }) {
         <P>{HOME.learnHint}</P>
         <Button label={HOME.learnFirst} onPress={() => router.push('/learn')} />
         <P small muted>
-          {EXPECTATION}
+          {expectationFor(m.profile.anatomy)}
         </P>
       </Card>
     );

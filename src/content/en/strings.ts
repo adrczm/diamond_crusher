@@ -313,6 +313,11 @@ export const MAINTENANCE = {
 };
 
 export const EXPECTATION = 'Most changes take 6 to 12 weeks. A squeeze before you cough and after you pee can help from today.';
+/** The squeeze after peeing is for men (B2.3), so the other profiles get the knack only (SX: women's profile). */
+export const EXPECTATION_KNACK = 'Most changes take 6 to 12 weeks. A squeeze before you cough, sneeze or lift can help from today.';
+export function expectationFor(anatomy: string | null | undefined): string {
+  return anatomy === 'male' ? EXPECTATION : EXPECTATION_KNACK;
+}
 
 export const MILESTONES: Record<string, string> = {
   first_week: 'First week of training done.',
