@@ -107,6 +107,11 @@ export class SessionRunner {
     return Math.max(0, (end - this.elapsedMs(nowMono)) / 1000);
   }
 
+  /** The phases as they run, cut short ones included, for the timer pictures (read only). */
+  schedule(): readonly { readonly phase: TimelinePhase; readonly startMs: number }[] {
+    return this.segments;
+  }
+
   totalS(): number {
     return this.totalMs / 1000;
   }

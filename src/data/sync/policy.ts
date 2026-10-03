@@ -47,6 +47,8 @@ export const DEVICE_COLUMNS: Partial<Record<TableName, string[]>> = {
     'theme',
     'audio_mode',
     'vibration',
+    // The Today top card (Path or Rings) is chosen per device; today_hero_shared carries it when the person syncs it.
+    'today_hero',
   ],
   programme_state: ['active_days'],
   reminder: ['os_ids', 'last_scheduled_at'],

@@ -16,6 +16,7 @@ export type IconName =
   | 'play'
   | 'back'
   | 'keyboard'
+  | 'sidebar'
   | 'done'
   | 'lock'
   | 'more'
@@ -124,6 +125,14 @@ export function Icon({ name, size = 20, color }: { name: IconName; size?: number
         <>
           <Rect x={2} y={5} width={20} height={14} rx={2} {...p} />
           <Path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M8 16h8" {...p} />
+        </>
+      );
+      break;
+    case 'sidebar':
+      body = (
+        <>
+          <Rect x={3} y={4} width={18} height={16} rx={2} {...p} />
+          <Path d="M9 4v16" {...p} />
         </>
       );
       break;

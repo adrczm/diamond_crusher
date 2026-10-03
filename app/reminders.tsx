@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Linking, Platform } from 'react-native';
 import { COMMON, PLAN, SETTINGS } from '../src/content/en/strings';
-import { listReminders, listSlots, savePlan, type SlotPlan } from '../src/data/repositories/reminders';
+import { listPlan, savePlan, type SlotPlan } from '../src/data/repositories/reminders';
 import { getSettings, updateSettings, type Settings } from '../src/data/repositories/settings';
 import { formatShort, toLocalDate } from '../src/domain/dates';
 import { useApp, useLoad, withoutRelock } from '../src/features/app';
@@ -16,22 +16,12 @@ export default function RemindersScreen() {
   const { db, bump } = useApp();
   const { data, reload, error: loadError } = useLoad(async (d) => {
     const settings = await getSettings(d);
-    const slots = await listSlots(d);
-    const reminders = await listReminders(d);
-    const plan: SlotPlan[] = slots.map((s) => {
-      const r = reminders.find((x) => x.kind === 'session' && x.slot_no === s.slot_no);
-      return {
-        slotNo: s.slot_no,
-        anchorKey: s.anchor_key,
-        anchorCustom: s.anchor_custom,
-        timeLocal: r?.time_local ?? '09:00',
-        weekdays: r?.weekdays ?? 127,
-        enabled: r?.enabled ?? s.active,
-      };
-    });
+    const plan = await listPlan(d);
     return {
       settings,
       plan: plan.length ? plan : defaultPlan(settings.sessions_per_day_target),
+      // Rows on screen that are not stored yet (a first plan, or more sessions than slots): Save shows at once.
+      stored: new Set(plan.map((p) => p.slotNo)),
       perm: await getPermission().catch(() => 'undetermined' as const),
     };
   });
@@ -40,9 +30,11 @@ export default function RemindersScreen() {
   const [tested, setTested] = useState(false);
   // The knack time saves a moment after the last step, not on every tap of the stepper.
   const [knackTime, setKnackTime] = useState<string | null>(null);
+  // REM-001 (round 2): one row per session a day, any number of sessions.
   useEffect(() => {
     if (data && !dirty) setPlan(resizePlan(data.plan, data.settings.sessions_per_day_target));
   }, [data, dirty]);
+  const unsaved = !!plan && !!data && plan.some((p) => !data.stored.has(p.slotNo));
   useEffect(() => {
     if (!knackTime) return;
     const t = setTimeout(async () => {
@@ -110,7 +102,7 @@ export default function RemindersScreen() {
           setPlan(p);
         }}
       />
-      {dirty ? (
+      {dirty || unsaved ? (
         <Button
           label={COMMON.save}
           disabled={!planValid(plan)}

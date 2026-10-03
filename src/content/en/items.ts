@@ -121,16 +121,49 @@ export const SELF_CHECK = {
   stopEarly: 'Stop here',
 } as const;
 
+const EVENTS_KINDS = [
+  { value: 'illness', label: 'Ill' },
+  { value: 'alcohol', label: 'Drank alcohol' },
+  { value: 'new_medication', label: 'New or changed medicine' },
+  { value: 'tired_stressed', label: 'Very tired or stressed' },
+  { value: 'other', label: 'Other' },
+] as const;
+
 export const EVENTS = {
   title: 'Log something',
   leakType: 'Leak or dribble',
   sexType: 'Sexual activity',
-  contextType: 'Add a note about a day',
+  contextType: 'Add a note',
+  /** Screen readers: the three log types (a radio group). */
+  typeLabel: 'What do you want to log?',
   when: 'When did it happen?',
   whenSex: 'When was this?',
+  whichDay: 'Which day?',
   now: 'Now',
-  earlierToday: 'Earlier today',
+  today: 'Today',
   yesterday: 'Yesterday',
+  // Day strip (EVT-010): short weekday over the date number. Monday first, as isoWeekday.
+  weekdayShort: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  weekdayLong: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+  monthLong: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  dayCell: (weekday: string, date: number, month: string) => `${weekday} ${date} ${month}`,
+  dayStrip: 'Day',
+  // Time-of-day slider (EVT-010): five evenly spaced parts of the day. Labels under the track, words in the readout.
+  slider: 'Time of day',
+  periods: { morning: 'Morning', noon: 'Noon', afternoon: 'Afternoon', evening: 'Evening', night: 'Night' } as Record<string, string>,
+  periodWords: { morning: 'morning', noon: 'noon', afternoon: 'afternoon', evening: 'evening', night: 'night' } as Record<string, string>,
+  /** The part of the day "now" is in, picked on purpose: an earlier time in the same part. */
+  earlierWords: {
+    morning: 'earlier this morning',
+    noon: 'around noon',
+    afternoon: 'earlier this afternoon',
+    evening: 'earlier this evening',
+    night: 'earlier tonight',
+  } as Record<string, string>,
+  readNow: (day: string, time: string) => `${day}, now (${time})`,
+  /** After midnight and before 05:00 "now" counts as the night of the day before. */
+  readNowLate: (time: string) => `Now (${time}). This counts as last night.`,
+  readPeriod: (day: string, part: string) => `${day}, ${part}`,
   recent: 'Recent entries',
   showOlder: 'Show older entries',
   deleteAsk: 'Delete this entry?',
@@ -188,14 +221,23 @@ export const EVENTS = {
   bother: 'How much did the timing bother you this time?',
   botherEnds: ['Not at all', 'Very much'],
   saved: 'Saved',
-  contextKinds: [
-    { value: 'illness', label: 'Ill' },
-    { value: 'alcohol', label: 'Drank alcohol' },
-    { value: 'new_medication', label: 'New or changed medicine' },
-    { value: 'tired_stressed', label: 'Very tired or stressed' },
-    { value: 'other', label: 'Other' },
-  ],
-  contextNote: 'Note (optional, 60 characters)',
+  /** Kinds of notes saved before round 2 (EVT-033 v1). New notes are kind `other` with free text only. */
+  contextKinds: EVENTS_KINDS,
+  // EVT-033 (round 2): a day note is free text, 280 characters, no kind to pick first. Old notes keep their kind label.
+  noteLabel: 'Note about this day',
+  noteHint: 'Anything that may explain a good or bad day.',
+  noteMax: 280,
+  noteCount: (n: number, max: number) => `${n} of ${max} characters`,
+  notePlace: 'Your note shows on your progress charts on this day.',
+  /** A day note as one line: an old kind label first when there is one, then the text (cut to `max` characters if set). */
+  flagText: (kind: string, note: string | null, max = 0) => {
+    const label = kind === 'other' ? '' : (EVENTS_KINDS.find((k) => k.value === kind)?.label ?? '');
+    const text = typeof note === 'string' ? note.trim() : '';
+    const cut = max > 0 && text.length > max ? `${text.slice(0, max).trimEnd()}…` : text;
+    if (label && cut) return `${label}: ${cut}`;
+    return label || cut || 'Note';
+  },
+  saveKey: 'or press ⌘↵',
   sexualActivityFlag: 'Any sexual activity in the past 4 weeks?',
   sexualActivityOptions: [
     { value: 'yes', label: 'Yes' },

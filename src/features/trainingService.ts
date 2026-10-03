@@ -19,7 +19,7 @@ import {
 } from '../domain/progression';
 import { isBlocked, strengthAllowed } from '../domain/safety';
 import type { BlockResult } from '../domain/session/engine';
-import { dayPlan, relaxPlan, strengthPlan, strongHolds, type Load, type SessionPlan } from '../domain/session/plan';
+import { dayPlan, relaxPlan, strengthPlan, type Load, type SessionPlan } from '../domain/session/plan';
 import type { Completion, SafetyMode, SessionPosition } from '../domain/types';
 import { strengthUnlocked } from '../domain/learn';
 import { listSelfChecks } from '../data/repositories/checks';
@@ -102,7 +102,7 @@ export async function planToday(db: SqlDb, now = new Date()): Promise<TodayPlan>
   }
   const last = slots[slots.length - 1];
   const extraPlan = strengthPlan(load, false, last.position);
-  return { ...res, kind: 'day_done', extraPlan, extraAllowed: extraSessionAllowed(holdsToday, strongHolds(extraPlan)) };
+  return { ...res, kind: 'day_done', extraPlan, extraAllowed: extraSessionAllowed() };
 }
 
 export interface SaveSessionInput {

@@ -359,9 +359,13 @@ export function maintenanceQualifies(opts: { weeksTargetMet: boolean[]; painRepo
   return opts.weeksTargetMet.slice(-4).filter(Boolean).length >= 3;
 }
 
-/** PRG-041 / MOT-010: whether another session today is within the plan, extra, or blocked by the cap. */
-export function extraSessionAllowed(holdsDoneToday: number, nextSessionHolds: number): boolean {
-  return holdsDoneToday + nextSessionHolds <= 30;
+/**
+ * PRG-041 / MOT-010 (round 2, 2026-10-03): sessions a day have no upper limit, so the 30 strong holds a day cap is gone.
+ * After the day's plan an extra session may always start. It is stored as `extra`: not counted, not rewarded and no
+ * session log (MOT-010, MOT-054, LOG-024). The per-session caps, pain routing and the quality stop still apply.
+ */
+export function extraSessionAllowed(): boolean {
+  return true;
 }
 
 /** PRG-040: clamp any prescription into the hard caps (used on import and after every rule). */

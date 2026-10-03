@@ -59,15 +59,18 @@ export function syncedColumns(table: string, cols: string[]): string[] {
 const changed = (cols: string[]) => cols.map((c) => `NEW.${c} IS NOT OLD.${c}`).join(' OR ');
 const backfillHlc = "printf('%013d-%06x-%s', CAST((julianday(COALESCE(updated_at, created_at)) - 2440587.5) * 86400000 AS INTEGER), 0, (SELECT node FROM sync_clock WHERE id = 1))";
 
-export async function up(db: SqlDb): Promise<void> {
-  await db.exec(SQL);
-  for (const t of ROW_TABLES) {
-    const cols = await columns(db, t);
-    const pk = PRIMARY_KEYS[t];
-    const watched = cols.filter((c) => !SKIP_COLUMNS.includes(c) && !(DEVICE_COLUMNS[t] ?? []).includes(c));
-    await db.exec(`
-ALTER TABLE ${t} ADD COLUMN hlc TEXT NOT NULL DEFAULT '';
-UPDATE ${t} SET hlc = ${backfillHlc};
+/** Clock, update and delete triggers for one row table (SYNC-014). Re-run after its columns change (0003). */
+export async function rowTriggers(db: SqlDb, t: string, backfill: boolean): Promise<void> {
+  const cols = await columns(db, t);
+  const pk = PRIMARY_KEYS[t as keyof typeof PRIMARY_KEYS];
+  const watched = cols.filter((c) => !SKIP_COLUMNS.includes(c) && !(DEVICE_COLUMNS[t as keyof typeof DEVICE_COLUMNS] ?? []).includes(c));
+  await db.exec(`
+${backfill ? `ALTER TABLE ${t} ADD COLUMN hlc TEXT NOT NULL DEFAULT '';
+UPDATE ${t} SET hlc = ${backfillHlc};` : ''}
+DROP TRIGGER IF EXISTS sync_ai_${t};
+DROP TRIGGER IF EXISTS sync_au_${t};
+DROP TRIGGER IF EXISTS sync_ad_${t};
+DROP INDEX IF EXISTS sync_hlc_${t};
 CREATE TRIGGER sync_ai_${t} AFTER INSERT ON ${t} WHEN ${QUIET} BEGIN
   ${TICK}
   UPDATE ${t} SET hlc = ${HLC_EXPR} WHERE rowid = NEW.rowid;
@@ -82,16 +85,27 @@ CREATE TRIGGER sync_ad_${t} AFTER DELETE ON ${t} WHEN ${QUIET} BEGIN
 END;
 CREATE INDEX sync_hlc_${t} ON ${t}(hlc);
 `);
-  }
-  for (const t of FIELD_TABLES) {
-    const fields = syncedColumns(t, await columns(db, t));
-    await db.exec(`
-INSERT INTO sync_field (table_name, field, hlc)
+}
+
+/**
+ * The per-field clock trigger for one single-row table (SYNC-013). Fields without a clock yet get one from the row's
+ * last change, so a new column (0003) starts with a clock like the others.
+ */
+export async function fieldTriggers(db: SqlDb, t: string): Promise<void> {
+  const fields = syncedColumns(t, await columns(db, t));
+  await db.exec(`
+INSERT OR IGNORE INTO sync_field (table_name, field, hlc)
   SELECT '${t}', f.value, ${backfillHlc} FROM ${t}, json_each('${JSON.stringify(fields)}') AS f WHERE ${t}.id = 1;
+DROP TRIGGER IF EXISTS sync_au_${t};
 CREATE TRIGGER sync_au_${t} AFTER UPDATE ON ${t} WHEN ${QUIET} AND (${changed(fields)}) BEGIN
   ${TICK}
 ${fields.map((f) => `  INSERT OR REPLACE INTO sync_field (table_name, field, hlc) SELECT '${t}', '${f}', ${HLC_EXPR} WHERE NEW.${f} IS NOT OLD.${f};`).join('\n')}
 END;
 `);
-  }
+}
+
+export async function up(db: SqlDb): Promise<void> {
+  await db.exec(SQL);
+  for (const t of ROW_TABLES) await rowTriggers(db, t, true);
+  for (const t of FIELD_TABLES) await fieldTriggers(db, t);
 }

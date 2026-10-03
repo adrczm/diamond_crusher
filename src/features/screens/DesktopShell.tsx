@@ -1,6 +1,7 @@
 // Desktop frame for wide windows (the Mac version): a persistent sidebar with sections, today's main action, the
 // backup status and the appearance switch, plus app-wide keyboard shortcuts and their help panel. Phones never render
-// this (they get PhoneTabs instead).
+// this (they get PhoneTabs instead). Round 2 (Mac decision M1): 768 to 1039 wide gets a 72 pt icon rail; from 1040 the
+// 240 pt sidebar, which ⌘\ or its button folds into the rail (remembered in this browser).
 import { router, usePathname } from 'expo-router';
 import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -12,12 +13,13 @@ import { toLocalDate } from '../../domain/dates';
 import { setShortcutsEnabled, shortcutsEnabled, useHotkeys } from '../../ui/hotkeys';
 import { ToggleRow } from '../../ui/kit';
 import { Icon, type IconName } from '../../ui/icons';
-import { activeNav, isFocusRoute, isSection, NAV, SIDEBAR_W, useDesktop } from '../../ui/layout';
+import { activeNav, isFocusRoute, isSection, NAV, RAIL_W, SIDEBAR_W, useDesktop, useWindowClass } from '../../ui/layout';
 import { Text } from '../../ui/text';
 import { useReducedMotion } from '../../ui/motion';
 import { radius, space, ThemePrefContext, type, useColors, useIsDark } from '../../ui/theme';
 import { openSessionOnce, useApp, useLoad } from '../app';
 import { planToday } from '../trainingService';
+import { LogForm } from './LogForm';
 import { feedback } from '../../platform/feedback';
 
 const ORDER: Settings['theme'][] = ['system', 'light', 'dark'];
@@ -62,15 +64,61 @@ function useTodayAction() {
   return null;
 }
 
+const RAIL_STORE = 'dc-sidebar';
+
+/** The sidebar folded into the rail by choice (large windows). Remembered in this browser, like the text size. */
+function useCollapsed(): [boolean, () => void] {
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return Platform.OS === 'web' && typeof localStorage !== 'undefined' && localStorage.getItem(RAIL_STORE) === 'rail';
+    } catch {
+      return false;
+    }
+  });
+  const toggle = () =>
+    setCollapsed((v) => {
+      try {
+        localStorage.setItem(RAIL_STORE, v ? 'full' : 'rail');
+      } catch {
+        // Not remembered.
+      }
+      return !v;
+    });
+  return [collapsed, toggle];
+}
+
+/** ⌘\ (or Ctrl+\) folds and unfolds the sidebar, as in Safari and Finder. */
+function useToggleKey(toggle: () => void, enabled: boolean) {
+  const ref = useRef(toggle);
+  ref.current = toggle;
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !enabled || typeof document === 'undefined') return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
+        e.preventDefault();
+        ref.current();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [enabled]);
+}
+
 export function DesktopFrame({ children }: { children: ReactNode }) {
   const desktop = useDesktop();
+  const size = useWindowClass();
   const pathname = usePathname();
   const c = useColors();
   const focus = isFocusRoute(pathname);
   const showSidebar = desktop && !focus;
+  const [collapsed, toggleCollapsed] = useCollapsed();
+  // Medium windows always get the rail; large ones get the sidebar unless it was folded.
+  const rail = size === 'medium' || collapsed;
   const [help, setHelp] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
   const theme = useThemeSwitch();
   const today = useTodayAction();
+  useToggleKey(toggleCollapsed, showSidebar && size !== 'medium');
 
   // While the shortcuts panel is open, only ? and Esc work, so nothing changes behind it.
   useHotkeys(
@@ -87,18 +135,147 @@ export function DesktopFrame({ children }: { children: ReactNode }) {
             s: () => {
               if (today && !today.done) openToday(today.href);
             },
+            // M5: L logs something from any page, in a panel over it.
+            // On the Log page the form is already open (and a second form would add a second ⌘↵).
+            l: () => {
+              if (pathname !== '/log') setLogOpen(true);
+            },
             ...Object.fromEntries(NAV.map((n, i) => [String(i + 1), () => router.navigate(n.href)])),
           }),
     },
-    showSidebar,
+    showSidebar && !logOpen,
   );
 
+  // Today has its own Start button; a second one in the sidebar would repeat it (Mac critique, today-1280).
+  const start = pathname === '/' ? null : today;
   return (
     <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.bg }}>
-      {showSidebar ? <Sidebar pathname={pathname} today={today} theme={theme} onHelp={() => setHelp(true)} /> : null}
+      {showSidebar && rail ? (
+        <Rail
+          pathname={pathname}
+          today={start}
+          theme={theme}
+          onHelp={() => setHelp(true)}
+          onExpand={size === 'medium' ? null : toggleCollapsed}
+        />
+      ) : null}
+      {showSidebar && !rail ? <Sidebar pathname={pathname} today={start} theme={theme} onHelp={() => setHelp(true)} onCollapse={toggleCollapsed} /> : null}
       <View style={{ flex: 1 }}>{children}</View>
       {showSidebar ? <ShortcutsPanel open={help} onClose={() => setHelp(false)} /> : null}
+      {showSidebar ? <LogPanel open={logOpen} onClose={() => setLogOpen(false)} /> : null}
     </View>
+  );
+}
+
+/** The narrow rail: an icon and a short name per section, with the shortcut in the tooltip. */
+function Rail({
+  pathname,
+  today,
+  theme,
+  onHelp,
+  onExpand,
+}: {
+  pathname: string;
+  today: ReturnType<typeof useTodayAction>;
+  theme: ReturnType<typeof useThemeSwitch>;
+  onHelp: () => void;
+  onExpand: (() => void) | null;
+}) {
+  const c = useColors();
+  const active = activeNav(pathname);
+  const backup = useBackup();
+  const themeIcon: Record<Settings['theme'], IconName> = { system: 'auto', light: 'sun', dark: 'moon' };
+  return (
+    <View role="navigation" style={{ width: RAIL_W, backgroundColor: c.nav, borderRightWidth: StyleSheet.hairlineWidth, borderColor: c.border }}>
+      <ScrollView contentContainerStyle={{ paddingVertical: space(1.5), paddingHorizontal: 4, gap: space(1), flexGrow: 1, alignItems: 'stretch' }}>
+        <View style={{ alignItems: 'center', paddingVertical: space(0.5) }}>
+          {onExpand ? (
+            <RailButton icon="sidebar" label={DESKTOP.expand} hint={`${DESKTOP.expand} (⌘\\)`} onPress={onExpand} />
+          ) : (
+            <View style={{ width: 20, height: 20, borderRadius: 5, backgroundColor: c.primary, transform: [{ rotate: '45deg' }], marginVertical: 8 }} />
+          )}
+        </View>
+        {today && !today.done ? (
+          <Pressable
+            ref={webHint(`${today.label} (S)`, 's')}
+            accessibilityRole="button"
+            accessibilityLabel={today.label}
+            onPress={() => openToday(today.href)}
+            style={(st) => ({
+              alignSelf: 'center',
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: (st as { hovered?: boolean }).hovered ? c.primaryHover : c.primary,
+            })}
+          >
+            <Icon name="play" size={16} color={c.onPrimary} />
+          </Pressable>
+        ) : null}
+        {NAV.map((n, i) => {
+          const selected = active === n.key;
+          return (
+            <Pressable
+              key={n.key}
+              ref={webHint(DESKTOP.keyHint(i + 1), String(i + 1))}
+              accessibilityRole="link"
+              accessibilityLabel={DESKTOP.nav[n.key]}
+              accessibilityState={{ selected }}
+              onPress={() => router.navigate(n.href)}
+              style={(st) => ({
+                alignItems: 'center',
+                gap: 2,
+                paddingVertical: 6,
+                borderRadius: radius.md,
+                backgroundColor: selected ? c.navSelected : (st as { hovered?: boolean }).hovered ? c.navHover : 'transparent',
+              })}
+            >
+              <Icon name={n.key as IconName} size={20} color={selected ? c.text : c.muted} />
+              <Text numberOfLines={2} maxFontSizeMultiplier={1} style={[type('body-sm'), { fontSize: 11, lineHeight: 14, color: c.text, textAlign: 'center', fontWeight: selected ? '600' : '400' }]}>
+                {DESKTOP.navShort[n.key]}
+              </Text>
+            </Pressable>
+          );
+        })}
+        <View style={{ flex: 1 }} />
+        {backup ? (
+          <RailButton
+            icon="data"
+            label={DESKTOP.lastBackup(backup.age)}
+            hint={DESKTOP.lastBackup(backup.age)}
+            onPress={() => router.navigate('/data')}
+            warn={backup.warn}
+          />
+        ) : null}
+        <RailButton icon={themeIcon[theme.pref]} label={`${DESKTOP.theme}: ${DESKTOP.themeShort[theme.pref]}`} hint={`${DESKTOP.theme} (T)`} onPress={() => void theme.cycle()} />
+        <RailButton icon="keyboard" label={DESKTOP.shortcutsTitle} hint={DESKTOP.shortcutsHint} onPress={onHelp} />
+      </ScrollView>
+    </View>
+  );
+}
+
+function RailButton({ icon, label, hint, onPress, warn }: { icon: IconName; label: string; hint: string; onPress: () => void; warn?: boolean }) {
+  const c = useColors();
+  return (
+    <Pressable
+      ref={webHint(hint, '')}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={(st) => ({
+        alignSelf: 'center',
+        width: 44,
+        height: 40,
+        borderRadius: radius.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: (st as { hovered?: boolean }).hovered ? c.navHover : warn ? c.warnSoft : 'transparent',
+      })}
+    >
+      <Icon name={icon} size={20} color={warn ? c.warn : c.muted} />
+    </Pressable>
   );
 }
 
@@ -107,11 +284,13 @@ function Sidebar({
   today,
   theme,
   onHelp,
+  onCollapse,
 }: {
   pathname: string;
   today: ReturnType<typeof useTodayAction>;
   theme: ReturnType<typeof useThemeSwitch>;
   onHelp: () => void;
+  onCollapse: () => void;
 }) {
   const c = useColors();
   const dark = useIsDark();
@@ -121,7 +300,12 @@ function Sidebar({
   return (
     <View role="navigation" style={{ width: SIDEBAR_W, backgroundColor: c.nav, borderRightWidth: StyleSheet.hairlineWidth, borderColor: c.border }}>
       <ScrollView contentContainerStyle={{ padding: space(1.5), gap: space(2), flexGrow: 1 }}>
-        <Brand />
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flex: 1 }}>
+            <Brand />
+          </View>
+          <RailButton icon="sidebar" label={DESKTOP.collapse} hint={`${DESKTOP.collapse} (⌘\\)`} onPress={onCollapse} />
+        </View>
         {today ? <StartButton label={today.label} done={today.done} onPress={() => openToday(today.href)} /> : null}
         {groups.map((g) => (
           <View key={g} style={{ gap: 2 }}>
@@ -437,3 +621,64 @@ function ShortcutsPanel({ open, onClose }: { open: boolean; onClose: () => void 
     </Modal>
   );
 }
+
+/** M5: the Log form in a centred panel over the current page. Esc or Close shuts it; saving shuts it too. */
+function LogPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const c = useColors();
+  const box = useRef<View>(null);
+  const closeButton = useRef<View>(null);
+  const reduced = useReducedMotion();
+  useFocusTrap(open, box, closeButton);
+  useHotkeys({ Escape: onClose }, open);
+  if (!open) return null;
+  return (
+    <Modal visible transparent animationType={reduced ? 'none' : 'fade'} onRequestClose={onClose}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: space(3) }}>
+        <Pressable focusable={false} accessible={false} onPress={onClose} style={[StyleSheet.absoluteFill, { backgroundColor: '#00000066' }]} />
+        <View
+          ref={box}
+          role="dialog"
+          aria-modal
+          aria-label={DESKTOP.quickLog}
+          accessibilityViewIsModal
+          style={{
+            width: '100%',
+            maxWidth: 640,
+            maxHeight: '90%',
+            backgroundColor: c.bg,
+            borderRadius: radius.xl,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: c.border,
+            overflow: 'hidden',
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(1), padding: space(2), paddingBottom: space(1), backgroundColor: c.card }}>
+            <Text accessibilityRole="header" style={[type('heading-lg'), { color: c.text, flex: 1 }]}>
+              {DESKTOP.quickLog}
+            </Text>
+            <Pressable
+              ref={closeButton}
+              accessibilityRole="button"
+              accessibilityLabel={DESKTOP.close}
+              onPress={onClose}
+              style={(s) => ({
+                width: 36,
+                height: 36,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: radius.md,
+                backgroundColor: (s as { hovered?: boolean }).hovered ? c.hover : 'transparent',
+              })}
+            >
+              <Icon name="close" size={20} color={c.text} />
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: space(2), gap: space(2) }}>
+            <LogForm onDone={onClose} />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+

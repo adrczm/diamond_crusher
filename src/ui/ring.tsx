@@ -55,9 +55,9 @@ const AnimatedPolyline = Animated.createAnimatedComponent(Polyline);
 
 /**
  * Session complete: a ring closes and a tick draws in, then settles (peak-end: finish on a good moment). A still
- * mark when Reduce motion is on.
+ * mark when Reduce motion is on. `skip` jumps to the end state (a tap on it: Apple HIG, let people cancel motion).
  */
-export function Celebrate({ size = 120 }: { size?: number }) {
+export function Celebrate({ size = 120, skip }: { size?: number; skip?: boolean }) {
   const c = useColors();
   const reduced = useReducedMotion();
   const t = useRef(new Animated.Value(reduced ? 1 : 0)).current;
@@ -74,6 +74,13 @@ export function Celebrate({ size = 120 }: { size?: number }) {
       Animated.sequence([Animated.delay(motion.duration['300']), Animated.spring(pop, { toValue: 1, friction: 4, tension: 120, useNativeDriver: native })]),
     ]).start();
   }, [reduced, t, pop]);
+  useEffect(() => {
+    if (!skip) return;
+    t.stopAnimation();
+    pop.stopAnimation();
+    t.setValue(1);
+    pop.setValue(1);
+  }, [skip, t, pop]);
   const stroke = 8;
   const r = (size - stroke) / 2;
   const len = 2 * Math.PI * r;

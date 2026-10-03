@@ -5,11 +5,31 @@ import { durationS } from '../../src/domain/session/plan';
 import { INITIAL_PRESCRIPTION } from '../../src/domain/progression';
 import { savePlan } from '../../src/data/repositories/reminders';
 import { getProfile, setGoals, updateProfile } from '../../src/data/repositories/profile';
-import { updateSettings } from '../../src/data/repositories/settings';
+import { getSettings, setTodayHero, setTodayHeroSync, updateSettings } from '../../src/data/repositories/settings';
+import { listFlags, raiseFlag } from '../../src/data/repositories/safety';
+import { reachMilestone } from '../../src/data/repositories/misc';
+import type { LevelChangeRecord } from '../../src/domain/progression';
+import type { Answers } from '../../src/domain/safety';
 import { saveSitting, type AttemptRecord } from '../../src/features/learnService';
-import { completeScreening } from '../../src/features/safetyService';
+import { answerHealthNote, CAUTION_FLAG, completeScreening, healthNoteState } from '../../src/features/safetyService';
 import { planToday, saveSession } from '../../src/features/trainingService';
-import { baselineOfferOpen, dismissSetup, loadHome, loadSessionSummary, nextReminderAt, stepsAhead } from '../../src/features/homeService';
+import {
+  baselineOfferOpen,
+  bestTiles,
+  dismissSetup,
+  levelPath,
+  loadHome,
+  loadSessionSummary,
+  nextReminderAt,
+  seeLevelUp,
+  STATIONS,
+  stepsAhead,
+  SUGGESTION_CAP,
+  suggestionLater,
+  suggestionQueue,
+  todayTimeline,
+  type SuggestionKey,
+} from '../../src/features/homeService';
 import { freshDb } from '../helpers/db';
 
 const good: AttemptRecord = {
@@ -145,5 +165,170 @@ describe('session summary (H2)', () => {
     expect(s.next).toBe('sitting');
     expect(s.weeksToNext).toBe(1);
     expect(s.nextReminder).toEqual(atLocalTime('2026-03-02', '13:00'));
+  });
+});
+
+// ---------- Round 2 Today (2026-10-03) ----------
+
+describe('today timeline (A3)', () => {
+  it('puts each session at its reminder time, with done, next and later, and the now line between', async () => {
+    const db = await setup();
+    await savePlan(db, [
+      { slotNo: 1, anchorKey: 'wake', anchorCustom: null, timeLocal: '08:00', weekdays: 127, enabled: true },
+      { slotNo: 2, anchorKey: 'lunch', anchorCustom: null, timeLocal: '13:00', weekdays: 127, enabled: true },
+      { slotNo: 3, anchorKey: 'bed', anchorCustom: null, timeLocal: '21:00', weekdays: 127, enabled: true },
+    ]);
+    await runSession(db, '2026-03-02', '08:05');
+    const m = await loadHome(db, atLocalTime('2026-03-02', '12:40'));
+    expect(m?.timeline.map((s) => [s.n, s.time, s.state])).toEqual([
+      [1, '08:00', 'done'],
+      [2, '13:00', 'next'],
+      [3, '21:00', 'later'],
+    ]);
+    expect(m?.nowAt).toBe(1);
+    expect(m?.daySessions.filter((n) => n > 0)).toEqual([1]);
+    expect(m?.dayDose).toBe(3);
+  });
+
+  it('has no times and no now line without reminders', async () => {
+    const db = await setup();
+    const m = await loadHome(db, atLocalTime('2026-03-02', '12:40'));
+    expect(m?.timeline.map((s) => s.time)).toEqual([null, null, null]);
+    expect(m?.nowAt).toBeNull();
+    const pure = todayTimeline(['lying', 'sitting'], 2, true, [], '2026-03-02', atLocalTime('2026-03-02', '12:00'));
+    expect(pure.slots.map((s) => s.state)).toEqual(['done', 'done']);
+  });
+});
+
+describe('one suggestion queue (critique priority 2, decision 6)', () => {
+  const base = { safety: false, check: null, technique: false, baseline: false, summary: false, setup: [], backup: false, later: new Set<SuggestionKey>() };
+  it('puts the safety re-check first, then prompts, setup and the backup', () => {
+    const q = suggestionQueue({ ...base, safety: true, check: 'check', summary: true, setup: ['plan', 'expect'], backup: true });
+    expect(q).toEqual(['safety', 'check', 'summary', 'plan', 'expect', 'backup']);
+    expect(q.slice(0, SUGGESTION_CAP)).toEqual(['safety', 'check']);
+  });
+
+  it('leaves out what was put off today, but never the safety re-check', () => {
+    const q = suggestionQueue({ ...base, safety: true, technique: true, baseline: true, later: new Set<SuggestionKey>(['safety', 'technique']) });
+    expect(q).toEqual(['safety', 'baseline']);
+  });
+
+  it('Today counts setup cards in the same queue, and Not now takes one out', async () => {
+    const db = await setup();
+    await runSession(db, '2026-03-01', '10:00');
+    const now = atLocalTime('2026-03-01', '12:00');
+    expect((await loadHome(db, now))!.suggestions).toEqual(expect.arrayContaining(['plan', 'expect']));
+    await suggestionLater(db, 'plan', '2026-03-01');
+    expect((await loadHome(db, now))!.suggestions).not.toContain('plan');
+  });
+});
+
+describe('health note (ONB-023, ONB-032 as changed by A2)', () => {
+  async function cautionSetup() {
+    const db = await freshDb();
+    await updateProfile(db, { anatomy: 'male', onboarding_completed_at: '2026-03-01T08:00:00.000Z' });
+    await setGoals(db, ['bladder_control']);
+    await completeScreening(db, { kind: 'onboarding', answers: { 'Q-R1': 'no', 'Q-P1': 'no', 'Q-G1': 'yes' }, startedAt: '2026-03-01T08:00:00.000Z' });
+    return db;
+  }
+  const recheck = (db: Awaited<ReturnType<typeof freshDb>>, answers: Answers) =>
+    completeScreening(db, { kind: 'something_changed', answers, startedAt: '2026-03-10T08:00:00.000Z' });
+
+  it('shows until answered, and stores the answer on the flag', async () => {
+    const db = await cautionSetup();
+    expect((await loadHome(db))!.healthNote).toMatchObject({ keys: ['Q-G1'], show: true, hidden: false });
+    await answerHealthNote(db, 'will_book');
+    expect((await loadHome(db))!.healthNote).toMatchObject({ keys: ['Q-G1'], show: false, hidden: true });
+    const flags = (await listFlags(db)).filter((f) => f.flag_key === CAUTION_FLAG);
+    expect(flags.map((f) => [f.signal_key, f.response])).toEqual([['Q-G1', 'will_book']]);
+    expect(flags[0].dismissed_at).not.toBeNull();
+  });
+
+  it('stays hidden after a re-check with the same yes answers', async () => {
+    const db = await cautionSetup();
+    await answerHealthNote(db, 'dismissed');
+    await recheck(db, { 'Q-R1': 'no', 'Q-G1': 'yes', 'Q-G3': 'no' });
+    expect((await loadHome(db))!.healthNote).toMatchObject({ show: false, hidden: true });
+  });
+
+  it('comes back only when a caution answer turns from no to yes', async () => {
+    const db = await cautionSetup();
+    await answerHealthNote(db, 'already_seen');
+    await recheck(db, { 'Q-R1': 'no', 'Q-G1': 'yes', 'Q-G3': 'yes' });
+    expect((await loadHome(db))!.healthNote).toMatchObject({ keys: ['Q-G1', 'Q-G3'], show: true });
+    await answerHealthNote(db, 'dismissed');
+    expect((await loadHome(db))!.healthNote.show).toBe(false);
+    // Q-G1 goes away, then comes back: that is a change, so the note shows again.
+    await recheck(db, { 'Q-R1': 'no', 'Q-G1': 'no', 'Q-G3': 'yes' });
+    expect((await loadHome(db))!.healthNote).toMatchObject({ keys: ['Q-G3'], show: false, hidden: true });
+    await recheck(db, { 'Q-R1': 'no', 'Q-G1': 'yes', 'Q-G3': 'yes' });
+    expect((await loadHome(db))!.healthNote.show).toBe(true);
+  });
+
+  it('gives an older caution its flag on load, and a logged-result signal brings the note back', async () => {
+    const db = await cautionSetup();
+    await db.run('DELETE FROM safety_flag');
+    expect((await loadHome(db))!.healthNote.show).toBe(true);
+    expect((await listFlags(db)).filter((f) => f.flag_key === CAUTION_FLAG)).toHaveLength(1);
+    await answerHealthNote(db, 'dismissed');
+    expect((await loadHome(db))!.healthNote.show).toBe(false);
+    await raiseFlag(db, 'new_leaks', { signalKey: 'leaks:4w' });
+    expect((await loadHome(db))!.healthNote).toMatchObject({ keys: ['Q-G1'], show: true });
+  });
+
+  it('is not shown outside caution mode, and a signal flag uses its caution text', () => {
+    const flag = { id: 'f', flag_key: 'erection_change', signal_key: null, raised_at: '', source_ref: null, dismissed_at: null, response: null };
+    expect(healthNoteState('relax_only', ['Q-P1', 'Q-G1'], []).keys).toEqual([]);
+    expect(healthNoteState('normal', [], [flag])).toMatchObject({ keys: ['Q-G2'], show: true, openIds: ['f'] });
+    expect(healthNoteState('normal', [], [{ ...flag, dismissed_at: 'x', response: 'dismissed' as const }])).toMatchObject({
+      keys: [],
+      show: false,
+      hidden: false,
+    });
+  });
+});
+
+describe('level path, personal bests and the level-up card (A1, MOT-031, MOT-032)', () => {
+  it('places the person on the path and counts good weeks since the last station', () => {
+    const rec = (variable: string, reason = 'progression') => ({ reason, variable, before: 0, after: 1 }) as LevelChangeRecord;
+    expect(levelPath('sitting', 1, [])).toEqual({ current: 0, goodWeeksDone: 0, goodWeeksLeft: 1 });
+    expect(levelPath('standing', 2, [rec('position'), rec('hold_s')])).toEqual({ current: 1, goodWeeksDone: 1, goodWeeksLeft: 2 });
+    expect(levelPath('top', null, []).current).toBe(STATIONS.length);
+  });
+
+  it('shows the best of each measure, and only a rise', () => {
+    const check = (at: string, hold: number, row: number, ok = true) => ({
+      id: at,
+      performedAt: at,
+      position: 'lying' as const,
+      conditionsMet: ok,
+      techniqueFlag: false,
+      longestHoldS: hold,
+      repeatedHolds: row,
+      repeatedHoldLenS: 5,
+      quickFlicks: 10,
+    });
+    expect(bestTiles([]).hold).toEqual({ best: null, series: [], rise: 0 });
+    const t = bestTiles([check('2026-03-01', 8, 6), check('2026-04-01', 12, 6), check('2026-05-01', 10, 5), check('2026-05-02', 20, 9, false)]);
+    expect(t.hold).toEqual({ best: 12, series: [8, 12, 10], rise: 4 });
+    expect(t.inRow).toEqual({ best: 6, series: [6, 6, 5], rise: 0 });
+  });
+
+  it('shows a new level once, until it is seen', async () => {
+    const db = await setup();
+    expect((await loadHome(db))!.levelUp).toBeNull();
+    await reachMilestone(db, 'level:1', null);
+    expect((await loadHome(db))!.levelUp).toBe('level:1');
+    await seeLevelUp(db);
+    expect((await loadHome(db))!.levelUp).toBeNull();
+  });
+
+  it('keeps the Today card choice per device unless it is synced', async () => {
+    const db = await setup();
+    expect((await loadHome(db))!.hero).toBe('path');
+    await setTodayHero(db, await getSettings(db), 'rings');
+    expect((await loadHome(db))!.hero).toBe('rings');
+    await setTodayHeroSync(db, await getSettings(db), true);
+    expect((await getSettings(db)).today_hero_shared).toBe('rings');
   });
 });

@@ -69,6 +69,28 @@ const PAIRS: [Key | '#FFFFFF', Key, number, string][] = [
   ['celebrate', 'card', LARGE, 'completion ring'],
   ['focus', 'nav', LARGE, 'focus ring in the sidebar'],
   ['celebrate', 'goodSoft', LARGE, 'completion mark'],
+  // Round 2 Today (A1, A3).
+  ['squeeze', 'card', LARGE, 'Today rings: sessions today'],
+  ['inputBorder', 'card', LARGE, 'Today day rings and path: empty parts'],
+  ['text', 'infoSoft', TEXT, 'Today timeline: next session'],
+  ['text', 'goodSoft', TEXT, 'Today timeline: done sessions'],
+  ['muted', 'soft', TEXT, 'Today timeline: later sessions'],
+  ['good', 'card', LARGE, 'Today path stations and good-week pips'],
+  ['inputBorder', 'soft', LARGE, 'Today best tiles: earlier checks'],
+  // Round 2 session screen (D1 to D4, HE-05).
+  ['squeeze', 'bg', LARGE, 'session wave line, hold arc and squeeze countdown'],
+  ['muted', 'bg', LARGE, 'session outer ring and session bar, done part'],
+  ['controlOff', 'bg', LARGE, 'session rep dots still to come'],
+  ['critical', 'card', LARGE, 'Pain button outline and icon (HE-05)'],
+  ['critical', 'bg', LARGE, 'Pain button outline on the page'],
+  // Progress charts (round 2 chart accessibility review): bars, lines, ticks, axis, markers and leak segments.
+  ['good', 'card', LARGE, 'on-target bars and ticks, best star'],
+  ['primary', 'card', LARGE, 'bars, lines, points, flagged bar outlines'],
+  ['muted', 'card', LARGE, 'chart axis, target line, day-note markers, previous position ring'],
+  ['link', 'card', LARGE, 'leak chart: sudden urge'],
+  ['warn', 'card', LARGE, 'leak chart: after peeing'],
+  ['primary', 'soft', LARGE, 'selected record tile outline'],
+  ['inputBorder', 'soft', LARGE, 'feel scale and progress track outline'],
 ];
 
 describe.each(Object.entries(palettes))('%s theme', (_, c) => {

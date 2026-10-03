@@ -44,24 +44,65 @@ export interface SlotPlan {
   enabled: boolean;
 }
 
-/** Replaces the if-then plan and its session reminders (REM-001 to REM-004). */
+/** One slot of the if-then plan and its session reminder, written by slot number (training_slot.slot_no is unique). */
+async function upsertSlot(db: SqlDb, p: SlotPlan, existing: ReminderRow[], slots: TrainingSlotRow[]): Promise<void> {
+  const t = slots.find((x) => x.slot_no === p.slotNo);
+  if (t) await update(db, 'training_slot', { anchor_key: p.anchorKey, anchor_custom: p.anchorCustom, active: bool(p.enabled) }, 'id = ?', [t.id]);
+  else await insert(db, 'training_slot', { id: uuid(), slot_no: p.slotNo, anchor_key: p.anchorKey, anchor_custom: p.anchorCustom, active: bool(p.enabled) });
+  const r = existing.find((x) => x.kind === 'session' && x.slot_no === p.slotNo);
+  if (r) await update(db, 'reminder', { enabled: bool(p.enabled), time_local: p.timeLocal, weekdays: p.weekdays }, 'id = ?', [r.id]);
+  else await insert(db, 'reminder', { id: uuid(), kind: 'session', slot_no: p.slotNo, enabled: bool(p.enabled), time_local: p.timeLocal, weekdays: p.weekdays, os_ids: '[]' });
+}
+
+/**
+ * Saves the if-then plan and its session reminders (REM-001 to REM-004). Any number of slots (round 2). Slots left out
+ * of `plan` are turned off, not deleted, so their time comes back if sessions a day goes up again.
+ */
 export async function savePlan(db: SqlDb, plan: SlotPlan[]): Promise<void> {
   await db.transaction(async () => {
     const existing = await listReminders(db);
-    await db.run('DELETE FROM training_slot');
-    for (const p of plan) {
-      await insert(db, 'training_slot', { id: uuid(), slot_no: p.slotNo, anchor_key: p.anchorKey, anchor_custom: p.anchorCustom, active: bool(p.enabled) });
-      const r = existing.find((x) => x.kind === 'session' && x.slot_no === p.slotNo);
-      if (r) {
-        await update(db, 'reminder', { enabled: bool(p.enabled), time_local: p.timeLocal, weekdays: p.weekdays }, 'id = ?', [r.id]);
-      } else {
-        await insert(db, 'reminder', { id: uuid(), kind: 'session', slot_no: p.slotNo, enabled: bool(p.enabled), time_local: p.timeLocal, weekdays: p.weekdays, os_ids: '[]' });
-      }
-    }
+    const slots = await listSlots(db);
+    for (const p of plan) await upsertSlot(db, p, existing, slots);
     const keep = new Set(plan.map((p) => p.slotNo));
     for (const r of existing) {
-      if (r.kind === 'session' && r.slot_no != null && !keep.has(r.slot_no)) await db.run('DELETE FROM reminder WHERE id = ?', [r.id]);
+      if (r.kind === 'session' && r.slot_no != null && !keep.has(r.slot_no) && r.enabled) await update(db, 'reminder', { enabled: 0 }, 'id = ?', [r.id]);
     }
+    for (const t of slots) if (!keep.has(t.slot_no) && t.active) await update(db, 'training_slot', { active: 0 }, 'id = ?', [t.id]);
+  });
+}
+
+/** Every session slot, on and off, with its time, days and anchor (the Reminders screen and the keep-in-step rules). */
+export async function listPlan(db: SqlDb): Promise<SlotPlan[]> {
+  const [slots, reminders] = await Promise.all([listSlots(db), listReminders(db)]);
+  const nos = new Set<number>([...slots.map((s) => s.slot_no), ...reminders.filter((r) => r.kind === 'session' && r.slot_no != null).map((r) => r.slot_no as number)]);
+  return [...nos]
+    .sort((a, b) => a - b)
+    .map((no) => {
+      const s = slots.find((x) => x.slot_no === no);
+      const r = reminders.find((x) => x.kind === 'session' && x.slot_no === no);
+      return {
+        slotNo: no,
+        anchorKey: s?.anchor_key ?? null,
+        anchorCustom: s?.anchor_custom ?? null,
+        timeLocal: r?.time_local ?? '09:00',
+        weekdays: r?.weekdays ?? 127,
+        enabled: r?.enabled ?? s?.active ?? false,
+      };
+    });
+}
+
+/**
+ * Writes a whole set of session slots, as the keep-in-step rules or their Undo give it. Slots not in `plan` are
+ * deleted: only Undo leaves one out (a slot that the change being undone had added).
+ */
+export async function replacePlan(db: SqlDb, plan: SlotPlan[]): Promise<void> {
+  await db.transaction(async () => {
+    const existing = await listReminders(db);
+    const slots = await listSlots(db);
+    for (const p of plan) await upsertSlot(db, p, existing, slots);
+    const keep = new Set(plan.map((p) => p.slotNo));
+    for (const r of existing) if (r.kind === 'session' && r.slot_no != null && !keep.has(r.slot_no)) await db.run('DELETE FROM reminder WHERE id = ?', [r.id]);
+    for (const t of slots) if (!keep.has(t.slot_no)) await db.run('DELETE FROM training_slot WHERE id = ?', [t.id]);
   });
 }
 
