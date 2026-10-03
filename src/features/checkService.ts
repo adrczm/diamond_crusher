@@ -1,11 +1,13 @@
 // Monthly self-check, the check schedule (bundles) and questionnaire answers (06a, 06b, 04 PRG-013, PRG-031).
-import { addDays, diffDays, toLocalDate, tzOffsetMin, type LocalDate } from '../domain/dates';
+import type { CheckWindow } from '../domain/checkins';
+import { addDays, diffDays, formatShort, toLocalDate, tzOffsetMin, type LocalDate } from '../domain/dates';
 import { applyCeiling, enforceCaps, holdCeiling, programmeWeek, startingLoad, type Change } from '../domain/progression';
-import { itemVisible, possiblyRushed, score, type AnswerValue, type QuestionnaireModule } from '../domain/questionnaire';
+import { itemVisible, possiblyRushed, score, type AnswerValue, type ModuleItem, type QuestionnaireModule } from '../domain/questionnaire';
 import { kindForDue, nextDue, occurrence, shortScreenDue, statusOn, type BundleKind } from '../domain/schedule';
 import { confirmedDrop, personalBest, trend, validLyingLongest, type CheckForTrend, type Measure, type Trend } from '../domain/selfcheck';
 import type { Anatomy, Goal } from '../domain/types';
 import { bundleModules, contentHash } from '../content/en/questionnaires';
+import { HOME } from '../content/en/strings';
 import {
   insertResponse,
   insertScheduledCheck,
@@ -16,14 +18,14 @@ import {
   type ScheduledCheckRow,
   type SelfCheckRow,
 } from '../data/repositories/checks';
-import { insertContextFlag } from '../data/repositories/events';
+import { insertContextFlag, listContextFlags } from '../data/repositories/events';
 import { reachMilestone } from '../data/repositories/misc';
 import { activeGoals, getProfile } from '../data/repositories/profile';
 import { addLevelChange, fromPrescription, getProgramme, toPrescription, updateProgramme } from '../data/repositories/programme';
 import { lastScreeningOfKinds } from '../data/repositories/safety';
 import { lastSession } from '../data/repositories/sessions';
 import { nowIso, type SqlDb } from '../data/sql';
-import { reportPain } from './safetyService';
+import { profileFacts, reportPain } from './safetyService';
 import { computeActiveDates } from './trainingService';
 
 export function forTrend(c: SelfCheckRow): CheckForTrend {
@@ -143,7 +145,10 @@ export type BundlePart = 'safety' | 'sexual_flag' | 'questionnaires' | 'self_che
 export function bundlePartsFor(kind: BundleKind, anatomy: Anatomy, goals: Goal[], modules: QuestionnaireModule[]): BundlePart[] {
   const parts: BundlePart[] = [];
   if (kind !== 'baseline') parts.push('safety');
-  const sexual = anatomy === 'male' && (goals.includes('erection') || goals.includes('ejaculatory_control'));
+  // Sexual modules are gated by "any sexual activity" (EVT-032; female sexual function goal per SX-D.5.1).
+  const sexual =
+    (anatomy === 'male' && (goals.includes('erection') || goals.includes('ejaculatory_control'))) ||
+    (anatomy === 'female' && goals.includes('sexual_function'));
   if (sexual) parts.push('sexual_flag');
   if (modules.length) parts.push('questionnaires');
   parts.push('self_check');
@@ -153,8 +158,17 @@ export function bundlePartsFor(kind: BundleKind, anatomy: Anatomy, goals: Goal[]
 export async function modulesForCheck(db: SqlDb, kind: BundleKind): Promise<QuestionnaireModule[]> {
   const anatomy = (await getProfile(db))?.anatomy ?? 'other_unspecified';
   const goals = await activeGoals(db);
-  return bundleModules(anatomy, goals, kind === 'quarterly_review' ? 'quarterly' : 'monthly');
+  // The app's own sexual items show only after "Yes" to any sexual activity (SX27): a recent "No" leaves them out.
+  const today = toLocalDate(new Date());
+  const noSex = (await listContextFlags(db)).some((f) => f.kind === 'no_sexual_activity_period' && f.to_date != null && diffDays(f.to_date, today) <= 7);
+  const keep = (ms: QuestionnaireModule[]) => (noSex ? ms.filter((m) => !APP_SEXUAL.includes(m.moduleId)) : ms);
+  if (kind !== 'quarterly_review') return keep(bundleModules(anatomy, goals, 'monthly'));
+  // SX28: the quarterly extras take turns, counted by the reviews already done.
+  const reviewNo = (await listScheduledChecks(db)).filter((c) => c.kind === 'quarterly_review' && c.status === 'completed').length;
+  return keep(bundleModules(anatomy, goals, 'quarterly', { reviewNo, bulge: (await profileFacts(db)).bulge }));
 }
+
+const APP_SEXUAL = ['app_monthly_sexual', 'app_monthly_sexual_f'];
 
 const BUNDLE_KINDS = ['monthly_check', 'quarterly_review'] as const;
 
@@ -170,9 +184,10 @@ export async function ensureSchedule(db: SqlDb, today: LocalDate): Promise<void>
   const active = await computeActiveDates(db, today);
   const weekNow = programmeWeek(active.length);
   const reviewsDone = () => rows.filter((r) => r.kind === 'quarterly_review' && (r.status === 'completed' || r.status === 'skipped')).length;
+  const firstReviewWeek = (await profileFacts(db, today)).bulge ? 16 : 12;
   const create = async (due: LocalDate) => {
     const weekAtDue = weekNow + Math.max(0, Math.floor(diffDays(today, due) / 7));
-    const kind = kindForDue(weekAtDue, reviewsDone());
+    const kind = kindForDue(weekAtDue, reviewsDone(), firstReviewWeek);
     const o = occurrence(kind, due);
     await insertScheduledCheck(db, { kind, due_on: due, window_open: o.windowOpen, window_close: o.windowClose, status: statusOn(o, today, false) });
     rows = (await listScheduledChecks(db)).filter(isBundle);
@@ -195,6 +210,11 @@ export async function ensureSchedule(db: SqlDb, today: LocalDate): Promise<void>
     while (addDays(due, 14) < today) due = addDays(due, 28);
     await create(due);
   }
+}
+
+/** W2: "First check: opens Sat 24 Oct, due Tue 27 Oct", the same line on every screen that names the next check. */
+export function checkLine(w: CheckWindow): string {
+  return HOME.checkLine(w.first, formatShort(w.opensOn), formatShort(w.dueOn));
 }
 
 export interface CheckDue {
@@ -244,9 +264,17 @@ export async function saveQuestionnaire(
   db: SqlDb,
   m: QuestionnaireModule,
   answers: Record<string, AnswerValue>,
-  opts: { startedAt: Date; scheduledCheckId: string | null; context: 'baseline' | 'monthly' | 'quarterly' | 'ad_hoc'; consistencyAction?: 'kept' | 'reviewed' | null }
+  opts: {
+    startedAt: Date;
+    scheduledCheckId: string | null;
+    context: 'baseline' | 'monthly' | 'quarterly' | 'ad_hoc';
+    consistencyAction?: 'kept' | 'reviewed' | null;
+    now?: Date;
+    /** The items that were asked (an app-own item can apply to one profile only); all items when absent. */
+    items?: readonly ModuleItem[];
+  }
 ): Promise<string> {
-  const now = new Date();
+  const now = opts.now ?? new Date();
   const res = score(m, answers);
   const durationS = Math.round((now.getTime() - opts.startedAt.getTime()) / 1000);
   const flags = possiblyRushed(durationS) ? ['possibly_rushed'] : [];
@@ -268,7 +296,7 @@ export async function saveQuestionnaire(
       flags,
       consistency_note_action: opts.consistencyAction ?? null,
     },
-    m.items
+    (opts.items ?? m.items)
       .filter((i) => itemVisible(i, answers))
       .map((i) => {
         const v = answers[i.itemId];

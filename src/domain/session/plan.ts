@@ -49,6 +49,8 @@ export interface TimelinePhase {
   reps: number;
   durationS: number;
   relaxStep?: RelaxStep;
+  /** Relaxation-only gentle squeeze (ENG-061): a half-strength block with its own words. */
+  gentle?: boolean;
 }
 
 export interface PlannedBlock {
@@ -60,6 +62,7 @@ export interface PlannedBlock {
   relaxStep?: RelaxStep;
   /** relax blocks only */
   durationS?: number;
+  gentle?: boolean;
 }
 
 export type TemplateKey = 'strength' | 'relax_only';
@@ -71,6 +74,8 @@ export interface SessionPlan {
   position: SessionPosition;
   blocks: PlannedBlock[];
   load: { H: number; R: number; N: number; F: number; E: number | null; enduranceReps: number };
+  /** SX8: the person is pregnant, so "lying" means on the side or propped up. Display only. */
+  pregnant?: boolean;
 }
 
 /** ENG-010: relax-in → holds × N → flicks × F → [endurance × 10] → relax-out. */
@@ -108,8 +113,16 @@ export function strengthPlan(load: Load, includeEndurance: boolean, position: Se
   };
 }
 
-/** ENG-060: about 4 minutes, relax blocks only. */
-export function relaxPlan(position: SessionPosition = 'lying'): SessionPlan {
+/**
+ * ENG-061 (SX13, SX21, SX26): the gentle squeeze in relaxation-only mode. Half strength (the endurance effort level,
+ * Dorey); hold as long as is comfortable, up to 10 s, then let go fully for at least 4 s (NHS Tayside vulvodynia
+ * leaflet); 8 times (NICE minimum for general training); daily. It unlocks after a full let-go (CUH male pelvic pain
+ * leaflet: "once you have mastered relaxation").
+ */
+export const GENTLE = { reps: 8, onS: 10, releaseS: 4 } as const;
+
+/** ENG-060: about 4 minutes, relax blocks only. With `gentle`, the gentle squeeze block comes before the quiet end. */
+export function relaxPlan(position: SessionPosition = 'lying', gentle = false): SessionPlan {
   const relax = (durationS: number, relaxStep: RelaxStep, reps = 0): PlannedBlock => ({
     type: 'relax',
     reps,
@@ -123,7 +136,13 @@ export function relaxPlan(position: SessionPosition = 'lying'): SessionPlan {
     templateKey: 'relax_only',
     templateVersion: TEMPLATE_VERSION,
     position,
-    blocks: [relax(60, 'settle'), relax(60, 'letgo_breath', 6), relax(60, 'body_release'), relax(60, 'quiet')],
+    blocks: [
+      relax(60, 'settle'),
+      relax(60, 'letgo_breath', 6),
+      relax(60, 'body_release'),
+      ...(gentle ? [{ type: 'endurance' as const, reps: GENTLE.reps, onS: GENTLE.onS, releaseS: GENTLE.releaseS, restS: 0, gentle: true }] : []),
+      relax(60, 'quiet'),
+    ],
     load: { H: 0, R: 0, N: 0, F: 0, E: null, enduranceReps: 0 },
   };
 }
@@ -146,10 +165,11 @@ export function timeline(plan: SessionPlan): TimelinePhase[] {
       }
       return;
     }
+    const g = b.gentle ? { gentle: true } : {};
     for (let rep = 1; rep <= b.reps; rep++) {
-      out.push({ kind: 'squeeze', blockIndex, block: b.type, rep, reps: b.reps, durationS: b.onS });
-      out.push({ kind: 'release', blockIndex, block: b.type, rep, reps: b.reps, durationS: b.releaseS });
-      if (b.restS > 0) out.push({ kind: 'rest', blockIndex, block: b.type, rep, reps: b.reps, durationS: b.restS });
+      out.push({ kind: 'squeeze', blockIndex, block: b.type, rep, reps: b.reps, durationS: b.onS, ...g });
+      out.push({ kind: 'release', blockIndex, block: b.type, rep, reps: b.reps, durationS: b.releaseS, ...g });
+      if (b.restS > 0) out.push({ kind: 'rest', blockIndex, block: b.type, rep, reps: b.reps, durationS: b.restS, ...g });
     }
   });
   return out;

@@ -19,6 +19,9 @@ describe('check schedule (06b §3.3)', () => {
     expect(kindForDue(11, 0)).toBe('monthly_check');
     expect(kindForDue(12, 0)).toBe('quarterly_review');
     expect(kindForDue(16, 1)).toBe('monthly_check');
+    expect(kindForDue(12, 0, 16)).toBe('monthly_check');
+    expect(kindForDue(16, 0, 16)).toBe('quarterly_review');
+    expect(kindForDue(28, 1, 16)).toBe('quarterly_review');
   });
 });
 

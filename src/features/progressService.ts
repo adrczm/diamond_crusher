@@ -1,7 +1,8 @@
 // Progress tab data (06c): loads the records once and turns them into what each card shows. Rules live in
 // src/domain/progress.ts; this file joins them to the stored rows and the copy.
 import { EVENTS, SESSION_LOG } from '../content/en/items';
-import { MODULES } from '../content/en/questionnaires';
+import { CHECKIN_MODULE_ID, MODULES } from '../content/en/questionnaires';
+import { mcidFor, mcidWithheld } from '../domain/questionnaire';
 import { LEVEL_NAME, MESSAGES, MEASURE_NAME, PROGRESS } from '../content/en/strings';
 import { listResponses, listScheduledChecks, listSelfChecks } from '../data/repositories/checks';
 import { listContextFlags, listEvents } from '../data/repositories/events';
@@ -13,10 +14,13 @@ import { listSessionLogs, listSessionsWithReps } from '../data/repositories/sess
 import { getSettings } from '../data/repositories/settings';
 import type { SqlDb } from '../data/sql';
 import { groupByDate, isTrainedDay, weekDots } from '../domain/adherence';
+import { nextCheckWindow } from '../domain/checkins';
 import { addDays, diffDays, formatShort, toLocalDate, weekStart, type LocalDate } from '../domain/dates';
 import {
   bestIndex,
   compareWithPrevious,
+  ejacBlocks,
+  ejacRank,
   firstTargetWeek,
   firstWords,
   lastWeekStarts,
@@ -34,6 +38,8 @@ import {
   withGaps,
   type Comparison,
   type Dated,
+  type EjacBlock,
+  type EjacEntry,
   type LeakBlock,
   type Range,
 } from '../domain/progress';
@@ -132,6 +138,15 @@ export interface SexualItem {
   lowerIsBetter: boolean;
 }
 
+/** Time to ejaculation by activity type (PFB-016, EVT-031): the types with logged times, and the last 3 blocks of 4 weeks. */
+export interface EjacView {
+  activities: { value: string; label: string }[];
+  blocks: EjacBlock[];
+}
+
+/** "3 to 5 minutes", in the words of the log form. */
+export const ejacRangeText = (range: string | null) => (range ? EVENTS.timeOptions.find((o) => o.value === range)?.label ?? range : '–');
+
 export interface ScoreSeries {
   moduleId: string;
   name: string;
@@ -139,6 +154,8 @@ export interface ScoreSeries {
   range: { min: number; max: number } | null;
   higherIsBetter: boolean;
   band: { low: number; high: number } | null;
+  /** SX2: a threshold exists but comes from another population, so only the raw change shows. */
+  bandWithheld: boolean;
 }
 
 export function buildProgress(raw: ProgressRaw, today: LocalDate) {
@@ -413,6 +430,20 @@ export function buildProgress(raw: ProgressRaw, today: LocalDate) {
     };
   }
 
+  // Time to ejaculation (PFB-016, EVT-031): male profile, with the ejaculatory control goal or times already logged.
+  // An entry without an activity type cannot be put with one, so it is left out.
+  const ejacEntries: EjacEntry[] = male
+    ? sexEvents.flatMap((e) => {
+        const rank = ejacRank(e.ejac_time_band, e.ejac_time_min);
+        return rank != null && e.activity_type ? [{ date: e.local_date, activity: e.activity_type, rank }] : [];
+      })
+    : [];
+  const ejacTypes = EVENTS.activities.filter((a) => ejacEntries.some((e) => e.activity === a.value)).map((a) => ({ value: a.value, label: a.label }));
+  const ejac: EjacView | null =
+    male && (raw.goals.includes('ejaculatory_control') || ejacEntries.length)
+      ? { activities: ejacTypes, blocks: ejacBlocks(ejacEntries, ejacTypes.map((a) => a.value), today, 3) }
+      : null;
+
   // Other records: leaks (PFB-015), questionnaire answers (PFB-012, PFB-013), symptom check-ups (PFB-017).
   const leakEvents = raw.events.filter((e) => e.type === 'leak').map((e) => ({ date: e.local_date, situation: e.leak_situation }));
   const leaks12 = leakEvents.filter((l) => l.date > addDays(today, -84) && l.date <= today).length;
@@ -420,7 +451,8 @@ export function buildProgress(raw: ProgressRaw, today: LocalDate) {
   const blocks: LeakBlock[] = leakBlocks(leakEvents, today, 13, leakSince);
 
   const done = raw.responses.filter((r) => r.status === 'complete');
-  const scores: ScoreSeries[] = MODULES.map((m) => {
+  // The symptom check-in has no score to chart: its answers show as words in the table (PFB-048).
+  const scores: ScoreSeries[] = MODULES.filter((m) => m.moduleId !== CHECKIN_MODULE_ID).map((m) => {
     const pts = done
       .filter((r) => r.instrument_key === m.moduleId && r.total_score != null)
       .map((r) => ({ date: at(r.started_at), score: r.total_score as number, rushed: r.flags.includes('possibly_rushed') }));
@@ -430,7 +462,8 @@ export function buildProgress(raw: ProgressRaw, today: LocalDate) {
       points: pts,
       range: m.scoring.range ?? null,
       higherIsBetter: m.scoring.direction === 'higherIsBetter',
-      band: mcidBand(m.mcid, pts[0]?.score ?? null),
+      band: mcidBand(mcidFor(m, raw.profile?.anatomy ?? null), pts[0]?.score ?? null),
+      bandWithheld: mcidWithheld(m, raw.profile?.anatomy ?? null),
     };
   }).filter((s) => s.points.length > 0);
   const symptoms = symptomStatus(
@@ -438,11 +471,8 @@ export function buildProgress(raw: ProgressRaw, today: LocalDate) {
     raw.safety.map((f) => ({ key: f.flag_key, date: at(f.raised_at), open: f.dismissed_at == null })),
     today
   );
-  const nextCheck =
-    raw.scheduled
-      .filter((s) => (s.kind === 'monthly_check' || s.kind === 'quarterly_review' || s.kind === 'baseline') && !['completed', 'skipped', 'missed'].includes(s.status))
-      .map((s) => s.due_on)
-      .sort()[0] ?? null;
+  // W2: the next check as "opens …, due …".
+  const nextCheck = nextCheckWindow(raw.scheduled);
 
   return {
     today,
@@ -462,6 +492,7 @@ export function buildProgress(raw: ProgressRaw, today: LocalDate) {
     milestones,
     sexual,
     sexualSeries,
+    ejac,
     leaks12,
     blocks,
     leakSituations: EVENTS.situations,

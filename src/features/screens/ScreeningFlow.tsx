@@ -1,17 +1,33 @@
 // Safety questions one at a time (ONB-010, ONB-011), and the outcome screen (ONB-012 to ONB-023).
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { CAUTION_CARD, OUTCOME, SCREEN_FLOW, SCREENING_INTRO, SKIPPED_NOTE, SURGERY_DATE_PROMPT, questionText } from '../../content/en/screening';
+import { DATE_PROMPT, OUTCOME, SCREEN_FLOW, SCREENING_INTRO, SKIPPED_NOTE, cautionCardText, questionText } from '../../content/en/screening';
 import { COMMON } from '../../content/en/strings';
-import { isVisible, questionsFor, questionsForChange, screenSizeFor, type Answers, type ChangeTopic, type QuestionKey, type ScreeningKind } from '../../domain/safety';
+import {
+  MATERNITY_URGENT,
+  URGENT,
+  isVisible,
+  questionsFor,
+  questionsForChange,
+  screenSizeFor,
+  type Answers,
+  type ChangeTopic,
+  type QuestionKey,
+  type ScreeningFacts,
+  type ScreeningKind,
+} from '../../domain/safety';
 import type { Anatomy, SafetyMode } from '../../domain/types';
 import { Banner, Button, Card, Field, H1, H2, P, Label } from '../../ui/kit';
 
 export interface ScreeningAnswers {
   answers: Answers;
   surgeryDate: string | null;
+  /** Dates given after a "yes" (planned surgery, due date, birth date). */
+  dates: Partial<Record<QuestionKey, string>>;
   startedAt: string;
 }
+
+const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v.trim());
 
 export function ScreeningFlow({
   kind,
@@ -19,6 +35,7 @@ export function ScreeningFlow({
   onDone,
   busy,
   topics,
+  facts,
 }: {
   kind: ScreeningKind;
   anatomy: Anatomy;
@@ -26,51 +43,62 @@ export function ScreeningFlow({
   topics?: readonly ChangeTopic[];
   onDone: (a: ScreeningAnswers) => void;
   busy?: boolean;
+  /** Earlier answers that decide follow-up questions (pregnancy, recent birth, prostate treatment). */
+  facts?: ScreeningFacts;
 }) {
   const [startedAt] = useState(() => new Date().toISOString());
   const all = useMemo(
-    () => (kind === 'something_changed' && topics ? questionsForChange(topics, anatomy) : questionsFor(screenSizeFor(kind), anatomy)),
-    [kind, anatomy, topics]
+    () => (kind === 'something_changed' && topics ? questionsForChange(topics, anatomy) : questionsFor(screenSizeFor(kind), anatomy, facts)),
+    [kind, anatomy, topics, facts]
   );
   const [answers, setAnswers] = useState<Answers>({});
   const [index, setIndex] = useState(0);
-  const [surgeryDate, setSurgeryDate] = useState('');
-  const [askDate, setAskDate] = useState(false);
+  const [dates, setDates] = useState<Partial<Record<QuestionKey, string>>>({});
+  const [askDate, setAskDate] = useState<QuestionKey | null>(null);
+  const shown = (k: QuestionKey, a: Answers) => isVisible(k, a, facts);
 
-  const visible = all.filter((k) => isVisible(k, answers));
+  const visible = all.filter((k) => shown(k, answers));
   const current: QuestionKey | undefined = visible[index];
 
   const answer = (a: 'yes' | 'no' | 'skipped') => {
     if (!current) return;
     const next = { ...answers, [current]: a };
-    if (current === 'Q-S2' && a !== 'yes') delete next['Q-S2b'];
+    // A follow-up answered before its parent changed to "no" no longer applies.
+    for (const k of Object.keys(next) as QuestionKey[]) if (k !== current && !shown(k, next)) delete next[k];
     setAnswers(next);
-    if (current === 'Q-S3' && a === 'yes') {
-      setAskDate(true);
+    if (a === 'yes' && DATE_PROMPT[current]) {
+      setAskDate(current);
       return;
     }
     advance(next);
   };
 
   const advance = (next: Answers) => {
-    const vis = all.filter((k) => isVisible(k, next));
+    const vis = all.filter((k) => shown(k, next));
     if (index + 1 >= vis.length) {
-      const valid = /^\d{4}-\d{2}-\d{2}$/.test(surgeryDate.trim()) ? surgeryDate.trim() : null;
-      onDone({ answers: next, surgeryDate: valid, startedAt });
+      const valid: Partial<Record<QuestionKey, string>> = {};
+      for (const [k, v] of Object.entries(dates)) if (v && isDate(v) && next[k as QuestionKey] === 'yes') valid[k as QuestionKey] = v.trim();
+      onDone({ answers: next, surgeryDate: valid['Q-S3'] ?? null, dates: valid, startedAt });
     } else setIndex(index + 1);
   };
 
   if (askDate) {
     return (
       <View style={{ gap: 16 }}>
-        <H2>{questionText('Q-S3', anatomy)}</H2>
-        <P muted>{SURGERY_DATE_PROMPT}</P>
-        <Field label={SCREEN_FLOW.dateLabel} value={surgeryDate} onChangeText={setSurgeryDate} placeholder={SCREEN_FLOW.datePlaceholder} keyboardType="numbers-and-punctuation" />
+        <H2>{questionText(askDate, anatomy)}</H2>
+        <P muted>{DATE_PROMPT[askDate]}</P>
+        <Field
+          label={SCREEN_FLOW.dateLabel}
+          value={dates[askDate] ?? ''}
+          onChangeText={(v) => setDates({ ...dates, [askDate]: v })}
+          placeholder={SCREEN_FLOW.datePlaceholder}
+          keyboardType="numbers-and-punctuation"
+        />
         <Button
           label={COMMON.continue}
           busy={busy}
           onPress={() => {
-            setAskDate(false);
+            setAskDate(null);
             advance(answers);
           }}
         />
@@ -97,8 +125,16 @@ export function ScreeningFlow({
 }
 
 export function outcomeCopy(mode: SafetyMode, reasons: readonly QuestionKey[]): { title: string; body: string; reason?: string } {
-  if (mode === 'blocked_urgent') return OUTCOME.blocked_urgent;
-  if (mode === 'blocked_until_cleared') return reasons.includes('Q-S2') ? OUTCOME.catheter : OUTCOME.surgery;
+  if (mode === 'blocked_urgent') {
+    // Only maternity reasons: contact the maternity unit (SX-A.15). Any other urgent reason keeps the general text.
+    const urgent = reasons.filter((r) => URGENT.includes(r));
+    return urgent.length && urgent.every((r) => MATERNITY_URGENT.includes(r)) ? OUTCOME.maternity_urgent : OUTCOME.blocked_urgent;
+  }
+  if (mode === 'blocked_until_cleared') {
+    if (reasons.includes('Q-S1')) return OUTCOME.catheter;
+    if (reasons.includes('Q-S2')) return OUTCOME.surgery;
+    return OUTCOME.maternity_wait;
+  }
   if (mode === 'relax_only') return OUTCOME.relax_only;
   if (mode === 'caution') return OUTCOME.caution;
   return OUTCOME.normal;
@@ -126,7 +162,7 @@ export function ScreeningOutcome({
       {mode === 'normal' || mode === 'caution'
         ? cautions.map((k) => (
             <Card key={k} tone="warn">
-              <P>{CAUTION_CARD[k]}</P>
+              <P>{cautionCardText(k, anatomy)}</P>
             </Card>
           ))
         : null}

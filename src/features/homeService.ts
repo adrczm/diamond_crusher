@@ -3,6 +3,7 @@
 // until something changes (A2), one suggestion queue (critique priority 2) and the level-up card (MOT-032).
 import { Platform } from 'react-native';
 import { groupByDate, weekDots, type WeekDots } from '../domain/adherence';
+import { nextCheckWindow, type CheckWindow } from '../domain/checkins';
 import { addDays, atLocalTime, minutesOfDay, toLocalDate, type LocalDate } from '../domain/dates';
 import { strengthUnlocked } from '../domain/learn';
 import {
@@ -20,7 +21,7 @@ import {
   type Prescription,
 } from '../domain/progression';
 import { weekdayBit } from '../domain/reminders';
-import { isBlocked, type QuestionKey } from '../domain/safety';
+import { CAUTION, isBlocked, type QuestionKey } from '../domain/safety';
 import { personalBest, type CheckForTrend, type Measure } from '../domain/selfcheck';
 import { dayPlan } from '../domain/session/plan';
 import type { Position } from '../domain/types';
@@ -38,7 +39,8 @@ import type { SqlDb } from '../data/sql';
 import type { Goal } from '../domain/types';
 import type { WeeklySummaryRow } from '../data/repositories/misc';
 import { currentCheck, ensureSchedule, forTrend, safetyRecheckDue, type CheckDue } from './checkService';
-import { ensureCautionFlags, healthNoteState, type HealthNoteState } from './safetyService';
+import { checkinHome, refreshCheckin, type CheckinHome } from './checkinService';
+import { ensureCautionFlags, healthNoteState, profileFacts, type HealthNoteState, type ProfileFacts } from './safetyService';
 import { ensureLastWeekSummary } from './summaryService';
 import { loadOf, pendingGap, planToday, toDay, type PendingGap, type TodayPlan } from './trainingService';
 
@@ -63,11 +65,17 @@ export interface HomeModel {
   nextReminder: Date | null;
   gap: PendingGap | null;
   check: CheckDue | null;
+  /** The next check's window for the "opens …, due …" line (W2); null when none is planned or strength is not unlocked. */
+  checkWindow: CheckWindow | null;
   safetyRecheck: boolean;
   baselineOffer: boolean;
   techniqueCheck: boolean;
   summary: WeeklySummaryRow | null;
   maintenanceOffer: boolean;
+  /** SX4: a heaviness or bulge answer makes the build 16 weeks, with a get-checked line at the end. */
+  longBuild: boolean;
+  /** Life-stage facts from the safety answers (tips, education: SX4, SX6, SX16). */
+  facts: ProfileFacts;
   exportReminder: boolean;
   cautions: QuestionKey[];
   /** Setup cards moved out of onboarding (C2), in the order to show them. */
@@ -94,12 +102,14 @@ export interface HomeModel {
   levelUp: string | null;
   /** Hold length now, for the level name before the first step ("3 s holds", HE-09). */
   holdS: number;
+  /** Symptom check-in offers, the progression hold and the firmer card (06c PFB-048, 04 PRG-035, 01 ONB-034). */
+  checkin: CheckinHome;
 }
 
 export type SetupKey = 'plan' | 'expect' | 'lock';
 
 /** Everything Today can suggest. `safety` comes first and has no "Not now". */
-export type SuggestionKey = 'safety' | 'check' | 'review' | 'technique' | 'baseline' | 'summary' | SetupKey | 'backup';
+export type SuggestionKey = 'safety' | 'checkin' | 'check' | 'review' | 'technique' | 'baseline' | 'summary' | SetupKey | 'backup';
 
 /** At most this many suggestions show; the rest wait behind one "Show more" button (decision 6). */
 export const SUGGESTION_CAP = 2;
@@ -350,6 +360,8 @@ export async function seeLevelUp(db: SqlDb): Promise<void> {
  */
 export function suggestionQueue(input: {
   safety: boolean;
+  /** PFB-048: a symptom check-in is offered. It starts with the urgent and pain questions, so it comes next. */
+  checkin?: boolean;
   check: 'check' | 'review' | null;
   technique: boolean;
   baseline: boolean;
@@ -360,6 +372,7 @@ export function suggestionQueue(input: {
 }): SuggestionKey[] {
   const out: SuggestionKey[] = [];
   if (input.safety) out.push('safety');
+  if (input.checkin) out.push('checkin');
   if (input.check) out.push(input.check);
   if (input.technique) out.push('technique');
   if (input.baseline) out.push('baseline');
@@ -393,13 +406,17 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
     getMeta(db),
   ]);
   const today = await planToday(db, now);
-  const [allSessions, slots, seen, reminders, milestones, flags] = await Promise.all([
+  const facts = await profileFacts(db, todayStr);
+  // PFB-041, PFB-042, PFB-048, PRG-035: new signal cards and check-in offers, before the flags are read.
+  await refreshCheckin(db, now).catch((e) => console.warn('checkin', e));
+  const [allSessions, slots, seen, reminders, milestones, flags, checkin] = await Promise.all([
     listSessions(db),
     listSlots(db),
     seenContent(db),
     listReminders(db),
     listMilestones(db),
     ensureCautionFlags(db),
+    checkinHome(db, now),
   ]);
   const strength = allSessions.filter((s) => s.template_key === 'strength');
   const trainingDates = strength.filter((s) => s.counts_toward_day).map((s) => s.local_date);
@@ -416,7 +433,8 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
   const records = changes as unknown as LevelChangeRecord[];
   const inc = lastIncrease(records);
   const unlocked = strengthUnlocked(programme.learn_status);
-  const reviewDone = (await listScheduledChecks(db)).some((c) => c.kind === 'quarterly_review' && (c.status === 'completed' || c.status === 'skipped'));
+  const scheduled = await listScheduledChecks(db);
+  const reviewDone = scheduled.some((c) => c.kind === 'quarterly_review' && (c.status === 'completed' || c.status === 'skipped'));
   const lastExport = meta?.last_export_at ? toLocalDate(new Date(meta.last_export_at)) : null;
   // "Not now" on the backup card is stored as a content_view key with the date it was pressed.
   const laterOn = [...seen].filter((k) => k.startsWith(BACKUP_LATER)).map((k) => k.slice(BACKUP_LATER.length)).sort().pop();
@@ -441,6 +459,7 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
   );
   const suggestions = suggestionQueue({
     safety: safetyRecheck && safety.mode !== 'blocked_urgent',
+    checkin: checkin.offers.length > 0 && !isBlocked(safety.mode),
     check: check?.open ? (check.row.kind === 'quarterly_review' ? 'review' : 'check') : null,
     technique: techniqueCheck,
     baseline: baselineOffer,
@@ -481,6 +500,7 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
     nextReminder: await loadNextReminder(db, settings, now, today.slotsDone, today.kind === 'day_done'),
     gap: await pendingGap(db, todayStr),
     check,
+    checkWindow: check ? nextCheckWindow(scheduled) : null,
     safetyRecheck,
     baselineOffer,
     techniqueCheck,
@@ -490,9 +510,12 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
       activeDays: programme.active_days,
       reviewDoneOrSkipped: reviewDone,
       keepBuildingUntilActiveDay: programme.keep_building_until_active_day,
+      buildWeeks: facts.bulge ? 16 : 12,
     }),
+    longBuild: facts.bulge,
+    facts,
     exportReminder,
-    cautions: safety.reasons.filter((r) => ['Q-G1', 'Q-G2', 'Q-G3', 'Q-G4', 'Q-G5', 'Q-F1', 'Q-F2'].includes(r)),
+    cautions: safety.reasons.filter((r) => CAUTION.includes(r)),
     setup,
     healthNote: healthNoteState(safety.mode, safety.reasons, flags),
     suggestions,
@@ -505,5 +528,6 @@ export async function loadHome(db: SqlDb, now = new Date()): Promise<HomeModel |
     hero: todayHero(settings),
     levelUp,
     holdS: programme.hold_s,
+    checkin,
   };
 }

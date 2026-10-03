@@ -61,7 +61,8 @@ export const SELF_CHECK = {
   signTitle: 'Step 1 of 6: Sign check',
   sign: {
     male: 'Squeeze once and watch in a mirror, or rest your fingertips on the skin behind your scrotum. Did the base of your penis pull back slightly and your scrotum lift (or did you feel a lift under your fingers)?',
-    female: 'Did your back passage and the entrance to your vagina lift up and inwards?',
+    // SX-C.8, SX-C.9: the same signs as the Learn mirror (lying propped) and fingertip checks.
+    female: 'Squeeze once. Watch in a mirror, lying propped up, or rest your fingertips on the skin between your vagina and back passage. Did that skin lift up and in, with no widening or bulge at the entrance?',
     other_unspecified: 'Squeeze once and watch in a mirror, or rest your fingertips on the skin between your genitals and back passage. Did you see or feel a lift in and up?',
   } as Record<Anatomy, string>,
   signOptions: [
@@ -168,6 +169,11 @@ export const EVENTS = {
   showOlder: 'Show older entries',
   deleteAsk: 'Delete this entry?',
   deleteEntry: (what: string) => `Delete: ${what}`,
+  // Q3: an entry in the list opens in the form, to change or delete it.
+  editEntry: (what: string) => `Edit: ${what}`,
+  editHint: 'Select an entry to change or delete it.',
+  editTitle: (what: string) => `Edit entry: ${what}`,
+  editOlderDay: (date: string) => `This entry is for ${date}. To move it, pick a day.`,
   noteFallback: 'Note',
   discardTitle: 'Stop this entry?',
   discardBody: 'Your answers on this form are not saved.',
@@ -220,6 +226,12 @@ export const EVENTS = {
   controlEnds: ['No control at all', 'Complete control'],
   bother: 'How much did the timing bother you this time?',
   botherEnds: ['Not at all', 'Very much'],
+  // SX item 23: an optional item for men after prostate treatment (leaking at orgasm, SX-E.19).
+  orgasmLeak: 'Did you leak pee at orgasm?',
+  orgasmLeakOptions: [
+    { value: 'no', label: 'No' },
+    { value: 'yes', label: 'Yes' },
+  ],
   saved: 'Saved',
   /** Kinds of notes saved before round 2 (EVT-033 v1). New notes are kind `other` with free text only. */
   contextKinds: EVENTS_KINDS,

@@ -1,6 +1,7 @@
 // Exercise copy (spec 03): block cues, functional habits, add-ons, relax template.
 import type { Anatomy, Goal } from '../../domain/types';
 import type { RelaxStep } from '../../domain/session/plan';
+import type { SessionPosition } from '../../domain/types';
 
 export const BLOCK_NAME = { relax: 'Relax', hold: 'Hold', flick: 'Quick squeeze', endurance: 'Steady hold' } as const;
 export const INTENSITY = {
@@ -109,19 +110,40 @@ export const SESSION = {
 export const KNACK = {
   title: 'The knack',
   body: 'Just before you cough, sneeze, laugh or lift something, do a quick, firm squeeze. Hold it through the effort. Then let go.',
+  // SX4: with heaviness or a bulge (Q-F1), also squeeze before you stand up or carry.
+  bodyBulge: 'Just before you cough, sneeze, lift, stand up or carry something, do a quick, firm squeeze. Hold it through the effort. Then let go.',
   practice: 'Practise 3 times: squeeze, pretend to cough, let go.',
   practiceStep: ['Squeeze', 'Cough', 'Let go'],
+  // Summary item 8, SX-E.2, SX-F #6.
+  basisMale: 'Tested mainly in women. In men after prostate surgery, it has not been shown to reduce measured leaks.',
 };
 
 export const AFTER_PEE = {
   title: 'Squeeze after you pee',
   body: 'When you finish peeing, do one firm squeeze to push out the last drops. Then let go fully.',
   note: 'Do this after the flow stops. It does not stop the flow.',
+  // SX-E.16: dribble copy for younger men.
+  dribble: 'A few drops after peeing is common in men. If it comes with a weak stream, straining or frequent peeing, get it checked.',
 };
 
-export function everydaySqueezes(anatomy: Anatomy): string[] {
-  const out = [`${KNACK.title}: ${KNACK.body}`];
+/** Urge control (SX6, SX-B.12, Burgio): untimed like the knack (ENG-042), for anyone who reports urgency. */
+export const URGE_CONTROL = {
+  title: 'When a sudden urge comes',
+  body: 'Stop, stay still, squeeze several times, relax, wait for the urge to pass, then walk calmly.',
+  note: 'This may help the urge pass.',
+};
+
+/** The facts everyday squeezes read (from profileFacts). */
+export interface EverydayFacts {
+  bulge?: boolean;
+  urgency?: boolean;
+}
+
+export function everydaySqueezes(anatomy: Anatomy, facts?: EverydayFacts | null): string[] {
+  const knack = anatomy === 'female' && facts?.bulge ? KNACK.bodyBulge : KNACK.body;
+  const out = [`${KNACK.title}: ${knack}`];
   if (anatomy === 'male') out.push(`${AFTER_PEE.title}: ${AFTER_PEE.body} ${AFTER_PEE.note}`);
+  if (facts?.urgency) out.push(`${URGE_CONTROL.title}: ${URGE_CONTROL.body} ${URGE_CONTROL.note}`);
   return out;
 }
 
@@ -148,6 +170,21 @@ export const ADD_ONS: AddOn[] = [
     profiles: ['female'],
     findingIds: ['B1.5', 'B2.3'],
   },
+  // ENG-054, SX-C.17, SX-C.21: no in-sex add-on for women. The knack only.
+  {
+    goal: 'pregnancy_birth',
+    title: 'For pregnancy and after birth',
+    items: ['Use the knack before you cough, sneeze or lift.'],
+    profiles: ['female'],
+    findingIds: ['SX-C.15', 'B2.3'],
+  },
+  {
+    goal: 'sexual_function',
+    title: 'For sexual function',
+    items: ['Use the knack before you cough, sneeze or lift.'],
+    profiles: ['female'],
+    findingIds: ['SX-C.17', 'SX-C.21'],
+  },
   {
     goal: 'erection',
     title: 'For erections',
@@ -172,19 +209,66 @@ export function addOnsFor(anatomy: Anatomy, goals: Goal[]): AddOn[] {
   return ADD_ONS.filter((a) => a.profiles.includes(anatomy) && goals.includes(a.goal));
 }
 
+/** A line under a goal option where the evidence is weak (SX24). */
+export const GOAL_HINT: Partial<Record<Goal, string>> = {
+  bowel_control: 'The evidence is unclear. Small studies suggest it may help.',
+};
+
+/** Shown when the goal is chosen (SX24: bowel leaks have many causes, so a GP check comes first). Training continues. */
+export const GOAL_NOTE: Partial<Record<Goal, string>> = {
+  bowel_control: 'Bowel leaks have many causes. It is a good idea to see a GP about them. You can keep training.',
+};
+
 export const GOAL_LABEL: Record<Anatomy, { goal: Goal; label: string }[]> = {
   male: [
     { goal: 'bladder_control', label: 'Bladder control' },
     { goal: 'ejaculatory_control', label: 'Ejaculatory control' },
     { goal: 'erection', label: 'Erection strength' },
+    { goal: 'bowel_control', label: 'Bowel control' },
     { goal: 'long_term_health', label: 'Long-term pelvic floor health' },
   ],
+  // SX3, SX5 (bowel control is its own goal, for everyone: SX23).
   female: [
     { goal: 'bladder_control', label: 'Bladder control' },
+    { goal: 'pregnancy_birth', label: 'Pregnancy and after birth' },
+    { goal: 'sexual_function', label: 'Sexual function' },
+    { goal: 'bowel_control', label: 'Bowel control' },
     { goal: 'long_term_health', label: 'Long-term pelvic floor health' },
   ],
   other_unspecified: [
     { goal: 'bladder_control', label: 'Bladder control' },
+    { goal: 'bowel_control', label: 'Bowel control' },
     { goal: 'long_term_health', label: 'Long-term pelvic floor health' },
   ],
 };
+
+/** ENG-061: the gentle squeeze in relaxation-only mode (SX13, SX21, SX22, SX26). */
+export const GENTLE_SQUEEZE = {
+  name: 'Gentle squeeze',
+  intensity: 'Half strength. Hold as long as is comfortable, up to 10 seconds. Stop if it hurts.',
+  label: (rep: number, reps: number) => `Gentle squeeze ${rep} of ${reps}`,
+  next: 'Next: Gentle squeezes',
+  // After a relax-only session: the person can say the let-go felt full, which unlocks the gentle squeeze.
+  letGoQuestion: 'Can you feel a full let-go?',
+  letGoNote: 'If you can feel your pelvic floor let go fully, the next relax sessions add 8 gentle squeezes. Stop at any pain.',
+  letGoYes: 'Yes, I can',
+  letGoNotYet: 'Not yet',
+  unlocked: 'Your relax sessions now end with 8 gentle squeezes.',
+  painLocked: 'Gentle squeezes stay off while the pain from the exercises is there.',
+  painGone: 'The pain has gone',
+  painGoneConfirm: 'Has the pain from the exercises gone? Gentle squeezes come back in your relax sessions.',
+};
+
+/** SX8: pregnant users do the lying sessions on their side or propped up (POGP, NHS, Canadian guideline). */
+export const PREGNANT_LYING = {
+  name: 'Side-lying or propped up',
+  hint: 'Lie on your side, or sit propped up with pillows. If you feel dizzy or sick lying flat, turn on your side.',
+};
+
+export function positionName(pos: SessionPosition, pregnant = false): string {
+  return pregnant && pos === 'lying' ? PREGNANT_LYING.name : SESSION.positionName[pos];
+}
+
+export function positionHint(pos: SessionPosition, pregnant = false): string {
+  return pregnant && pos === 'lying' ? PREGNANT_LYING.hint : SESSION.positionHint[pos];
+}

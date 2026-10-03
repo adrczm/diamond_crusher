@@ -8,12 +8,12 @@ import type { SqlDb } from '../sql';
 import { fieldTriggers, rowTriggers } from './0002_sync';
 
 /** Rebuilds `table` from its own CREATE statement after `edit`, keeping every row and column. */
-async function rebuild(db: SqlDb, table: string, edit: (sql: string) => string): Promise<void> {
+export async function rebuild(db: SqlDb, table: string, edit: (sql: string) => string): Promise<void> {
   const row = await db.get<{ sql: string }>(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?`, [table]);
   if (!row) throw new Error(`no table ${table}`);
   const next = edit(row.sql);
   if (next === row.sql) throw new Error(`rebuild of ${table} changed nothing`);
-  const tmp = `${table}__v3`;
+  const tmp = `${table}__rebuild`;
   const cols = (await db.all<{ name: string }>(`PRAGMA table_info(${table})`)).map((c) => c.name).join(', ');
   await db.exec(`
 ${next.replace(new RegExp(`^CREATE TABLE "?${table}"?`), `CREATE TABLE ${tmp}`)};

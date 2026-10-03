@@ -6,8 +6,9 @@ import { Redirect, router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { Alert } from '../src/platform/dialog';
+import { CHECKIN } from '../src/content/en/checkin';
 import { CLEARANCE, OUTCOME, RELAX_ONLY_HOME } from '../src/content/en/screening';
-import { COMMON, DESKTOP, EXPECTATION, HOME, MAINTENANCE, SETUP, WELCOME_BACK } from '../src/content/en/strings';
+import { COMMON, DESKTOP, expectationFor, HOME, MAINTENANCE, SETUP, WELCOME_BACK } from '../src/content/en/strings';
 import { educationFor } from '../src/content/en/education';
 import { setTodayHero, type TodayHero } from '../src/data/repositories/settings';
 import type { FlagResponse } from '../src/data/repositories/safety';
@@ -15,9 +16,12 @@ import { diffDays, isoWeekday, toLocalDate } from '../src/domain/dates';
 import { useApp, useLoad } from '../src/features/app';
 import { loadHome, seeLevelUp, suggestionLater, SUGGESTION_CAP, type HomeModel, type SuggestionKey } from '../src/features/homeService';
 import { reconcileReminders } from '../src/features/reminderService';
+import { answerEscalation, startLighterWeek } from '../src/features/checkinService';
 import { answerHealthNote, clear } from '../src/features/safetyService';
+import { CheckinEscalationCard, CheckinHoldCard } from '../src/features/screens/CheckinCards';
 import { outcomeCopy } from '../src/features/screens/ScreeningFlow';
 import { HeroCard, levelNameOf } from '../src/features/screens/TodayHero';
+import { GentlePainLock } from '../src/features/screens/GentleSqueeze';
 import { HealthNoteCard, LevelUpCard, SuggestionCard, TipLine } from '../src/features/screens/TodayNotes';
 import { TodayPlanCard } from '../src/features/screens/TodayPlan';
 import { applyGapChoice, keepBuilding, switchToMaintenance } from '../src/features/trainingService';
@@ -56,7 +60,7 @@ function TodayBody({ m }: { m: HomeModel }) {
       setBusy(false);
     }
   };
-  const confirmClear = (kind: 'urgent' | 'pain' | 'surgery', text: string) =>
+  const confirmClear = (kind: 'urgent' | 'pain' | 'surgery' | 'maternity', text: string) =>
     Alert.alert(CLEARANCE.clearedButton, text, [
       { text: COMMON.cancel, style: 'cancel' },
       { text: COMMON.yes, onPress: () => act(() => clear(db, kind)) },
@@ -84,8 +88,10 @@ function TodayBody({ m }: { m: HomeModel }) {
         <P>{outcomeCopy(mode, m.safety.reasons).body}</P>
         {mode === 'blocked_urgent' ? (
           <Button label={CLEARANCE.clearedButton} kind="secondary" onPress={() => confirmClear('urgent', CLEARANCE.urgentTick)} busy={busy} />
-        ) : (
+        ) : m.safety.reasons.includes('Q-S1') || m.safety.reasons.includes('Q-S2') ? (
           <Button label={CLEARANCE.clearedButton} kind="secondary" onPress={() => confirmClear('surgery', CLEARANCE.preSurgeryHome)} busy={busy} />
+        ) : (
+          <Button label={CLEARANCE.clearedButton} kind="secondary" onPress={() => confirmClear('maternity', CLEARANCE.maternityTick)} busy={busy} />
         )}
       </Card>
     );
@@ -95,12 +101,17 @@ function TodayBody({ m }: { m: HomeModel }) {
       <Card key="relax" tone="warn">
         <H2>{OUTCOME.relax_only.title}</H2>
         <P>{RELAX_ONLY_HOME}</P>
+        <GentlePainLock busy={busy} />
         <Button label={CLEARANCE.clearedButton} kind="secondary" onPress={() => confirmClear('pain', CLEARANCE.painTick)} busy={busy} />
       </Card>
     );
   }
   // A2: the note shows until it is answered, and comes back only when answers or logged results change.
-  if (note.show) safety.push(<HealthNoteCard key="note" keys={note.keys} onAnswer={answerNote} busy={busy} />);
+  if (note.show) safety.push(<HealthNoteCard key="note" keys={note.keys} anatomy={m.profile.anatomy} onAnswer={answerNote} busy={busy} />);
+  // ONB-034: the firmer card after a repeated "worse" check-in, or a hold at programme week 12. Training continues.
+  if (m.checkin.escalation.ids.length && mode !== 'blocked_urgent' && mode !== 'blocked_until_cleared') {
+    safety.push(<CheckinEscalationCard key="checkin-esc" why={m.checkin.escalation.why} onAnswer={(r) => act(() => answerEscalation(db, r))} busy={busy} />);
+  }
 
   // ---- Heading (D5, HE-08): the date, then where the day is. The nickname stays as a small hello. ----
   const [, month, dayOfMonth] = today.split('-').map(Number);
@@ -146,11 +157,15 @@ function TodayBody({ m }: { m: HomeModel }) {
       </Card>
     );
   }
+  // PRG-035: a "worse" check-in holds the plan; training continues, with an opt-in lighter week.
+  if (m.checkin.hold.active && showsProgress && t.kind !== 'relax') {
+    lead.push(<CheckinHoldCard key="checkin-hold" hold={m.checkin.hold} onLighter={() => act(() => startLighterWeek(db, today))} busy={busy} />);
+  }
   if (m.maintenanceOffer) {
     lead.push(
       <Card key="maint" tone="soft">
         <H2>{MAINTENANCE.offerTitle}</H2>
-        <P>{MAINTENANCE.offerBody}</P>
+        <P>{m.longBuild ? MAINTENANCE.offerBody16 : MAINTENANCE.offerBody}</P>
         <Button label={MAINTENANCE.switch} onPress={() => act(() => switchToMaintenance(db))} busy={busy} />
         <Button label={MAINTENANCE.keepBuilding} kind="quiet" onPress={() => act(() => keepBuilding(db))} disabled={busy} />
       </Card>
@@ -166,7 +181,7 @@ function TodayBody({ m }: { m: HomeModel }) {
         <P>{HOME.learnHint}</P>
         <Button label={HOME.learnFirst} onPress={() => router.push('/learn')} />
         <P small muted>
-          {EXPECTATION}
+          {expectationFor(m.profile.anatomy)}
         </P>
       </Card>
     );
@@ -186,13 +201,14 @@ function TodayBody({ m }: { m: HomeModel }) {
   // ---- The tip and the link rows. ----
   const tip =
     m.settings.functional_cues_enabled && m.programme.learn_status !== 'not_started' && t.kind !== 'blocked' ? (
-      <TipLine key="tip" anatomy={m.profile.anatomy ?? 'other_unspecified'} day={diffDays('2000-01-01', today)} />
+      <TipLine key="tip" anatomy={m.profile.anatomy ?? 'other_unspecified'} day={diffDays('2000-01-01', today)} facts={m.facts} />
     ) : null;
   const links = (
     <View key="links">
       {note.hidden && !noteOpen ? <LinkRow label={HOME.healthNote.row(note.keys.length)} onPress={() => setNoteOpen(true)} /> : null}
-      {note.hidden && noteOpen ? <HealthNoteCard keys={note.keys} onAnswer={answerNote} busy={busy} /> : null}
-      <LinkRow label={HOME.somethingChanged} onPress={() => router.push('/screening?kind=something_changed')} />
+      {note.hidden && noteOpen ? <HealthNoteCard keys={note.keys} anatomy={m.profile.anatomy} onAnswer={answerNote} busy={busy} /> : null}
+      {/* W3: say what counts as a change, so the row is not only a question. */}
+      <LinkRow label={HOME.somethingChanged} hint={HOME.somethingChangedHint} onPress={() => router.push('/screening?kind=something_changed')} />
     </View>
   );
   // The Mac shows Library in the right column (3 articles and All); in the learn state it shows on any desktop width.
@@ -200,7 +216,7 @@ function TodayBody({ m }: { m: HomeModel }) {
     wide || (desktop && t.kind === 'learn') ? (
       <Card key="library">
         <H2>{DESKTOP.nav.library}</H2>
-        {educationFor(m.profile.anatomy ?? 'other_unspecified')
+        {educationFor(m.profile.anatomy ?? 'other_unspecified', m.facts)
           .slice(0, 3)
           .map((e) => (
             <LinkRow key={e.id} label={e.title} onPress={() => router.push(`/library?id=${e.id}`)} />
@@ -247,9 +263,10 @@ function TodayBody({ m }: { m: HomeModel }) {
 }
 
 function Suggestion({ k, busy, onLater }: { k: SuggestionKey; busy: boolean; onLater?: () => void }) {
-  const copy = k === 'plan' || k === 'expect' || k === 'lock' ? SETUP[k] : HOME.suggest[k];
+  const copy = k === 'plan' || k === 'expect' || k === 'lock' ? SETUP[k] : k === 'checkin' ? CHECKIN.suggest : HOME.suggest[k];
   const open = () => {
     if (k === 'safety') router.push('/screening?kind=periodic');
+    else if (k === 'checkin') router.push('/checkin');
     else if (k === 'check' || k === 'review') router.push('/check');
     else if (k === 'technique') router.push('/learn?mode=recheck');
     else if (k === 'baseline') router.push('/selfcheck?kind=baseline');

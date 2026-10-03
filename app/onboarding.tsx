@@ -5,13 +5,13 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { GOAL_LABEL } from '../src/content/en/exercise';
-import { OTHER_PROFILE_PHYSIO, TODO_BANNER } from '../src/content/en/screening';
-import { APP_NAME, COMMON, DISCLAIMER, DISCLAIMER_VERSION, ONBOARDING } from '../src/content/en/strings';
+import { GOAL_HINT, GOAL_LABEL, GOAL_NOTE } from '../src/content/en/exercise';
+import { OTHER_PROFILE_PHYSIO } from '../src/content/en/screening';
+import { APP_NAME, COMMON, disclaimerFor, DISCLAIMER_VERSION, ONBOARDING } from '../src/content/en/strings';
 import { activeGoals, getProfile, setGoals, updateProfile } from '../src/data/repositories/profile';
 import { answersForRun, getSafetyState } from '../src/data/repositories/safety';
 import { nowIso } from '../src/data/sql';
-import { isBlocked, skippedSafety } from '../src/domain/safety';
+import { CAUTION, isBlocked, skippedSafety } from '../src/domain/safety';
 import type { AgeBand, Anatomy, Goal, SafetyMode } from '../src/domain/types';
 import type { QuestionKey } from '../src/domain/safety';
 import { useApp } from '../src/features/app';
@@ -28,7 +28,7 @@ import { Text } from '../src/ui/text';
 type Step = OnboardingStep | 'import';
 
 type Outcome = { mode: SafetyMode; reasons: QuestionKey[]; cautions: QuestionKey[]; skipped: QuestionKey[] };
-const cautionsOf = (reasons: readonly QuestionKey[]) => reasons.filter((k) => k.startsWith('Q-G') || k === 'Q-F1' || k === 'Q-F2');
+const cautionsOf = (reasons: readonly QuestionKey[]) => reasons.filter((k) => CAUTION.includes(k));
 
 export default function Onboarding() {
   const { db, bump } = useApp();
@@ -136,7 +136,7 @@ export default function Onboarding() {
       body = (
         <>
           <H1>{ONBOARDING.disclaimerTitle}</H1>
-          <P>{DISCLAIMER}</P>
+          <P>{disclaimerFor(null)}</P>
         </>
       );
       actions = (
@@ -187,7 +187,6 @@ export default function Onboarding() {
               setAnatomy(a);
             }}
           />
-          {anatomy === 'female' ? <Banner text={TODO_BANNER} /> : null}
           {anatomy === 'other_unspecified' ? <Banner tone="soft" text={OTHER_PROFILE_PHYSIO} /> : null}
         </>
       );
@@ -212,7 +211,13 @@ export default function Onboarding() {
         <>
           <H1>{ONBOARDING.goalsQuestion}</H1>
           <P muted>{ONBOARDING.goalsNote}</P>
-          <MultiChoice label={ONBOARDING.goalsQuestion} options={options.map((g) => ({ value: g.goal, label: g.label }))} values={chosen} onChange={setGoalsState} />
+          <MultiChoice
+            label={ONBOARDING.goalsQuestion}
+            options={options.map((g) => ({ value: g.goal, label: g.label, hint: GOAL_HINT[g.goal] }))}
+            values={chosen}
+            onChange={setGoalsState}
+          />
+          {chosen.map((g) => (GOAL_NOTE[g] ? <Banner key={g} tone="soft" text={GOAL_NOTE[g]!} /> : null))}
         </>
       );
       actions = (
@@ -256,7 +261,7 @@ export default function Onboarding() {
             onDone={async (a) => {
               setBusy(true);
               try {
-                const r = await completeScreening(db, { kind: 'onboarding', answers: a.answers, startedAt: a.startedAt, surgeryDate: a.surgeryDate });
+                const r = await completeScreening(db, { kind: 'onboarding', answers: a.answers, startedAt: a.startedAt, surgeryDate: a.surgeryDate, dates: a.dates });
                 setOutcome({ mode: r.mode, reasons: r.reasons, cautions: cautionsOf(r.reasons), skipped: r.skipped });
                 go('outcome');
               } finally {

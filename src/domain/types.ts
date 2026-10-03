@@ -1,7 +1,14 @@
 // Shared domain types. Names follow spec 07 (tables and enums).
 
 export type Anatomy = 'male' | 'female' | 'other_unspecified';
-export type Goal = 'bladder_control' | 'ejaculatory_control' | 'erection' | 'long_term_health';
+export type Goal =
+  | 'bladder_control'
+  | 'ejaculatory_control'
+  | 'erection'
+  | 'long_term_health'
+  | 'bowel_control'
+  | 'pregnancy_birth'
+  | 'sexual_function';
 export type AgeBand = '18_29' | '30_44' | '45_59' | '60_74' | '75_plus';
 
 export type SafetyMode = 'normal' | 'caution' | 'relax_only' | 'blocked_until_cleared' | 'blocked_urgent';

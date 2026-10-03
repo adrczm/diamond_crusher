@@ -24,6 +24,8 @@ export interface EventRow {
   item_set_version: number;
   /** DATA-090 (schema 3): the part of the day picked on the slider; null = the exact time "now" (or an entry from before round 2). */
   occurred_period: Period | null;
+  /** Schema 4: leaking at orgasm, an optional item after prostate treatment (SX item 23). */
+  orgasm_leak?: 'yes' | 'no' | null;
 }
 
 export async function insertEvent(db: SqlDb, e: Omit<EventRow, 'id' | 'occurred_period'> & { occurred_period?: Period | null }): Promise<string> {
@@ -34,6 +36,14 @@ export async function insertEvent(db: SqlDb, e: Omit<EventRow, 'id' | 'occurred_
 
 export async function listEvents(db: SqlDb, type?: EventRow['type']): Promise<EventRow[]> {
   return db.all<EventRow>(`SELECT * FROM event ${type ? 'WHERE type = ?' : ''} ORDER BY occurred_at`, type ? [type] : []);
+}
+
+/**
+ * Changes a logged event in place (Q3: edit from the list). `update` sets updated_at, and the row's sync trigger gives it
+ * a new hlc, so the change goes to a paired device like a new row (SYNC-014).
+ */
+export async function updateEvent(db: SqlDb, id: string, patch: Partial<Omit<EventRow, 'id' | 'type' | 'entered_at'>>): Promise<void> {
+  await update(db, 'event', patch as Record<string, SqlValue>, 'id = ?', [id]);
 }
 
 export async function deleteEvent(db: SqlDb, id: string): Promise<void> {

@@ -39,6 +39,10 @@ export interface ProgrammeRow {
   last_evaluated_week: number;
   baseline_offer_until: string | null;
   knack_taught_at: string | null;
+  /** Relaxation-only mode: the person confirmed a full let-go, so the gentle squeeze block shows (03 ENG-061). */
+  gentle_unlocked_at: string | null;
+  /** Pain came from the exercises: the gentle squeeze stays locked until the person says it has gone (SX22). */
+  gentle_pain_lock: boolean;
 }
 
 export async function ensureProgramme(db: SqlDb): Promise<void> {
@@ -51,6 +55,7 @@ export async function getProgramme(db: SqlDb): Promise<ProgrammeRow> {
   return {
     ...(row as unknown as ProgrammeRow),
     endurance_enabled: fromBool(row.endurance_enabled),
+    gentle_pain_lock: fromBool(row.gentle_pain_lock),
     unlocked_positions: parseJson<Position[]>(row.unlocked_positions, ['lying']),
   };
 }

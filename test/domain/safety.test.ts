@@ -84,10 +84,10 @@ describe('"Something changed?" asks only about the change (UX audit M10)', () =>
 
   it('always asks the urgent questions first, then the questions for the change', () => {
     const pain = questionsForChange(['pain'], 'male');
-    expect(pain.slice(0, 4)).toEqual(URGENT);
-    expect(pain).toEqual(['Q-R1', 'Q-R2', 'Q-R3', 'Q-R4', 'Q-P1', 'Q-P2', 'Q-P3']);
+    expect(pain.slice(0, 5)).toEqual(['Q-R1', 'Q-R2', 'Q-R3', 'Q-R4', 'Q-R5']);
+    expect(pain).toEqual(['Q-R1', 'Q-R2', 'Q-R3', 'Q-R4', 'Q-R5', 'Q-P1', 'Q-P2', 'Q-P3']);
     expect(questionsForChange(['pain'], 'female')).toContain('Q-F3');
-    expect(questionsForChange(['leaks'], 'male')).toEqual(['Q-R1', 'Q-R2', 'Q-R3', 'Q-R4', 'Q-P3', 'Q-G1', 'Q-G3']);
+    expect(questionsForChange(['leaks'], 'male')).toEqual(['Q-R1', 'Q-R2', 'Q-R3', 'Q-R4', 'Q-R5', 'Q-M1', 'Q-G7', 'Q-P3', 'Q-G1', 'Q-G3', 'Q-B1', 'Q-G6']);
     const surgery = questionsForChange(['surgery_health'], 'male');
     expect(surgery).toEqual(expect.arrayContaining(['Q-S1', 'Q-S2', 'Q-S2b', 'Q-S3', 'Q-G2', 'Q-G4']));
     expect(surgery).not.toContain('Q-P1');
@@ -127,5 +127,64 @@ describe('"Something changed?" asks only about the change (UX audit M10)', () =>
     const q = questionsForChange(['surgery_health'], 'male');
     expect(q.filter((k) => isVisible(k, {}))).not.toContain('Q-S2b');
     expect(q.filter((k) => isVisible(k, { 'Q-S2': 'yes' }))).toContain('Q-S2b');
+  });
+});
+
+describe('women, bowel and history questions (1.5.0, men-and-women research)', () => {
+  it('routes the bowel warning signs: see a GP (Q-B1), urgent (Q-R5), for every profile (SX25)', () => {
+    for (const a of ['male', 'female', 'other_unspecified'] as const) {
+      expect(questionsFor('full', a)).toEqual(expect.arrayContaining(['Q-R5', 'Q-B1']));
+      expect(questionsFor('short', a)).toContain('Q-R5');
+    }
+    expect(modeFromReasons(deriveReasons([], { 'Q-B1': 'yes' }))).toBe('caution');
+    expect(modeFromReasons(deriveReasons([], { 'Q-R5': 'yes' }))).toBe('blocked_urgent');
+  });
+
+  it('asks Q-G7 only after recorded prostate treatment (G2)', () => {
+    expect(isVisible('Q-G7', {})).toBe(false);
+    expect(isVisible('Q-G7', { 'Q-M1': 'yes' })).toBe(true);
+    expect(isVisible('Q-G7', {}, { prostateTreatment: true })).toBe(true);
+    expect(isVisible('Q-G7', { 'Q-M1': 'no' }, { prostateTreatment: true })).toBe(false);
+    expect(questionsFor('full', 'female')).not.toContain('Q-G7');
+  });
+
+  it('routes straining for women to a get-checked card, not the pain route (SX11)', () => {
+    expect(questionsFor('full', 'female')).not.toContain('Q-P3');
+    expect(questionsFor('full', 'female')).toContain('Q-F10');
+    expect(modeFromReasons(deriveReasons([], { 'Q-F10': 'yes' }))).toBe('caution');
+    expect(modeFromReasons(deriveReasons([], { 'Q-P3': 'yes' }))).toBe('relax_only');
+  });
+
+  it('pregnancy: warning signs are urgent, "told not to exercise" waits for the OK (SX9)', () => {
+    expect(isVisible('Q-F2a2', {})).toBe(false);
+    expect(isVisible('Q-F2a2', { 'Q-F2a': 'yes' })).toBe(true);
+    expect(modeFromReasons(deriveReasons([], { 'Q-F2a': 'yes', 'Q-F2a2': 'yes' }))).toBe('blocked_urgent');
+    const told = deriveReasons([], { 'Q-F2a': 'yes', 'Q-F2a1': 'yes', 'Q-F2a3': 'yes' });
+    expect(modeFromReasons(told)).toBe('blocked_until_cleared');
+    // A short screen that does not ask about it keeps the wait; the maternity OK clears it.
+    expect(modeFromReasons(deriveReasons(told, { 'Q-R1': 'no' }))).toBe('blocked_until_cleared');
+    expect(modeFromReasons(deriveReasons(told, { 'Q-F2a1': 'no' }))).toBe('caution');
+    // No longer pregnant: the pregnancy reasons end.
+    expect(deriveReasons(told, { 'Q-F2a': 'no' })).toEqual([]);
+  });
+
+  it('adds the pregnancy and after-birth urgent questions to the short screen only when they apply', () => {
+    expect(questionsFor('short', 'female')).not.toContain('Q-F2a2');
+    expect(questionsFor('short', 'female', { pregnant: true })).toContain('Q-F2a2');
+    expect(questionsFor('short', 'female', { birthWithin6Weeks: true })).toContain('Q-F2b1');
+    expect(questionsFor('short', 'female')).toContain('Q-F4');
+    expect(questionsFor('short', 'male')).not.toContain('Q-F4');
+  });
+
+  it('a caesarean does not block: birth has its own questions, and Q-S2 says "apart from giving birth" (SX-A.8)', () => {
+    const { questionText } = require('../../src/content/en/screening');
+    expect(questionText('Q-S2', 'female')).toMatch(/^Apart from giving birth/);
+    expect(modeFromReasons(deriveReasons([], { 'Q-F2b': 'yes', 'Q-F2b2': 'yes' }))).toBe('caution');
+  });
+
+  it('ends bulge follow-up cards when the bulge answer turns to no', () => {
+    const r = deriveReasons([], { 'Q-F1': 'yes', 'Q-F1b': 'yes', 'Q-F1c': 'yes' });
+    expect(r).toEqual(['Q-F1', 'Q-F1b', 'Q-F1c']);
+    expect(deriveReasons(r, { 'Q-F1': 'no' })).toEqual([]);
   });
 });

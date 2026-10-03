@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path, Polygon, Polyline } from 'react-native-svg';
+import { CHECKIN } from '../../content/en/checkin';
 import { SESSION_LOG } from '../../content/en/items';
 import { HOME, PROGRESS, SUMMARY } from '../../content/en/strings';
 import { addDays, formatShort, isoWeekday } from '../../domain/dates';
@@ -14,7 +15,8 @@ import { BarChart, ChartEmpty, ChartOrTable, DataTable, LineChart, type Column }
 import { Button, Card, Dots, H2, Label, LinkRow, P, Tabs, useTouch, type PressState } from '../../ui/kit';
 import { Text } from '../../ui/text';
 import { radius, space, type, useColors } from '../../ui/theme';
-import { MEASURES, measureText, shortDate, type ProgressModel, type SexualItem } from '../progressService';
+import { checkLine } from '../checkService';
+import { ejacRangeText, MEASURES, measureText, shortDate, type ProgressModel, type SexualItem } from '../progressService';
 
 export type Detail =
   | { kind: 'consistency'; index?: number }
@@ -346,7 +348,7 @@ export function RecordCard({ m, v, set, panel, onDetail }: CardProps) {
       <Card>
         {header}
         <ChartEmpty title={PROGRESS.recordNoneTitle} body={PROGRESS.recordNone} />
-        {m.nextCheck ? <P muted>{HOME.nextCheck(formatShort(m.nextCheck))}</P> : null}
+        {m.nextCheck ? <P muted>{checkLine(m.nextCheck)}</P> : null}
       </Card>
     );
   }
@@ -403,7 +405,7 @@ export function RecordCard({ m, v, set, panel, onDetail }: CardProps) {
         {[s.caption, v.measure === 'repeated_holds' ? PROGRESS.holdLengthNote : null, s.dayMarkers.length ? PROGRESS.markerLegend : null].filter(Boolean).join(' ')}
       </P>
       <Message text={m.recordMessage(r)} />
-      {m.nextCheck ? <P muted>{HOME.nextCheck(formatShort(m.nextCheck))}</P> : null}
+      {m.nextCheck ? <P muted>{checkLine(m.nextCheck)}</P> : null}
     </Card>
   );
 }
@@ -455,6 +457,55 @@ export function SexualCard({ m, v, set, panel, onDetail }: CardProps) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+// 4b. Time to ejaculation by activity type (PFB-016, EVT-031, Q3): one tile per type and a table per 4 weeks. Male profile.
+
+export function EjacCard({ m }: CardProps) {
+  const c = useColors();
+  const e = m.ejac;
+  if (!e) return null;
+  const now = e.blocks[e.blocks.length - 1];
+  return (
+    <Card>
+      <CardHeader title={PROGRESS.ejac} />
+      <P small muted>
+        {PROGRESS.ejacSub}
+      </P>
+      {e.activities.length ? (
+        <>
+          <View style={{ flexDirection: 'row', gap: space(1), flexWrap: 'wrap' }}>
+            {e.activities.map((a) => {
+              const cell = now.byActivity[a.value];
+              const range = ejacRangeText(cell.range);
+              const sub = cell.range ? PROGRESS.ejacFrom(cell.count) : PROGRESS.sexualNotEnough;
+              return (
+                <View
+                  key={a.value}
+                  accessible
+                  accessibilityLabel={PROGRESS.ejacSpoken(a.label, range, sub)}
+                  style={{ flex: 1, minWidth: 140, padding: space(1.25), gap: space(0.25), borderRadius: radius.md, backgroundColor: c.soft }}
+                >
+                  <Text style={[type('heading-md'), { color: c.text }]}>{range}</Text>
+                  <Text style={[type('body-sm'), { color: c.text }]}>{a.label}</Text>
+                  <Text style={[type('body-sm'), { color: c.muted }]}>{sub}</Text>
+                </View>
+              );
+            })}
+          </View>
+          <Label>{PROGRESS.ejacTable}</Label>
+          <DataTable
+            columns={columnsOf([PROGRESS.col.weeks, ...e.activities.map((a) => a.label)])}
+            rows={[...e.blocks].reverse().map((b) => [SUMMARY.range(shortDate(b.from), shortDate(b.to)), ...e.activities.map((a) => ejacRangeText(b.byActivity[a.value].range))])}
+            label={PROGRESS.ejacTable}
+          />
+        </>
+      ) : (
+        <P muted>{PROGRESS.ejacNone}</P>
+      )}
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 // 5. Other records (tertiary list): leaks, questionnaire answers and symptom check-ups (PFB-017 tile 1)
 
 export function symptomText(m: ProgressModel): string {
@@ -476,6 +527,7 @@ export function OtherRecordsCard({ m, panel, onDetail }: CardProps) {
         detail={symptomText(m)}
         onPress={() => (panel ? onDetail({ kind: 'questionnaires' }) : router.push('/records?show=questionnaires'))}
       />
+      <LinkRow label={CHECKIN.progressRow} detail={CHECKIN.progressDetail} onPress={() => router.push('/checkin')} />
     </Card>
   );
 }

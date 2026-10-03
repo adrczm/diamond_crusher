@@ -7,8 +7,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, View, useWindowDimensions } from 'react-native';
 import { Text } from '../src/ui/text';
-import { BLOCK_NAME, INTENSITY, RELAX_STEP_TEXT, SESSION, VOICE, voiceBlock } from '../src/content/en/exercise';
-import { REMINDER_CUES, cueText } from '../src/content/en/learn';
+import { RELAX_STEP_TEXT, SESSION, VOICE, voiceBlock } from '../src/content/en/exercise';
+import { REMINDER_CUES, sessionCueText } from '../src/content/en/learn';
 import { PAIN_CHOICE, RELAX_ONLY_HOME } from '../src/content/en/screening';
 import { APP_QUESTION_LABEL, SESSION_LOG } from '../src/content/en/items';
 import { COMMON, DESKTOP, HOME, MILESTONES, NEXT_NAME } from '../src/content/en/strings';
@@ -26,10 +26,10 @@ import { leaveFlow } from '../src/features/screens/GuidedFlow';
 import { loadSessionSummary } from '../src/features/homeService';
 import { SessionContents } from '../src/features/screens/SessionContents';
 import { SessionTimer, TimerSwitcher } from '../src/features/screens/SessionTimer';
-import { nextText, phaseTitle, repLabel } from '../src/features/screens/sessionText';
+import { blockName, intensityText, nextText, phaseTitle, repLabel } from '../src/features/screens/sessionText';
 import { WeekStrip, whenText } from '../src/features/screens/WeekStrip';
 import { reconcileReminders } from '../src/features/reminderService';
-import { reportPain } from '../src/features/safetyService';
+import { profileFacts, reportPain } from '../src/features/safetyService';
 import { planToday, saveSession, type SaveSessionResult } from '../src/features/trainingService';
 import { feedback } from '../src/platform/feedback';
 import { Banner, Button, Card, H1, H2, Label, Loading, MultiChoice, P, Row, Screen, Segments, ToggleRow } from '../src/ui/kit';
@@ -38,6 +38,7 @@ import { isWeb, useDesktop } from '../src/ui/layout';
 import { useReducedMotion } from '../src/ui/motion';
 import { useColorFade } from '../src/ui/mix';
 import { Celebrate } from '../src/ui/ring';
+import { GentleUnlock } from '../src/features/screens/GentleSqueeze';
 import { space, useColors } from '../src/ui/theme';
 
 const mono = () => (globalThis.performance?.now ? globalThis.performance.now() : Date.now());
@@ -47,7 +48,7 @@ type Stage = 'ready' | 'running' | 'painAsk' | 'log' | 'done';
 export default function SessionScreen() {
   const params = useLocalSearchParams<{ relax?: string; extra?: string; go?: string }>();
   const { db, bump } = useApp();
-  const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => ({ today: await planToday(d), settings: await getSettings(d), profile: await getProfile(d) }), []);
+  const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => ({ today: await planToday(d), settings: await getSettings(d), profile: await getProfile(d), facts: await profileFacts(d) }), []);
   const [stage, setStage] = useState<Stage>('ready');
   const [plan, setPlan] = useState<SessionPlan | null>(null);
   const [extra, setExtra] = useState(false);
@@ -172,7 +173,7 @@ export default function SessionScreen() {
         audio={data.settings.audio_mode}
         timerView={data.settings.timer_view}
         vibration={data.settings.vibration}
-        cue={cueText(data.profile?.preferred_cue_key ?? null, data.profile?.anatomy ?? 'other_unspecified')}
+        cue={sessionCueText(data.profile?.preferred_cue_key ?? null, data.profile?.anatomy ?? 'other_unspecified', data.facts)}
         painAsk={stage === 'painAsk'}
         onPain={() => setStage('painAsk')}
         onPainAnswer={() => setStage('running')}
@@ -224,6 +225,7 @@ function Done({ completion, saved, extra, strength }: { completion: Completion; 
             {next ? <P muted>{next}</P> : null}
           </Card>
         ) : null}
+        {!strength && completion !== 'stopped_pain' ? <GentleUnlock /> : null}
         {saved?.milestones.map((m) => (
           <Card key={m} tone="soft">
             <P>{MILESTONES[m] ?? ''}</P>
@@ -451,7 +453,7 @@ function Runner({
   const sched = placeAll(runner.schedule());
   const guidance =
     p?.kind === 'squeeze' && p.block !== 'relax'
-      ? [INTENSITY[p.block], reminder].filter(Boolean).join('\n')
+      ? [intensityText(p), reminder].filter(Boolean).join('\n')
       : p?.kind === 'relax'
         ? RELAX_STEP_TEXT[p.relaxStep ?? 'relax_in'].body
         : nextText(nextUp(sched, runner.currentIndex()));
@@ -534,7 +536,7 @@ function Runner({
 
   const head = (
     <View style={{ alignItems: 'center', gap: space(0.5), width: '100%' }}>
-      <Label>{p ? (p.block === 'relax' ? BLOCK_NAME.relax : BLOCK_NAME[p.block]) : EMPTY}</Label>
+      <Label>{p ? blockName(p) : EMPTY}</Label>
       <PhaseWord text={word} squeezing={squeezing} hidden={phaseAtDot && state !== 'paused'} />
     </View>
   );

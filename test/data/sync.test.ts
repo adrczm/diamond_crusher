@@ -233,7 +233,7 @@ describe('schema 3 (design round 2)', () => {
     await db.run("INSERT INTO context_flag (id, kind, from_date, note, created_at) VALUES ('c1', 'illness', '2026-10-01', 'cold', 'x')");
     await db.run("INSERT INTO training_slot (id, slot_no, active, created_at) VALUES ('t1', 2, 1, 'x')");
     await updateSettings(db, { weekly_days_target: 4 });
-    expect(await migrate(db, 'test')).toEqual({ status: 'ok', from: 2, to: 3 });
+    expect(await migrate(db, 'test', 3)).toEqual({ status: 'ok', from: 2, to: 3 });
     expect((await getSettings(db)).weekly_days_target).toBe(4);
     expect(await db.get("SELECT note FROM context_flag WHERE id = 'c1'")).toEqual({ note: 'cold' });
     // The rebuilt tables accept the new ranges and still stamp clocks and tombstones.
@@ -276,5 +276,37 @@ describe('schema 3 (design round 2)', () => {
     await a.run("UPDATE event SET occurred_period = 'night' WHERE id = 'e1'");
     await sync(a, b);
     expect(await b.get("SELECT occurred_period FROM event WHERE id = 'e1'")).toEqual({ occurred_period: 'night' });
+  });
+});
+
+describe('schema 4 (profiles and research changes)', () => {
+  it('upgrades a schema 3 database, keeps goals and accepts the new goals and columns', async () => {
+    const db = openNodeDb();
+    await migrate(db, 'test', 3);
+    await ensureSingletons(db, true);
+    await db.run("INSERT INTO profile_goal (goal, added_at, active, created_at) VALUES ('erection', 'x', 1, 'x')");
+    expect(await migrate(db, 'test')).toEqual({ status: 'ok', from: 3, to: 4 });
+    expect(await db.get("SELECT goal FROM profile_goal")).toEqual({ goal: 'erection' });
+    await db.run("INSERT INTO profile_goal (goal, added_at, active, created_at) VALUES ('bowel_control', 'x', 1, 'x')");
+    await db.run("INSERT INTO profile_goal (goal, added_at, active, created_at) VALUES ('pregnancy_birth', 'x', 1, 'x')");
+    await expect(db.run("INSERT INTO profile_goal (goal, added_at, active, created_at) VALUES ('prolapse', 'x', 1, 'x')")).rejects.toThrow();
+    expect((await db.get<{ hlc: string }>("SELECT hlc FROM profile_goal WHERE goal = 'bowel_control'"))!.hlc).not.toBe('');
+    await db.run('UPDATE programme_state SET gentle_unlocked_at = ?, gentle_pain_lock = 1 WHERE id = 1', ['2026-10-03T10:00:00.000Z']);
+    await expect(db.run('UPDATE programme_state SET gentle_pain_lock = 2 WHERE id = 1')).rejects.toThrow();
+    const fields = (await db.all<{ field: string }>("SELECT field FROM sync_field WHERE table_name = 'programme_state'")).map((r) => r.field);
+    expect(fields).toEqual(expect.arrayContaining(['gentle_unlocked_at', 'gentle_pain_lock']));
+  });
+
+  it('syncs the gentle squeeze unlock and a leak at orgasm', async () => {
+    const a = await freshDb();
+    const b = await freshDb();
+    await pair(a, b);
+    await a.run("UPDATE programme_state SET gentle_unlocked_at = '2026-10-03T10:00:00.000Z' WHERE id = 1");
+    await a.run(
+      "INSERT INTO event (id, type, occurred_at, local_date, tz_offset_min, entered_at, activity_type, item_set_version, created_at, orgasm_leak) VALUES ('e2', 'sexual_activity', '2026-10-02T19:00:00.000Z', '2026-10-02', 0, 'x', 'solo', 1, 'x', 'yes')"
+    );
+    await sync(a, b);
+    expect(await b.get('SELECT gentle_unlocked_at FROM programme_state WHERE id = 1')).toEqual({ gentle_unlocked_at: '2026-10-03T10:00:00.000Z' });
+    expect(await b.get("SELECT orgasm_leak FROM event WHERE id = 'e2'")).toEqual({ orgasm_leak: 'yes' });
   });
 });

@@ -1,5 +1,5 @@
 // Check-ins: the monthly check and 12-week review hub (06b §3.3), where parts can be done separately. Between checks
-// it shows a countdown with the parts locked, a self-check at any time, and the past checks (UX audit H5).
+// it shows when the next check opens and is due, with the parts locked, a self-check at any time, and the past checks (UX audit H5).
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -7,12 +7,12 @@ import { EVENTS } from '../src/content/en/items';
 import { BUNDLE, COMMON, DATA, DESKTOP } from '../src/content/en/strings';
 import { REVIEW_12W_CARD } from '../src/content/en/screening';
 import { listScheduledChecks } from '../src/data/repositories/checks';
-import { checkPreview, pastChecks, type PastCheck } from '../src/domain/checkins';
+import { nextCheckWindow, pastChecks, type CheckWindow, type PastCheck } from '../src/domain/checkins';
 import { formatShort, toLocalDate } from '../src/domain/dates';
 import { useApp, useLoad } from '../src/features/app';
 import { leaveFlow } from '../src/features/screens/GuidedFlow';
 import { Alert } from '../src/platform/dialog';
-import { currentCheck, markPart, modulesForCheck, skipCheck, type CheckDue } from '../src/features/checkService';
+import { checkLine, currentCheck, markPart, modulesForCheck, skipCheck, type CheckDue } from '../src/features/checkService';
 import { saveSexualFlag } from '../src/features/checkService';
 import { reconcileReminders } from '../src/features/reminderService';
 import type { BundleKind } from '../src/domain/schedule';
@@ -28,10 +28,12 @@ export default function CheckHub() {
   const today = toLocalDate(new Date());
   const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => {
     const c = await currentCheck(d, today);
+    const rows = await listScheduledChecks(d);
     return {
       check: c,
       modules: c ? await modulesForCheck(d, c.row.kind as BundleKind) : [],
-      past: pastChecks(await listScheduledChecks(d), (iso) => toLocalDate(new Date(iso))),
+      past: pastChecks(rows, (iso) => toLocalDate(new Date(iso))),
+      next: nextCheckWindow(rows),
     };
   });
   const [sexual, setSexual] = useState<'yes' | 'no' | 'prefer_not' | undefined>();
@@ -68,7 +70,7 @@ export default function CheckHub() {
   if (!c.open) {
     return (
       <Screen title={DESKTOP.nav.check}>
-        <Upcoming check={c} today={today} />
+        <Upcoming check={c} next={data.next} />
         {extras}
       </Screen>
     );
@@ -147,16 +149,17 @@ export default function CheckHub() {
   );
 }
 
-/** The next check before it opens: a countdown and its parts, locked, so nothing looks tappable before its time. */
-function Upcoming({ check, today }: { check: CheckDue; today: string }) {
+/** The next check before it opens: when it opens and is due, and its parts, locked, so nothing looks tappable before its time. */
+function Upcoming({ check, next }: { check: CheckDue; next: CheckWindow | null }) {
   const c = useColors();
   const quarterly = check.row.kind === 'quarterly_review';
-  const pv = checkPreview(check.row, today);
-  const opens = formatShort(pv.opensOn);
+  const opens = formatShort(check.row.window_open);
   return (
     <Card>
       <H2>{checkName(check.row.kind)}</H2>
-      <P>{BUNDLE.nextIn(pv.daysToDue, quarterly ? 10 : 8)}</P>
+      {/* W2: the same "opens …, due …" line as Today and Progress. */}
+      {next ? <P>{checkLine(next)}</P> : null}
+      <P muted>{BUNDLE.aboutMinutes(quarterly ? 10 : 8)}</P>
       <View style={{ gap: 0 }}>
         {check.parts.map((p, i) => (
           <View

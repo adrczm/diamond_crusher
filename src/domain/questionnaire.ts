@@ -1,4 +1,5 @@
 // Questionnaire modules: schema, licence gate, scoring and missing-data rules (06b §3).
+import type { Anatomy } from './types';
 
 export type ResponseType = 'single' | 'multi' | 'numeric' | 'freeText';
 
@@ -20,6 +21,13 @@ export interface ModuleItem {
   scale?: { min: number; max: number; minLabel: string; maxLabel: string };
   /** Goals this item applies to (app-own modules only). */
   goals?: string[];
+  /** Profiles this item applies to (app-own modules only); all when absent. */
+  profiles?: string[];
+}
+
+/** Whether an item applies to a profile (`profiles` on app-own items, for example erections for the male profile). */
+export function itemForProfile(item: ModuleItem, anatomy: string): boolean {
+  return !item.profiles || item.profiles.includes(anatomy);
 }
 
 export interface Licence {
@@ -53,7 +61,8 @@ export interface QuestionnaireModule {
     direction?: 'higherIsWorse' | 'higherIsBetter';
     missingRule: 'none' | string;
   };
-  mcid?: { type: 'fixed' | 'baselineBands'; values: number[]; source: string };
+  /** `population`: who the threshold was found in. A women-only threshold is not used for other profiles (SX2). */
+  mcid?: { type: 'fixed' | 'baselineBands'; values: number[]; source: string; population?: 'women' | 'men' | 'both' };
   floorValue?: number;
   ceilingValue?: number;
   licence: Licence;
@@ -110,10 +119,27 @@ export function isCheckUp(m: QuestionnaireModule, baselineTotal: number | null):
   return (m.floorValue != null && baselineTotal === m.floorValue) || (m.ceilingValue != null && baselineTotal === m.ceilingValue);
 }
 
+/**
+ * SX2 (Adrian, 2026-10-03): the meaningful-change threshold applies only to the population it was found in. Every
+ * ICIQ-UI SF threshold comes from women, so men (and the other profile) see raw change only, with a note.
+ */
+export function mcidFor(m: QuestionnaireModule, anatomy: Anatomy | null): QuestionnaireModule['mcid'] | undefined {
+  if (!m.mcid) return undefined;
+  if (m.mcid.population === 'women' && anatomy !== 'female') return undefined;
+  if (m.mcid.population === 'men' && anatomy !== 'male') return undefined;
+  return m.mcid;
+}
+
+/** Whether a threshold exists but was left out for this profile (shows the "found in women" note). */
+export function mcidWithheld(m: QuestionnaireModule, anatomy: Anatomy | null): boolean {
+  return !!m.mcid && !mcidFor(m, anatomy);
+}
+
 /** PFB-021: meaningful change on a module with a fixed MCID (e.g. ICIQ-UI SF, baseline ≥ 6). */
-export function meaningfulChange(m: QuestionnaireModule, baseline: number, latest: number): 'better' | 'worse' | 'none' | 'no_verdict' {
-  if (!m.mcid || m.mcid.type !== 'fixed') return 'no_verdict';
-  const [threshold, minBaseline = 0] = m.mcid.values;
+export function meaningfulChange(m: QuestionnaireModule, baseline: number, latest: number, anatomy: Anatomy | null = 'female'): 'better' | 'worse' | 'none' | 'no_verdict' {
+  const mcid = mcidFor(m, anatomy);
+  if (!mcid || mcid.type !== 'fixed') return 'no_verdict';
+  const [threshold, minBaseline = 0] = mcid.values;
   if (baseline < minBaseline) return 'no_verdict';
   const diff = latest - baseline;
   const worseIfHigher = m.scoring.direction !== 'higherIsBetter';

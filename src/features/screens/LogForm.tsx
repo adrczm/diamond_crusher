@@ -1,30 +1,44 @@
 // The event log form (06a §4): leaks, sexual activity and notes about a day. Every item is skippable.
 // One form for the Log page and for a quick log from anywhere (the L key on the Mac): `LogForm` shows the form with its
 // own Save at the end; `useLogForm` gives the parts, so the phone Log page can keep Save in its bottom bar.
+// Q3: an entry tapped in the list opens here, filled in; Save changes the same row and Delete removes it (after a question).
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { Alert } from '../../platform/dialog';
 import { APP_QUESTION_LABEL, EVENTS } from '../../content/en/items';
 import { COMMON, ERRORS } from '../../content/en/strings';
-import { insertContextFlag, insertEvent, type EjacBand, type LeakSituation } from '../../data/repositories/events';
+import {
+  deleteContextFlag,
+  deleteEvent,
+  insertContextFlag,
+  insertEvent,
+  updateContextFlag,
+  updateEvent,
+  type EjacBand,
+  type LeakSituation,
+} from '../../data/repositories/events';
 import { activeGoals, getProfile } from '../../data/repositories/profile';
 import { nowIso } from '../../data/sql';
-import { tzOffsetMin } from '../../domain/dates';
-import { adjustForDay, defaultDay, savedTime, type When } from '../../domain/when';
+import { formatShort, tzOffsetMin, type LocalDate } from '../../domain/dates';
+import { adjustForDay, defaultDay, savedTime, stripDays, type When } from '../../domain/when';
 import { Icon } from '../../ui/icons';
 import { Banner, Button, Choice, Field, H2, Label, P, Segments, type PressState, useTouch } from '../../ui/kit';
 import { Text } from '../../ui/text';
 import { radius, space, type, useColors } from '../../ui/theme';
 import { useApp, useLoad } from '../app';
+import { profileFacts } from '../safetyService';
+import { answersChanged, eventPatch, flagPatch, valuesOf, type LogEntry, type LogKind, type LogValues } from '../logEdit';
 import { DayStrip, TimeOfDaySlider } from './WhenPicker';
 
-export type LogKind = 'leak' | 'sex' | 'context';
+export type { LogEntry, LogKind } from '../logEdit';
 
 export interface LogFormProps {
-  /** Called after a save ('saved') or when Cancel clears the form ('cancelled'). */
-  onDone?: (result: 'saved' | 'cancelled') => void;
+  /** Called after a save ('saved'), a delete ('deleted') or when Cancel clears the form ('cancelled'). */
+  onDone?: (result: 'saved' | 'deleted' | 'cancelled') => void;
   /** Open with this type already picked (e.g. a quick log of a leak). */
   initialType?: LogKind;
+  /** An entry to change: the form opens filled in with its answers. */
+  editing?: LogEntry | null;
 }
 
 /** The counter shows from this many characters (near the 280 limit). */
@@ -83,9 +97,9 @@ export interface LogFormParts {
   saved: boolean;
 }
 
-export function useLogForm({ onDone, initialType }: LogFormProps = {}): LogFormParts {
+export function useLogForm({ onDone, initialType, editing }: LogFormProps = {}): LogFormParts {
   const { db, bump } = useApp();
-  const { data } = useLoad(async (d) => ({ profile: await getProfile(d), goals: await activeGoals(d) }));
+  const { data } = useLoad(async (d) => ({ profile: await getProfile(d), goals: await activeGoals(d), facts: await profileFacts(d) }));
   const [now, setNow] = useState(() => new Date());
   const [kind, setKind] = useState<LogKind | undefined>(initialType);
   const [day, setDay] = useState(() => defaultDay(new Date()));
@@ -97,10 +111,15 @@ export function useLogForm({ onDone, initialType }: LogFormProps = {}): LogFormP
   const [band, setBand] = useState<EjacBand | undefined>();
   const [control, setControl] = useState<number | undefined>();
   const [bother, setBother] = useState<number | undefined>();
+  const [orgasmLeak, setOrgasmLeak] = useState<'yes' | 'no' | undefined>();
   const [note, setNote] = useState('');
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Editing (Q3): the answers the entry opened with, and whether the day or part of the day was changed by hand.
+  const opened = useRef<LogValues | null>(null);
+  const [timeTouched, setTimeTouched] = useState(false);
+  const editKey = editing ? `${editing.type}:${editing.row.id}` : null;
 
   // The Now marker follows the clock while the form is open.
   useEffect(() => {
@@ -111,9 +130,46 @@ export function useLogForm({ onDone, initialType }: LogFormProps = {}): LogFormP
     setWhen((w) => adjustForDay(w, day, now));
   }, [day, now]);
 
+  // Fill the form when an entry is opened, and empty it when the entry is put away.
+  useEffect(() => {
+    if (!editing) {
+      if (opened.current) reset();
+      opened.current = null;
+      return;
+    }
+    const v = valuesOf(editing);
+    opened.current = v;
+    setKind(v.kind);
+    setDay(v.day);
+    setWhen(v.when);
+    setSituation(v.situation);
+    setAmount(v.amount);
+    setActivity(v.activity);
+    setFirm(v.firm);
+    setBand(v.band);
+    setControl(v.control);
+    setBother(v.bother);
+    setOrgasmLeak(v.orgasmLeak);
+    setNote(v.note);
+    setTimeTouched(false);
+    setSaved(false);
+    setFailed(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editKey]);
+  const pickDay = (d: LocalDate) => {
+    setTimeTouched(true);
+    setDay(d);
+  };
+  const pickWhen = (w: When) => {
+    setTimeTouched(true);
+    setWhen(w);
+  };
+
   const anatomy = data?.profile?.anatomy ?? 'other_unspecified';
   const male = anatomy === 'male';
-  const canSave = !!kind && (kind !== 'context' || note.trim().length > 0);
+  // An old note saved with a kind and no text can keep having no text.
+  const canSave = !!kind && (kind !== 'context' || note.trim().length > 0 || (editing?.type === 'flag' && editing.row.kind !== 'other'));
+  const values: LogValues = { kind, day, when, situation, amount, activity, firm, band, control, bother, orgasmLeak, note };
 
   const reset = () => {
     const n = new Date();
@@ -128,10 +184,13 @@ export function useLogForm({ onDone, initialType }: LogFormProps = {}): LogFormP
     setBand(undefined);
     setControl(undefined);
     setBother(undefined);
+    setOrgasmLeak(undefined);
     setNote('');
   };
-  // Answers typed so far, so Cancel can ask before it throws them away (DS-E9).
-  const filled = !!(situation || amount || activity || firm !== undefined || band || control !== undefined || bother !== undefined || note.trim());
+  // Answers typed so far, so Cancel can ask before it throws them away (DS-E9). For an opened entry: answers changed.
+  const filled = editing
+    ? timeTouched || answersChanged(values, opened.current ?? values)
+    : !!(situation || amount || activity || firm !== undefined || band || control !== undefined || bother !== undefined || orgasmLeak || note.trim());
   const cancel = () => {
     const done = () => {
       reset();
@@ -144,6 +203,8 @@ export function useLogForm({ onDone, initialType }: LogFormProps = {}): LogFormP
     ]);
   };
   const write = async () => {
+    if (editing?.type === 'event') return updateEvent(db, editing.row.id, eventPatch(editing.row, values, timeTouched, new Date()));
+    if (editing?.type === 'flag') return updateContextFlag(db, editing.row.id, flagPatch(editing.row, values));
     // EVT-010, DATA-090: the picked day and part of the day, or the exact time now (period null).
     const t = savedTime(day, when, new Date());
     const base = {
@@ -172,6 +233,7 @@ export function useLogForm({ onDone, initialType }: LogFormProps = {}): LogFormP
         ejac_time_band: band ?? null,
         control_0_10: control ?? null,
         bother_0_10: bother ?? null,
+        orgasm_leak: orgasmLeak ?? null,
       });
     // EVT-033 (round 2): free text only, stored as kind `other`, on the picked day.
     if (kind === 'context' && note.trim()) await insertContextFlag(db, { kind: 'other', from_date: day, to_date: null, note: note.trim().slice(0, EVENTS.noteMax) });
@@ -195,6 +257,32 @@ export function useLogForm({ onDone, initialType }: LogFormProps = {}): LogFormP
     }
   };
 
+  // Delete asks first, as in the list (DS-E18).
+  const remove = () => {
+    if (!editing || busy) return;
+    Alert.alert(COMMON.delete, EVENTS.deleteAsk, [
+      { text: COMMON.cancel, style: 'cancel' },
+      {
+        text: COMMON.delete,
+        style: 'destructive',
+        onPress: async () => {
+          setBusy(true);
+          try {
+            await (editing.type === 'event' ? deleteEvent(db, editing.row.id) : deleteContextFlag(db, editing.row.id));
+            bump();
+            reset();
+            onDone?.('deleted');
+          } catch (e) {
+            console.warn(e);
+            setFailed(true);
+          } finally {
+            setBusy(false);
+          }
+        },
+      },
+    ]);
+  };
+
   // ⌘↵ (Ctrl+Enter) saves on the Mac, also from inside the note box. useHotkeys ignores keys with modifiers.
   const saveRef = useRef(save);
   saveRef.current = save;
@@ -213,22 +301,32 @@ export function useLogForm({ onDone, initialType }: LogFormProps = {}): LogFormP
   const body = (
     <>
       {failed ? <Banner tone="critical" text={ERRORS.saveFailed} /> : null}
-      <TypeTiles
-        options={[
-          { value: 'leak', label: EVENTS.leakType },
-          ...(male ? [{ value: 'sex' as const, label: EVENTS.sexType }] : []),
-          { value: 'context', label: EVENTS.contextType },
-        ]}
-        value={kind}
-        onChange={(k) => {
-          setSaved(false);
-          setKind(k);
-        }}
-      />
+      {editing ? (
+        // The type of a stored entry stays: its answers belong to that type.
+        <H2>{EVENTS.editTitle(kind === 'leak' ? EVENTS.leakType : kind === 'sex' ? EVENTS.sexType : EVENTS.contextType)}</H2>
+      ) : (
+        <TypeTiles
+          options={[
+            { value: 'leak', label: EVENTS.leakType },
+            ...(male ? [{ value: 'sex' as const, label: EVENTS.sexType }] : []),
+            { value: 'context', label: EVENTS.contextType },
+          ]}
+          value={kind}
+          onChange={(k) => {
+            setSaved(false);
+            setKind(k);
+          }}
+        />
+      )}
+      {editing && !stripDays(now).includes(day) ? (
+        <P small muted>
+          {EVENTS.editOlderDay(formatShort(day))}
+        </P>
+      ) : null}
       {kind === 'context' ? (
         <>
           <Label>{EVENTS.whichDay}</Label>
-          <DayStrip value={day} onChange={setDay} now={now} />
+          <DayStrip value={day} onChange={pickDay} now={now} />
           <View style={{ gap: space(0.5) }}>
             <Field
               label={EVENTS.noteLabel}
@@ -258,8 +356,8 @@ export function useLogForm({ onDone, initialType }: LogFormProps = {}): LogFormP
       ) : kind ? (
         <>
           <Label>{kind === 'sex' ? EVENTS.whenSex : EVENTS.when}</Label>
-          <DayStrip value={day} onChange={setDay} now={now} />
-          <TimeOfDaySlider day={day} value={when} onChange={setWhen} now={now} />
+          <DayStrip value={day} onChange={pickDay} now={now} />
+          <TimeOfDaySlider day={day} value={when} onChange={pickWhen} now={now} />
         </>
       ) : null}
       {kind === 'leak' ? (
@@ -296,6 +394,12 @@ export function useLogForm({ onDone, initialType }: LogFormProps = {}): LogFormP
               <P small muted>{`0 = ${EVENTS.botherEnds[0]}, 10 = ${EVENTS.botherEnds[1]}`}</P>
             </>
           ) : null}
+          {male && data?.facts.prostateTreatment ? (
+            <>
+              <H2>{EVENTS.orgasmLeak}</H2>
+              <Segments label={EVENTS.orgasmLeak} options={EVENTS.orgasmLeakOptions.map((o) => ({ value: o.value as 'yes' | 'no', label: o.label }))} value={orgasmLeak} onChange={setOrgasmLeak} />
+            </>
+          ) : null}
         </>
       ) : null}
       {/* M8: LOG-003 keeps the label visible, but at the bottom so it does not lead the form. */}
@@ -314,6 +418,7 @@ export function useLogForm({ onDone, initialType }: LogFormProps = {}): LogFormP
           {EVENTS.saveKey}
         </P>
       ) : null}
+      {editing ? <Button label={COMMON.delete} kind="quiet" onPress={remove} disabled={busy} /> : null}
       <Button label={COMMON.cancel} kind="quiet" onPress={cancel} />
       <Button label={COMMON.save} onPress={save} busy={busy} disabled={!canSave} />
     </View>
@@ -322,6 +427,7 @@ export function useLogForm({ onDone, initialType }: LogFormProps = {}): LogFormP
     <>
       <Button label={COMMON.save} onPress={save} busy={busy} disabled={!canSave} />
       <Button label={COMMON.cancel} kind="quiet" onPress={cancel} />
+      {editing ? <Button label={COMMON.delete} kind="quiet" onPress={remove} disabled={busy} /> : null}
     </>
   ) : null;
   return { ready: !!data, kind, body, inlineActions, footer, saved: saved && !kind };

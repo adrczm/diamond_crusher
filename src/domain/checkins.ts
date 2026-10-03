@@ -26,6 +26,23 @@ export function checkPreview(c: Pick<CheckLite, 'due_on' | 'window_open'>, today
   return { daysToDue: Math.max(0, diffDays(today, c.due_on)), opensOn: c.window_open };
 }
 
+export interface CheckWindow {
+  /** The first day the check can be done (up to 3 days early, 06a SC-002, 06b QST-052). */
+  opensOn: LocalDate;
+  /** The day it is scheduled for. It stays open up to 14 days after this. */
+  dueOn: LocalDate;
+  /** No monthly check or 12-week review is done, skipped or missed yet. */
+  first: boolean;
+}
+
+/** The next unfinished monthly check or 12-week review, for the one "opens …, due …" line (W2), or null when none is planned. */
+export function nextCheckWindow(rows: readonly Pick<CheckLite, 'kind' | 'due_on' | 'window_open' | 'status'>[]): CheckWindow | null {
+  const bundles = rows.filter((r) => BUNDLES.includes(r.kind));
+  const next = bundles.filter((r) => !PAST.includes(r.status)).sort((a, b) => (a.due_on < b.due_on ? -1 : a.due_on > b.due_on ? 1 : 0))[0];
+  if (!next) return null;
+  return { opensOn: next.window_open, dueOn: next.due_on, first: !bundles.some((r) => PAST.includes(r.status)) };
+}
+
 export interface PastCheck<T extends CheckLite = CheckLite> {
   row: T;
   /** The day it was completed or skipped, or its due date if it was missed. */

@@ -2,6 +2,7 @@
 // research/ux-writing/style-guide.md sections a, b and e).
 import * as fs from 'fs';
 import * as path from 'path';
+import * as checkin from '../../src/content/en/checkin';
 import * as education from '../../src/content/en/education';
 import * as exercise from '../../src/content/en/exercise';
 import * as items from '../../src/content/en/items';
@@ -55,7 +56,7 @@ function fileLiterals(file: string): string[] {
 const root = path.join(__dirname, '../..');
 const nonEvidence = { ...education, EDUCATION: education.EDUCATION.filter((e) => e.id !== 'ED-11') };
 const catalogue = [
-  ...collect([nonEvidence, exercise, items, learn, screening, strings]),
+  ...collect([nonEvidence, exercise, items, learn, screening, strings, checkin]),
   ...literals(path.join(root, 'app')),
   ...literals(path.join(root, 'src/features')),
   ...literals(path.join(root, 'src/ui')),
@@ -63,7 +64,7 @@ const catalogue = [
 ];
 // Copy from the content catalogue only (no screen source), for the STE checks.
 const content = [
-  ...collect([nonEvidence, exercise, items, learn, screening, strings, SYNC]),
+  ...collect([nonEvidence, exercise, items, learn, screening, strings, SYNC, checkin]),
   ...collect(MODULES.filter((m) => !m.validated).map((m) => m.items)),
   ...fileLiterals(path.join(root, 'src/content/en/web.ts')),
 ];
@@ -91,7 +92,8 @@ const CLAIM_WORDS = [
   /\bprolapse\b/i,
 ];
 // The disclaimer itself must say the app does not diagnose (CNT-020), so that one sentence is allowed.
-const ALLOWED = [/does not diagnose any condition/, /They are not a diagnosis\./];
+// "Prostate treatment" names the person's past care, not a claim (G2 card text approved by Adrian, 2026-10-03).
+const ALLOWED = [/does not diagnose any condition/, /They are not a diagnosis\./, /prostate treatment/, /hormone therapy/gi];
 
 const GUILT = [/streak lost/i, /you missed/i, /you failed/i, /don't give up/i, /don’t give up/i, /you broke/i, /\bbehind (on|with)\b/i, /fall(en)? behind/i];
 const BAD_CUES = [/pull your tummy in/i, /\bdraw(s)? in\b/i, /lift your bladder/i];
@@ -138,6 +140,33 @@ describe('wording checks', () => {
     expect(hits).toEqual([]);
   });
 
+  // SX-C.6, summary item 10: "breathe out ... draw in the tummy" made 84% of women push down (Ben Ami and Dar 2018).
+  it('never joins "breathe out" with a tummy, belly or draw-in cue in one cue, fix or tip', () => {
+    const cueStrings = collect([
+      learn.CUES,
+      learn.REMINDER_CUES,
+      learn.MISTAKES,
+      learn.LEARN,
+      learn.MIRROR_CHECK,
+      learn.TOUCH_CHECK,
+      learn.INSIDE_CHECK,
+      exercise.KNACK,
+      exercise.AFTER_PEE,
+      exercise.URGE_CONTROL,
+      exercise.ADD_ONS,
+      exercise.INTENSITY,
+      // RELAX_STEP_TEXT is left out on purpose: its let-go breath softens the belly and asks for no squeeze.
+      exercise.everydaySqueezes('male', { bulge: true, urgency: true }),
+      exercise.everydaySqueezes('female', { bulge: true, urgency: true }),
+      Object.values(learn.CUES).flatMap((c) => Object.keys(c.text).map((k) => learn.sessionCueText(k, 'male'))),
+    ]);
+    expect(cueStrings.length).toBeGreaterThan(30);
+    const joined = cueStrings.filter((s) => /breathe\s+out/i.test(s) && /\b(tummy|belly|draw(s)?\s+in)\b/i.test(s));
+    expect(joined).toEqual([]);
+    // The check itself catches the pairing.
+    expect(/breathe\s+out/i.test('Breathe out and draw in your tummy') && /\b(tummy|belly|draw(s)?\s+in)\b/i.test('Breathe out and draw in your tummy')).toBe(true);
+  });
+
   it('keeps notification text discreet (CNT-040, REM-021)', () => {
     const texts = [
       ...reminders.DEFAULT_TEXTS,
@@ -157,7 +186,7 @@ describe('wording checks', () => {
   });
 
   it('keeps sentences short (CNT-002)', () => {
-    const long = collect([education.EDUCATION, strings, screening, learn])
+    const long = collect([education.EDUCATION, strings, screening, learn, checkin])
       .flatMap((s) => s.split(/(?<=[.?!])\s+/))
       .filter((sentence) => sentence.split(/\s+/).length > 45);
     expect(long).toEqual([]);
@@ -182,7 +211,7 @@ describe('wording checks', () => {
   });
 
   it('keeps app and sync sentences to 25 words or fewer (STE 6.3)', () => {
-    const long = collect([strings, SYNC])
+    const long = collect([strings, SYNC, checkin])
       .concat(fileLiterals(path.join(root, 'src/content/en/web.ts')))
       .flatMap((s) => s.split(/(?<=[.?!])\s+/))
       .filter((sentence) => sentence.split(/\s+/).length > 25);
@@ -203,6 +232,7 @@ describe('wording checks', () => {
       SYNC.entryButton, SYNC.entryButtonPaired, SYNC.pairShow, SYNC.pairScan, SYNC.pairShowNext, SYNC.match, SYNC.noMatch,
       SYNC.send, SYNC.receive, SYNC.sendEverything, SYNC.unpair, SYNC.sendNext, SYNC.sendDone, SYNC.receivedNext,
       SYNC.cameraAllow, SYNC.cancel, SYNC.back,
+      checkin.CHECKIN.start, checkin.CHECKIN.hold.lighterButton, checkin.CHECKIN.hold.checkAgain, checkin.CHECKIN.suggest.action,
     ];
     const bad = buttons.filter((b) => b.split(/\s+/).length > 3 || /[.!?:;,]$/.test(b));
     expect(bad).toEqual([]);

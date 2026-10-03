@@ -1,0 +1,85 @@
+{
+  "moduleId": "app_symptom_checkin",
+  "name": "Symptom check-in",
+  "version": 1,
+  "language": "en",
+  "validated": false,
+  "profiles": ["male", "female", "other_unspecified"],
+  "goals": ["bladder_control", "ejaculatory_control", "erection", "long_term_health"],
+  "recall": { "text": "Compared with a month ago", "days": 28 },
+  "intervalDays": 28,
+  "instructions": "A few short questions about how things are now. Skip anything you prefer not to answer.",
+  "items": [
+    {
+      "itemId": "T1",
+      "text": "In the past month, did training cause pain during or after a session?",
+      "responseType": "single",
+      "options": [
+        { "label": "No", "value": "no" },
+        { "label": "A little", "value": "a_little" },
+        { "label": "Yes", "value": "yes" }
+      ],
+      "scored": false
+    },
+    {
+      "itemId": "L1",
+      "text": "Compared with a month ago, how are your urine leaks?",
+      "responseType": "single",
+      "options": [
+        { "label": "Better", "value": 1 },
+        { "label": "The same", "value": 2 },
+        { "label": "Worse", "value": 3 },
+        { "label": "I do not have leaks", "value": "none" }
+      ],
+      "scored": false
+    },
+    {
+      "itemId": "U1",
+      "text": "Compared with a month ago, how is the need to rush to the toilet?",
+      "responseType": "single",
+      "options": [
+        { "label": "Better", "value": 1 },
+        { "label": "The same", "value": 2 },
+        { "label": "Worse", "value": 3 },
+        { "label": "I do not have this", "value": "none" }
+      ],
+      "scored": false
+    },
+    {
+      "itemId": "E1",
+      "text": "Compared with a month ago, how are your erections?",
+      "responseType": "single",
+      "profiles": ["male"],
+      "options": [
+        { "label": "Better", "value": 1 },
+        { "label": "The same", "value": 2 },
+        { "label": "Worse", "value": 3 },
+        { "label": "Not sure", "value": "not_sure" }
+      ],
+      "scored": false
+    },
+    {
+      "itemId": "G1",
+      "text": "Compared with a month ago, how are things with your pelvic floor overall?",
+      "responseType": "single",
+      "options": [
+        { "label": "Better", "value": 1 },
+        { "label": "The same", "value": 2 },
+        { "label": "Worse", "value": 3 }
+      ],
+      "scored": true
+    }
+  ],
+  "scoring": { "method": "sum", "range": { "min": 1, "max": 3 }, "direction": "higherIsWorse", "missingRule": "none" },
+  "licence": {
+    "holder": "Diamond Crusher (app-own item)",
+    "licenceType": "free-open",
+    "status": "granted",
+    "reference": null,
+    "grantedOn": null,
+    "permittedUse": "App-own question, written for this app.",
+    "conditions": "",
+    "copyrightNotice": "App question, not validated",
+    "reviewBy": null
+  }
+}

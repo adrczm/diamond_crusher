@@ -4,11 +4,11 @@ import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
 import { EDUCATION_FOOTER, educationFor } from '../src/content/en/education';
 import { addOnsFor, everydaySqueezes } from '../src/content/en/exercise';
-import { TODO_BANNER } from '../src/content/en/screening';
 import { markContentSeen } from '../src/data/repositories/misc';
 import { activeGoals, getProfile } from '../src/data/repositories/profile';
 import { DESKTOP } from '../src/content/en/strings';
 import { useApp, useLoad } from '../src/features/app';
+import { profileFacts } from '../src/features/safetyService';
 import { Banner, Card, H1, H2, LinkRow, Loading, P, Screen, type PressState } from '../src/ui/kit';
 import { useDesktop } from '../src/ui/layout';
 import { Text } from '../src/ui/text';
@@ -19,21 +19,24 @@ export default function Library() {
   const { db } = useApp();
   const desktop = useDesktop();
   const c = useColors();
-  const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => ({ profile: await getProfile(d), goals: await activeGoals(d) }));
+  const { data, reload: loadRetry, error: loadError } = useLoad(async (d) => ({
+    profile: await getProfile(d),
+    goals: await activeGoals(d),
+    facts: await profileFacts(d),
+  }));
   useEffect(() => {
     if (id) markContentSeen(db, id).catch(() => undefined);
   }, [db, id]);
   if (!data) return <Loading error={loadError} onRetry={loadRetry} />;
   const anatomy = data.profile?.anatomy ?? 'other_unspecified';
-  const screens = educationFor(anatomy);
+  const screens = educationFor(anatomy, data.facts);
   const addOns = addOnsFor(anatomy, data.goals);
   // Desktop: list and article side by side (master-detail), the first article open by default.
   const e = id ? screens.find((s) => s.id === id) : desktop ? screens[0] : null;
   const article = e ? (
     <>
       <H1>{e.title}</H1>
-      {e.todo || anatomy === 'female' ? <Banner text={TODO_BANNER} /> : null}
-      {(e.id === 'ED-08' ? everydaySqueezes(anatomy) : e.body).map((b, i) => (
+      {(e.id === 'ED-08' ? everydaySqueezes(anatomy, data.facts) : e.body).map((b, i) => (
         <P key={i}>{b}</P>
       ))}
       {e.id === 'ED-08'
