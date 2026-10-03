@@ -5,25 +5,28 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { usePreventRemove } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, AppState, Platform, View } from 'react-native';
+import { AppState, Pressable, View, useWindowDimensions } from 'react-native';
 import { Text } from '../src/ui/text';
-import { BLOCK_NAME, INTENSITY, PHASE_TEXT, RELAX_STEP_TEXT, SESSION, VOICE, voiceBlock } from '../src/content/en/exercise';
+import { BLOCK_NAME, INTENSITY, RELAX_STEP_TEXT, SESSION, VOICE, voiceBlock } from '../src/content/en/exercise';
 import { REMINDER_CUES, cueText } from '../src/content/en/learn';
 import { PAIN_CHOICE, RELAX_ONLY_HOME } from '../src/content/en/screening';
 import { APP_QUESTION_LABEL, SESSION_LOG } from '../src/content/en/items';
 import { COMMON, DESKTOP, HOME, MILESTONES, NEXT_NAME } from '../src/content/en/strings';
 import { getProfile } from '../src/data/repositories/profile';
 import { getHabitDay, saveSessionLog, setHabitDay } from '../src/data/repositories/sessions';
-import { getSettings } from '../src/data/repositories/settings';
+import { getSettings, timerView, updateSettings, type Settings, type TimerView } from '../src/data/repositories/settings';
 import { formatDuration, toLocalDate } from '../src/domain/dates';
 import { reminderCueIndex } from '../src/domain/learn';
 import { SessionRunner, type RunnerEvent } from '../src/domain/session/engine';
-import { relaxPlan, type SessionPlan, type TimelinePhase } from '../src/domain/session/plan';
+import { relaxPlan, type SessionPlan } from '../src/domain/session/plan';
+import { nextUp, placeAll } from '../src/domain/session/shape';
 import type { Completion, OffTick, Pain3 } from '../src/domain/types';
 import { holdLockForRun, setSessionScreenOpen, useApp, useLoad } from '../src/features/app';
 import { leaveFlow } from '../src/features/screens/GuidedFlow';
 import { loadSessionSummary } from '../src/features/homeService';
 import { SessionContents } from '../src/features/screens/SessionContents';
+import { SessionTimer, TimerSwitcher } from '../src/features/screens/SessionTimer';
+import { nextText, phaseTitle, repLabel } from '../src/features/screens/sessionText';
 import { WeekStrip, whenText } from '../src/features/screens/WeekStrip';
 import { reconcileReminders } from '../src/features/reminderService';
 import { reportPain } from '../src/features/safetyService';
@@ -33,8 +36,9 @@ import { Banner, Button, Card, H1, H2, Label, Loading, MultiChoice, P, Row, Scre
 import { useHotkeys } from '../src/ui/hotkeys';
 import { isWeb, useDesktop } from '../src/ui/layout';
 import { useReducedMotion } from '../src/ui/motion';
-import { Celebrate, Ring } from '../src/ui/ring';
-import { useColors } from '../src/ui/theme';
+import { useColorFade } from '../src/ui/mix';
+import { Celebrate } from '../src/ui/ring';
+import { space, useColors } from '../src/ui/theme';
 
 const mono = () => (globalThis.performance?.now ? globalThis.performance.now() : Date.now());
 
@@ -166,6 +170,7 @@ export default function SessionScreen() {
       <Runner
         runner={runner.current as SessionRunner}
         audio={data.settings.audio_mode}
+        timerView={data.settings.timer_view}
         vibration={data.settings.vibration}
         cue={cueText(data.profile?.preferred_cue_key ?? null, data.profile?.anatomy ?? 'other_unspecified')}
         painAsk={stage === 'painAsk'}
@@ -185,6 +190,7 @@ export default function SessionScreen() {
 function Done({ completion, saved, extra, strength }: { completion: Completion; saved: SaveSessionResult | null; extra: boolean; strength: boolean }) {
   const { data: s } = useLoad((d) => loadSessionSummary(d), []);
   const close = () => router.replace('/');
+  const [skip, setSkip] = useState(false);
   const next = (() => {
     if (!s || !strength || completion === 'stopped_pain') return null;
     if (s.nextReminder) return SESSION.nextSession(whenText(s.nextReminder));
@@ -201,7 +207,12 @@ function Done({ completion, saved, extra, strength }: { completion: Completion; 
       <Keys map={{ Enter: close, Escape: close }} />
       <View style={{ paddingTop: 32, gap: 16 }}>
         <View style={{ alignItems: 'center', gap: 16 }}>
-          {completion === 'complete' ? <Celebrate size={88} /> : null}
+          {completion === 'complete' ? (
+            // A tap anywhere on the animation skips it to its end state (motion 3.3).
+            <Pressable onPress={() => setSkip(true)} accessible={false} focusable={false}>
+              <Celebrate size={88} skip={skip} />
+            </Pressable>
+          ) : null}
           <H1>{completion === 'complete' ? SESSION.complete : SESSION.partial}</H1>
         </View>
         {completion === 'stopped_pain' ? <P>{RELAX_ONLY_HOME}</P> : null}
@@ -224,19 +235,24 @@ function Done({ completion, saved, extra, strength }: { completion: Completion; 
   );
 }
 
-function phaseTitle(p: TimelinePhase | null): string {
-  if (!p) return '';
-  if (p.kind === 'relax') return RELAX_STEP_TEXT[p.relaxStep ?? 'relax_in'].title;
-  if (p.kind === 'transition') return PHASE_TEXT.transition;
-  return PHASE_TEXT[p.kind];
-}
+/** A slot that keeps its height when it has nothing to say (HE-04). */
+const EMPTY = ' ';
 
-function repLabel(p: TimelinePhase | null): string {
-  if (!p || p.rep === 0) return '';
-  if (p.block === 'hold') return SESSION.holdLabel(p.rep, p.reps);
-  if (p.block === 'flick') return SESSION.flickLabel(p.rep, p.reps);
-  if (p.block === 'endurance') return SESSION.enduranceLabel(p.rep, p.reps);
-  return SESSION.repCount(p.rep, p.reps);
+/** The phase word, with its colour cross-faded over 150 ms (MO-5). Hidden but still read out when the wave shows it at the dot. */
+function PhaseWord({ text, squeezing, hidden }: { text: string; squeezing: boolean; hidden?: boolean }) {
+  const c = useColors();
+  const color = useColorFade(squeezing ? c.squeeze : c.text);
+  return (
+    <Text
+      style={{ fontSize: 36, lineHeight: 44, fontWeight: '700', color, textAlign: 'center', opacity: hidden ? 0 : 1 }}
+      accessibilityLiveRegion="polite"
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      maxFontSizeMultiplier={1.4}
+    >
+      {text || EMPTY}
+    </Text>
+  );
 }
 
 function Runner({
@@ -244,6 +260,7 @@ function Runner({
   audio,
   vibration,
   cue,
+  timerView: firstView,
   painAsk,
   onPain,
   onPainAnswer,
@@ -253,14 +270,16 @@ function Runner({
   audio: 'off' | 'tones' | 'voice';
   vibration: boolean;
   cue: string;
+  timerView: Settings['timer_view'];
   painAsk: boolean;
   onPain: () => void;
   onPainAnswer: () => void;
   onFinished: (c: Completion) => void;
 }) {
   useKeepAwake();
-  const c = useColors();
+  const { db } = useApp();
   const desktop = useDesktop();
+  const { height: winH } = useWindowDimensions();
   const reduced = useReducedMotion();
   // A short call or a press of the power button does not lock the app and throw the session away (DS-E1).
   useEffect(() => holdLockForRun(), []);
@@ -274,6 +293,12 @@ function Runner({
   };
   const [confirmEnd, setConfirmEnd] = useState(false);
   const finished = useRef(false);
+  // T1-T4, M2: ring or wave. The first view is ring on a phone and wave on the Mac; a choice is saved and synced.
+  const [view, setView] = useState<TimerView>(() => timerView({ timer_view: firstView }, desktop));
+  const chooseView = (v: TimerView) => {
+    setView(v);
+    updateSettings(db, { timer_view: v }).catch(() => undefined);
+  };
 
   const handle = useCallback(
     (events: RunnerEvent[]) => {
@@ -320,21 +345,29 @@ function Runner({
       if (!finished.current) feedback.stop();
     };
   }, [runner]);
+  // Motion 3.5: the timer's animation frame also moves the runner on, so a phase change fires its cue and changes the
+  // picture and the words on the same frame. The 200 ms tick above still runs (time left, and when frames stop).
+  const onFrame = useCallback(() => {
+    const events = runner.tick(mono());
+    if (events.length) {
+      handleRef.current(events);
+      setTick((x) => x + 1);
+    }
+  }, [runner]);
 
   const now = mono();
   const p = runner.currentPhase();
   const state = runner.getState();
-  const left = Math.ceil(runner.phaseRemainingS(now));
-  const squeezing = p?.kind === 'squeeze';
+  const squeezing = p?.kind === 'squeeze' && state !== 'paused';
   const inRelaxOut = p?.relaxStep === 'relax_out';
   const canWeak = state === 'running' && (p?.block === 'hold' || p?.block === 'flick') && p.kind !== 'transition';
   const reminder = p && p.rep > 0 && p.kind === 'squeeze' ? (p.rep === 1 && p.block === 'hold' ? cue : REMINDER_CUES[reminderCueIndex(p.rep, REMINDER_CUES.length)]) : null;
   const totalLeft = Math.max(0, runner.totalS() - runner.elapsedMs(now) / 1000);
-  const done = runner.totalS() > 0 ? 1 - totalLeft / runner.totalS() : 0;
   const togglePause = () => {
     setConfirmEnd(false);
     if (state === 'paused') runner.resume(mono());
     else runner.pause(mono());
+    setTick((x) => x + 1);
   };
   // H3: End session (tap or Esc) pauses first and asks; a second Esc or "End session" ends.
   // A stray tap or key never throws a session away.
@@ -355,10 +388,10 @@ function Runner({
     else if (confirmEnd) endNow();
     else askEnd();
   };
-  useHotkeys({ ' ': togglePause, Escape: stop }, !painAsk);
+  const running = state === 'running' || state === 'paused';
+  useHotkeys({ ' ': togglePause, Escape: stop, ...(desktop && running ? { v: () => chooseView(view === 'ring' ? 'wave' : 'ring') } : {}) }, !painAsk);
   // System Back, a swipe or the toolbar Back asks "End session?" like the button (DS-W1). The browser asks before a
   // reload or a closed tab.
-  const running = state === 'running' || state === 'paused';
   usePreventRemove(running, () => askEnd());
   useEffect(() => {
     if (!isWeb || !running || typeof window === 'undefined') return;
@@ -374,15 +407,6 @@ function Runner({
   useEffect(() => {
     if (blockIndex !== noteBlock.current) setNoteText(null);
   }, [blockIndex]);
-
-  // The circle swells on squeeze and settles on release (a spring, so it feels like a muscle, not a switch).
-  const scale = useRef(new Animated.Value(0.85)).current;
-  useEffect(() => {
-    const to = squeezing ? 1 : 0.85;
-    if (reduced) scale.setValue(to);
-    else Animated.spring(scale, { toValue: to, friction: 7, tension: 60, useNativeDriver: Platform.OS !== 'web' }).start();
-  }, [squeezing, reduced, scale]);
-  const D = desktop ? 280 : 200;
 
   if (painAsk) {
     return (
@@ -422,93 +446,134 @@ function Runner({
     );
   }
 
+  // HE-04: every slot is always there; text that has nothing to say is blank, so nothing jumps between phases.
+  // The guidance slot: the strength and cue while squeezing, the relax words, or what comes next (MO-7, HE-14).
+  const sched = placeAll(runner.schedule());
+  const guidance =
+    p?.kind === 'squeeze' && p.block !== 'relax'
+      ? [INTENSITY[p.block], reminder].filter(Boolean).join('\n')
+      : p?.kind === 'relax'
+        ? RELAX_STEP_TEXT[p.relaxStep ?? 'relax_in'].body
+        : nextText(nextUp(sched, runner.currentIndex()));
+  const wave = view === 'wave';
+  const phaseAtDot = desktop && wave;
+  const word = state === 'paused' ? SESSION.paused : phaseTitle(p);
+  // Short desktop windows: the picture on the left, the words and buttons on the right (02-desktop-patterns 2).
+  const side = desktop && winH < 640;
+
+  const words = (
+    <View style={{ alignItems: 'center', gap: space(1), width: '100%' }}>
+      <H2>{repLabel(p) || EMPTY}</H2>
+      <View style={{ minHeight: 72, justifyContent: 'flex-start', width: '100%' }}>
+        <P center>{guidance || EMPTY}</P>
+        <P small muted center>
+          {note ?? EMPTY}
+        </P>
+      </View>
+      <P small muted center>
+        {SESSION.timeLeft(formatDuration(Math.round(totalLeft)))}
+      </P>
+      {/* The key hint shows only while paused, in a slot that is always there (DS-F3, HE-04). */}
+      {desktop && isWeb ? (
+        <P small muted center>
+          {state === 'paused' ? DESKTOP.sessionKeysView : EMPTY}
+        </P>
+      ) : null}
+    </View>
+  );
+
+  // HE-12, HE-13, HE-05: the same order on phone and Mac. Row 1 Pause and Pain (warning icon, red outline, same
+  // size). Row 2 the quieter Getting weak and End session. Nothing appears or vanishes: unavailable is disabled, and
+  // in the last relax the End session place reads Skip.
+  const controls = confirmEnd ? (
+    <View style={{ width: '100%', gap: space(1) }}>
+      <H2>{SESSION.endQuestion}</H2>
+      <P muted>{SESSION.endNote}</P>
+      <Button large label={SESSION.keepGoing} onPress={keepGoing} />
+      <Button large label={SESSION.stop} kind="secondary" onPress={endNow} />
+    </View>
+  ) : (
+    <View style={{ width: '100%', gap: space(1) }}>
+      <Row>
+        <Button large style={{ flex: 1 }} label={state === 'paused' ? SESSION.resume : SESSION.pause} kind="secondary" onPress={togglePause} />
+        <Button
+          large
+          style={{ flex: 1 }}
+          label={SESSION.pain}
+          kind="secondary"
+          tone="critical"
+          icon="alert"
+          onPress={() => {
+            if (runner.getState() !== 'paused') runner.pause(mono());
+            onPain();
+          }}
+        />
+      </Row>
+      <Row>
+        <Button
+          large
+          style={{ flex: 1 }}
+          label={SESSION.gettingWeak}
+          kind="quiet"
+          disabled={!canWeak}
+          onPress={() => {
+            handle(runner.gettingWeak(mono()));
+            setNote(SESSION.gettingWeakReply);
+          }}
+        />
+        <Button
+          large
+          style={{ flex: 1 }}
+          label={inRelaxOut ? SESSION.skip : SESSION.stop}
+          kind="quiet"
+          onPress={inRelaxOut ? () => handle(runner.skipRelaxOut(mono())) : askEnd}
+        />
+      </Row>
+    </View>
+  );
+
+  const head = (
+    <View style={{ alignItems: 'center', gap: space(0.5), width: '100%' }}>
+      <Label>{p ? (p.block === 'relax' ? BLOCK_NAME.relax : BLOCK_NAME[p.block]) : EMPTY}</Label>
+      <PhaseWord text={word} squeezing={squeezing} hidden={phaseAtDot && state !== 'paused'} />
+    </View>
+  );
+  const timer = (
+    <TimerSwitcher view={view} onView={chooseView} desktop={desktop} reduced={reduced}>
+      <SessionTimer runner={runner} view={view} reduced={reduced} wide={desktop} phaseAtDot={phaseAtDot} phaseWord={phaseTitle(p)} onFrame={onFrame} />
+    </TimerSwitcher>
+  );
+
+  if (side) {
+    return (
+      <Screen title="" headerShown={false} width="wide">
+        <View style={{ flexDirection: 'row', gap: space(4), alignItems: 'center' }}>
+          <View style={{ flex: wave ? 3 : 2, alignItems: 'center' }}>{timer}</View>
+          <View style={{ flex: 2, gap: space(2), alignItems: 'center' }}>
+            {head}
+            {words}
+            {controls}
+          </View>
+        </View>
+      </Screen>
+    );
+  }
+
   return (
     <Screen
       title=""
       headerShown={false}
+      width={wave ? 'wide' : 'regular'}
       footer={
-        confirmEnd ? (
-          <>
-            <H2>{SESSION.endQuestion}</H2>
-            <P muted>{SESSION.endNote}</P>
-            <Button label={SESSION.keepGoing} onPress={keepGoing} />
-            <Button label={SESSION.stop} kind="secondary" onPress={endNow} />
-          </>
-        ) : (
-          <>
-            {canWeak ? (
-              <Button
-                label={SESSION.gettingWeak}
-                kind="secondary"
-                onPress={() => {
-                  handle(runner.gettingWeak(mono()));
-                  setNote(SESSION.gettingWeakReply);
-                }}
-              />
-            ) : null}
-            {inRelaxOut ? <Button label={SESSION.skip} kind="quiet" onPress={() => handle(runner.skipRelaxOut(mono()))} /> : null}
-            <Row>
-              <Button
-                style={{ flex: 1 }}
-                label={state === 'paused' ? SESSION.resume : SESSION.pause}
-                kind="secondary"
-                onPress={togglePause}
-              />
-              <Button
-                style={{ flex: 1 }}
-                label={SESSION.pain}
-                kind="secondary"
-                onPress={() => {
-                  if (runner.getState() !== 'paused') runner.pause(mono());
-                  onPain();
-                }}
-              />
-            </Row>
-            {!inRelaxOut ? <Button label={SESSION.stop} kind="quiet" onPress={askEnd} /> : null}
-          </>
-        )
+        <View style={{ width: '100%', alignItems: 'center' }}>
+          <View style={{ width: '100%', maxWidth: 560 }}>{controls}</View>
+        </View>
       }
     >
-      <View style={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 16 }}>
-        <Label>{p ? (p.block === 'relax' ? BLOCK_NAME.relax : BLOCK_NAME[p.block]) : ''}</Label>
-        <Text
-          style={{ fontSize: 36, fontWeight: '700', color: squeezing ? c.squeeze : c.text, textAlign: 'center' }}
-          accessibilityLiveRegion="polite"
-          maxFontSizeMultiplier={1.4}
-        >
-          {state === 'paused' ? SESSION.paused : phaseTitle(p)}
-        </Text>
-        <Ring value={done} size={D + 40} stroke={4} color={c.muted} track={c.border} label={DESKTOP.sessionProgress(Math.round(done * 100))}>
-          <Animated.View
-            style={{
-              width: D,
-              height: D,
-              borderRadius: D / 2,
-              backgroundColor: squeezing ? c.squeeze : c.soft,
-              alignItems: 'center',
-              justifyContent: 'center',
-              transform: [{ scale }],
-            }}
-          >
-            <Text style={{ fontSize: desktop ? 88 : 64, fontWeight: '700', color: squeezing ? c.onSqueeze : c.primary }} maxFontSizeMultiplier={1.3}>
-              {left}
-            </Text>
-          </Animated.View>
-        </Ring>
-        <H2>{repLabel(p)}</H2>
-        {p?.kind === 'relax' ? <P center>{RELAX_STEP_TEXT[p.relaxStep ?? 'relax_in'].body}</P> : null}
-        {p && p.kind === 'squeeze' && p.block !== 'relax' ? <P center muted>{INTENSITY[p.block]}</P> : null}
-        {reminder ? <P center>{reminder}</P> : null}
-        {note ? <P center muted>{note}</P> : null}
-        <P small muted center>
-          {SESSION.timeLeft(formatDuration(Math.round(totalLeft)))}
-        </P>
-        {/* The key hint shows only while paused, so nothing extra moves during reps (DS-F3). */}
-        {desktop && isWeb && state === 'paused' ? (
-          <P small muted center>
-            {DESKTOP.sessionKeys}
-          </P>
-        ) : null}
+      <View style={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: space(1.5) }}>
+        {head}
+        {timer}
+        {words}
       </View>
     </Screen>
   );

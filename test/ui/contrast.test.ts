@@ -77,6 +77,12 @@ const PAIRS: [Key | '#FFFFFF', Key, number, string][] = [
   ['muted', 'soft', TEXT, 'Today timeline: later sessions'],
   ['good', 'card', LARGE, 'Today path stations and good-week pips'],
   ['inputBorder', 'soft', LARGE, 'Today best tiles: earlier checks'],
+  // Round 2 session screen (D1 to D4, HE-05).
+  ['squeeze', 'bg', LARGE, 'session wave line, hold arc and squeeze countdown'],
+  ['muted', 'bg', LARGE, 'session outer ring and session bar, done part'],
+  ['controlOff', 'bg', LARGE, 'session rep dots still to come'],
+  ['critical', 'card', LARGE, 'Pain button outline and icon (HE-05)'],
+  ['critical', 'bg', LARGE, 'Pain button outline on the page'],
 ];
 
 describe.each(Object.entries(palettes))('%s theme', (_, c) => {

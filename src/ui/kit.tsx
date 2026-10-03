@@ -340,7 +340,7 @@ export function Button({
   const touch = useTouch(large);
   const bg = kind === 'primary' ? c.primary : kind === 'danger' ? c.danger : kind === 'secondary' ? c.card : 'transparent';
   const fg = kind === 'primary' ? c.onPrimary : kind === 'danger' ? '#FFFFFF' : kind === 'quiet' ? c.link : c.text;
-  const border = kind === 'secondary' ? { borderWidth: tone === 'critical' ? 2 : 1, borderColor: tone === 'critical' ? c.danger : c.inputBorder } : null;
+  const border = kind === 'secondary' ? { borderWidth: tone === 'critical' ? 2 : 1, borderColor: tone === 'critical' ? c.critical : c.inputBorder } : null;
   return (
     <Pressable
       accessibilityRole="button"
@@ -370,7 +370,7 @@ export function Button({
         <ActivityIndicator color={fg} />
       ) : icon ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(1) }}>
-          <Icon name={icon} size={18} color={tone === 'critical' ? c.danger : fg} />
+          <Icon name={icon} size={18} color={tone === 'critical' ? c.critical : fg} />
           <Text style={[type('heading-md'), { color: fg, textAlign: 'center' }]}>{label}</Text>
         </View>
       ) : (
