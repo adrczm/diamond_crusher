@@ -165,9 +165,16 @@ export function strongHolds(plan: SessionPlan): number {
   return plan.blocks.filter((b) => b.type === 'hold').reduce((s, b) => s + b.reps, 0);
 }
 
-export const DAILY_STRONG_HOLD_CAP = 30;
+/** The most advanced position unlocked at a tier: the one session of a 1-a-day plan (ENG-031, PRG-010). */
+export function topPosition(tier: number): Position {
+  return tier >= 2 ? 'standing' : tier === 1 ? 'sitting' : 'lying';
+}
 
-/** PRG-010: session positions for each slot of the day. */
+/**
+ * PRG-010: session positions for each slot of the day, for any number of sessions (round 2: min 1, no upper limit).
+ * 2 and 3 a day keep the PRG-010 table. 1 a day uses the most advanced unlocked position, as maintenance does.
+ * More than 3 a day repeats the last position of the 3-a-day pattern for each extra slot.
+ */
 export function slotPositions(tier: number, sessionsPerDay: number): Position[] {
   const three: Position[][] = [
     ['lying', 'lying', 'lying'],
@@ -182,7 +189,11 @@ export function slotPositions(tier: number, sessionsPerDay: number): Position[] 
     ['standing', 'standing'],
   ];
   const t = Math.max(0, Math.min(3, tier));
-  return sessionsPerDay >= 3 ? three[t] : two[t];
+  const n = Math.max(1, Math.floor(sessionsPerDay));
+  if (n === 1) return [topPosition(t)];
+  if (n === 2) return two[t];
+  const base = three[t];
+  return [...base, ...Array.from({ length: n - 3 }, () => base[2])];
 }
 
 export function unlockedPositions(tier: number): Position[] {
@@ -197,12 +208,9 @@ export interface DaySlot {
   endurance: boolean;
 }
 
-/** ENG-030, ENG-031: build = N sessions a day; maintenance = 1 session a day. Endurance in the day's last session. */
+/** ENG-030, ENG-031: build = N sessions a day (any N >= 1); maintenance = 1 a day. Endurance in the day's last session. */
 export function dayPlan(load: Load, sessionsPerDay: number, maintenance: boolean): DaySlot[] {
-  if (maintenance) {
-    const position: Position = load.tier >= 2 ? 'standing' : load.tier === 1 ? 'sitting' : 'lying';
-    return [{ slotNo: 1, position, endurance: load.enduranceEnabled }];
-  }
+  if (maintenance) return [{ slotNo: 1, position: topPosition(load.tier), endurance: load.enduranceEnabled }];
   const positions = slotPositions(load.tier, sessionsPerDay);
   return positions.map((position, i) => ({
     slotNo: i + 1,

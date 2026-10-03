@@ -172,6 +172,87 @@ export const ANCHOR_TIMES: Record<string, string> = {
 
 export const ALL_DAYS = 127;
 
+/** Default anchors for the first three session reminders, in the order they are added: morning, evening, lunch. */
+export const STEP_ANCHORS = ['teeth', 'bed', 'lunch'] as const;
+
+/** A session reminder as the keep-in-step rules see it. `enabled: false` = turned off, kept so its time comes back. */
+export interface StepSlot {
+  slotNo: number;
+  timeLocal: string;
+  enabled: boolean;
+  anchorKey: string | null;
+}
+
+export type StepResult =
+  | { kind: 'mismatch'; reminders: number }
+  | { kind: 'updated'; slots: StepSlot[]; added: StepSlot[]; turnedOff: StepSlot[] };
+
+const toMin = (t: string) => {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+};
+const toHHMM = (min: number) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+const byTime = (a: StepSlot, b: StepSlot) => toMin(a.timeLocal) - toMin(b.timeLocal) || a.slotNo - b.slotNo;
+
+/**
+ * Time for a new session reminder beyond the three defaults: the middle of the longest gap between the reminders that
+ * are on (the later gap wins a tie), rounded to 5 minutes. 3 on at 07:45, 12:30, 22:30 gives 17:30, then 20:00.
+ */
+export function nextFreeTime(on: readonly string[]): string {
+  const used = new Set(on);
+  for (const a of STEP_ANCHORS) if (!used.has(ANCHOR_TIMES[a])) return ANCHOR_TIMES[a];
+  const mins = [...on].map(toMin).sort((a, b) => a - b);
+  let best = { gap: -1, mid: 12 * 60 };
+  for (let i = 1; i < mins.length; i++) {
+    const gap = mins[i] - mins[i - 1];
+    if (gap >= best.gap) best = { gap, mid: mins[i - 1] + gap / 2 };
+  }
+  return toHHMM(Math.round(best.mid / 5) * 5);
+}
+
+/**
+ * Reminders keep in step with sessions a day (08 REM-001, round 2 decision: update automatically, with Undo).
+ * - Only when the reminders that are on matched the old number of sessions; otherwise nothing changes ("mismatch").
+ * - One more session: a reminder that was turned off comes back with its old time (lowest slot first). If there is
+ *   none, a new slot is added at the next free default time (07:45, 22:30, then lunch 12:30, then between the others).
+ * - One less session: the middle reminder is turned off, not deleted, so morning and evening stay (of the reminders
+ *   between the first and the last, the one with the highest slot number goes first, so it undoes the last add).
+ *   From 2 to 1, the evening one is turned off and the first of the day stays.
+ */
+export function keepInStep(slots: readonly StepSlot[], from: number, to: number): StepResult {
+  const onCount = slots.filter((s) => s.enabled).length;
+  if (onCount !== from) return { kind: 'mismatch', reminders: onCount };
+  let list = slots.map((s) => ({ ...s }));
+  const added: StepSlot[] = [];
+  const turnedOff: StepSlot[] = [];
+  for (let n = from; n < to; n++) {
+    const parked = list.filter((s) => !s.enabled).sort((a, b) => a.slotNo - b.slotNo)[0];
+    if (parked) {
+      parked.enabled = true;
+      added.push(parked);
+      continue;
+    }
+    const on = list.filter((s) => s.enabled).map((s) => s.timeLocal);
+    const time = nextFreeTime(on);
+    const anchorKey = STEP_ANCHORS.find((a) => ANCHOR_TIMES[a] === time) ?? null;
+    const slot: StepSlot = { slotNo: Math.max(0, ...list.map((s) => s.slotNo)) + 1, timeLocal: time, enabled: true, anchorKey };
+    list = [...list, slot];
+    added.push(slot);
+  }
+  for (let n = from; n > to && n > 0; n--) {
+    const on = list.filter((s) => s.enabled).sort(byTime);
+    if (!on.length) break;
+    const middle = on.slice(1, -1).sort((a, b) => b.slotNo - a.slotNo)[0];
+    const off = middle ?? on[on.length - 1];
+    // An add and a remove in one call cancel out: the slot leaves "added" instead of showing as turned off.
+    const j = added.indexOf(off);
+    if (j >= 0) added.splice(j, 1);
+    else turnedOff.push(off);
+    off.enabled = false;
+  }
+  return { kind: 'updated', slots: list.sort((a, b) => a.slotNo - b.slotNo), added, turnedOff };
+}
+
 /**
  * The next session reminder time from the plan, for a "Next reminder 12:30" line (UX audit M11). It follows the plan
  * (enabled slots, times and days), a pause and a blocked safety mode (REM-017), not the back-off or today's done

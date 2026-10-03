@@ -1,3 +1,5 @@
+// Event log and day notes (06a §4; 07 DATA-090, DATA-091).
+import type { Period } from '../../domain/when';
 import { uuid } from '../ids';
 import { insert, type SqlDb, type SqlValue, update } from '../sql';
 
@@ -20,11 +22,13 @@ export interface EventRow {
   control_0_10: number | null;
   bother_0_10: number | null;
   item_set_version: number;
+  /** DATA-090 (schema 3): the part of the day picked on the slider; null = the exact time "now" (or an entry from before round 2). */
+  occurred_period: Period | null;
 }
 
-export async function insertEvent(db: SqlDb, e: Omit<EventRow, 'id'>): Promise<string> {
+export async function insertEvent(db: SqlDb, e: Omit<EventRow, 'id' | 'occurred_period'> & { occurred_period?: Period | null }): Promise<string> {
   const id = uuid();
-  await insert(db, 'event', { id, ...(e as unknown as Record<string, SqlValue>) });
+  await insert(db, 'event', { id, ...(e as unknown as Record<string, SqlValue>), occurred_period: e.occurred_period ?? null });
   return id;
 }
 

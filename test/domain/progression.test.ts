@@ -4,6 +4,7 @@ import {
   chooseChange,
   countTier2Week,
   enforceCaps,
+  extraSessionAllowed,
   gapBand,
   holdCeiling,
   INITIAL_PRESCRIPTION,
@@ -39,6 +40,29 @@ describe('progression (spec 04)', () => {
     expect(weekQualifies({ ...base, days: days(5) }).qualifies).toBe(true);
     expect(weekQualifies({ ...base, days: days(4) })).toEqual({ qualifies: false, failedOnlyOnSessions: true });
     expect(weekQualifies({ ...base, painReported: true, days: days(7) }).qualifies).toBe(false);
+  });
+
+  it('a full day needs min(2, sessions a day) full sessions, for 1, 4 and 5 a day too (PRG-004, round 2)', () => {
+    const days = (per: number) => Array.from({ length: 7 }, (_, i) => ({ date: `2026-01-0${i + 1}`, completeSessions: per }));
+    const base = { painReported: false, couldNotRelease: false, regressionHold: false };
+    const min = (n: number) => Math.min(2, n);
+    // 1 a day: one full session is a full day.
+    expect(weekQualifies({ ...base, days: days(1) }, min(1)).qualifies).toBe(true);
+    // 4 or 5 a day: 2 full sessions still count (more is not needed to progress).
+    expect(weekQualifies({ ...base, days: days(2) }, min(4)).qualifies).toBe(true);
+    expect(weekQualifies({ ...base, days: days(2) }, min(5)).qualifies).toBe(true);
+    expect(weekQualifies({ ...base, days: days(1) }, min(5)).qualifies).toBe(false);
+    // Pain still blocks the change at any number a day (PRG-042).
+    expect(weekQualifies({ ...base, painReported: true, days: days(5) }, min(5)).qualifies).toBe(false);
+  });
+
+  it('an extra session after the plan may always start, stored as extra (PRG-041, round 2: no 30 a day cap)', () => {
+    expect(extraSessionAllowed()).toBe(true);
+  });
+
+  it('keeps the per-session caps whatever the sessions a day (PRG-040)', () => {
+    const p = enforceCaps({ ...INITIAL_PRESCRIPTION, holdS: 15, holdReps: 14, flickReps: 30, enduranceHoldS: 20, holdCeiling: 12 });
+    expect(p).toMatchObject({ holdS: 10, holdReps: 10, flickReps: 10, enduranceHoldS: 10 });
   });
 
   it('lowers the hold to the ceiling but never raises it (PRG-013, PRG-014)', () => {
