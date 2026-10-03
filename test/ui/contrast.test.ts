@@ -69,6 +69,14 @@ const PAIRS: [Key | '#FFFFFF', Key, number, string][] = [
   ['celebrate', 'card', LARGE, 'completion ring'],
   ['focus', 'nav', LARGE, 'focus ring in the sidebar'],
   ['celebrate', 'goodSoft', LARGE, 'completion mark'],
+  // Progress charts (round 2 chart accessibility review): bars, lines, ticks, axis, markers and leak segments.
+  ['good', 'card', LARGE, 'on-target bars and ticks, best star'],
+  ['primary', 'card', LARGE, 'bars, lines, points, flagged bar outlines'],
+  ['muted', 'card', LARGE, 'chart axis, target line, day-note markers, previous position ring'],
+  ['link', 'card', LARGE, 'leak chart: sudden urge'],
+  ['warn', 'card', LARGE, 'leak chart: after peeing'],
+  ['primary', 'soft', LARGE, 'selected record tile outline'],
+  ['inputBorder', 'soft', LARGE, 'feel scale and progress track outline'],
 ];
 
 describe.each(Object.entries(palettes))('%s theme', (_, c) => {
