@@ -121,3 +121,25 @@ describe('16-week build with a heaviness or bulge answer (SX4)', () => {
     expect(maintenanceDue({ ...base, activeDays: d17, buildWeeks: 16 })).toBe(true);
   });
 });
+
+describe('questionnaires by profile (SX2, SX-D.5.1, SX28)', () => {
+  const { mcidFor, mcidWithheld } = require('../../src/domain/questionnaire');
+  const { bundleIds } = require('../../src/content/en/questionnaires');
+  const m = { mcid: { type: 'fixed', values: [2, 6], source: 'women', population: 'women' } };
+
+  it('uses a threshold found in women only for the female profile', () => {
+    expect(mcidFor(m, 'female')).toBe(m.mcid);
+    expect(mcidFor(m, 'male')).toBeUndefined();
+    expect(mcidWithheld(m, 'male')).toBe(true);
+    expect(mcidWithheld({}, 'male')).toBe(false);
+  });
+
+  it('maps the women goals and the bowel goal for everyone', () => {
+    expect(bundleIds('female', ['bladder_control'], 'quarterly')).toEqual(['iciq_ui_sf', 'app_global_change', 'iciq_fluts']);
+    expect(bundleIds('female', ['sexual_function'], 'monthly')).toEqual(['iciq_ui_sf', 'iciq_flutssex', 'app_female_sexual']);
+    expect(bundleIds('male', ['bowel_control'], 'quarterly')).toContain('iciq_b');
+    expect(bundleIds('other_unspecified', ['bowel_control'], 'quarterly')).toContain('iciq_b');
+    expect(bundleIds('female', [], 'quarterly', { bulge: true })).toContain('iciq_vs');
+    expect(bundleIds('female', [], 'quarterly')).not.toContain('pfdi_20');
+  });
+});

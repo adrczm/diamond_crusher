@@ -23,7 +23,7 @@ import { addLevelChange, fromPrescription, getProgramme, toPrescription, updateP
 import { lastScreeningOfKinds } from '../data/repositories/safety';
 import { lastSession } from '../data/repositories/sessions';
 import { nowIso, type SqlDb } from '../data/sql';
-import { reportPain } from './safetyService';
+import { profileFacts, reportPain } from './safetyService';
 import { computeActiveDates } from './trainingService';
 
 export function forTrend(c: SelfCheckRow): CheckForTrend {
@@ -143,7 +143,10 @@ export type BundlePart = 'safety' | 'sexual_flag' | 'questionnaires' | 'self_che
 export function bundlePartsFor(kind: BundleKind, anatomy: Anatomy, goals: Goal[], modules: QuestionnaireModule[]): BundlePart[] {
   const parts: BundlePart[] = [];
   if (kind !== 'baseline') parts.push('safety');
-  const sexual = anatomy === 'male' && (goals.includes('erection') || goals.includes('ejaculatory_control'));
+  // Sexual modules are gated by "any sexual activity" (EVT-032; female sexual function goal per SX-D.5.1).
+  const sexual =
+    (anatomy === 'male' && (goals.includes('erection') || goals.includes('ejaculatory_control'))) ||
+    (anatomy === 'female' && goals.includes('sexual_function'));
   if (sexual) parts.push('sexual_flag');
   if (modules.length) parts.push('questionnaires');
   parts.push('self_check');
@@ -153,7 +156,10 @@ export function bundlePartsFor(kind: BundleKind, anatomy: Anatomy, goals: Goal[]
 export async function modulesForCheck(db: SqlDb, kind: BundleKind): Promise<QuestionnaireModule[]> {
   const anatomy = (await getProfile(db))?.anatomy ?? 'other_unspecified';
   const goals = await activeGoals(db);
-  return bundleModules(anatomy, goals, kind === 'quarterly_review' ? 'quarterly' : 'monthly');
+  if (kind !== 'quarterly_review') return bundleModules(anatomy, goals, 'monthly');
+  // SX28: the quarterly extras take turns, counted by the reviews already done.
+  const reviewNo = (await listScheduledChecks(db)).filter((c) => c.kind === 'quarterly_review' && c.status === 'completed').length;
+  return bundleModules(anatomy, goals, 'quarterly', { reviewNo, bulge: (await profileFacts(db)).bulge });
 }
 
 const BUNDLE_KINDS = ['monthly_check', 'quarterly_review'] as const;

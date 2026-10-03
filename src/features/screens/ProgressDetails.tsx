@@ -90,7 +90,7 @@ export function QuestionnaireDetail({ m }: { m: ProgressModel }) {
               summary={PROGRESS.spoken.score(s.name, s.points.length, String(s.points[s.points.length - 1].score))}
             />
             <P small muted>
-              {[s.higherIsBetter ? PROGRESS.scoreHigherBetter : PROGRESS.scoreLowerFewer, s.band ? PROGRESS.scoreBand : null].filter(Boolean).join(' ')}
+              {[s.higherIsBetter ? PROGRESS.scoreHigherBetter : PROGRESS.scoreLowerFewer, s.band ? PROGRESS.scoreBand : null, s.bandWithheld ? PROGRESS.scoreNoMenThreshold : null].filter(Boolean).join(' ')}
             </P>
           </View>
         ))

@@ -438,6 +438,7 @@ export const PROGRESS = {
   scoreLowerFewer: 'A lower score means fewer symptoms.',
   scoreHigherBetter: 'A higher score is better.',
   scoreBand: 'Shaded band: a change inside it is smaller than a meaningful change.',
+  scoreNoMenThreshold: 'No threshold for meaningful change has been found for men. The 2-point threshold comes from studies in women.',
   scoreNone: 'These answers have no score to chart. They show in the list below.',
   checkUp: 'check-up',
   checkUpExplain:

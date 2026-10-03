@@ -45,23 +45,50 @@ export const GOAL_MAPPING: Record<Anatomy, { always: Mapping; goals: Partial<Rec
       erection: { monthly: ['iciq_mlutssex', 'app_monthly_sexual'], quarterly: ['iciq_mlutssex', 'app_monthly_sexual'] },
       ejaculatory_control: { monthly: ['iciq_mlutssex', 'app_monthly_sexual'], quarterly: ['iciq_mlutssex', 'app_monthly_sexual'] },
       long_term_health: { monthly: ['iciq_ui_sf'], quarterly: ['iciq_ui_sf', 'app_global_change'] },
+      // SX23, SX24: the bowel goal is tracked with ICIQ-B every quarter.
+      bowel_control: { monthly: [], quarterly: ['iciq_b'] },
     },
   },
+  // SX-D.5.1 (Adrian, 2026-10-03, SX20): ICIQ modules only, added to the ICIQ registration request. PFDI-20 stays out
+  // until its licence is confirmed. SX27: app-own sexual items for women until the ICIQ registration comes through.
   female: {
-    always: { monthly: ['iciq_ui_sf'], quarterly: ['iciq_ui_sf', 'pfdi_20', 'app_global_change'] },
-    goals: {},
+    always: { monthly: ['iciq_ui_sf'], quarterly: ['iciq_ui_sf', 'app_global_change'] },
+    goals: {
+      bladder_control: { monthly: ['iciq_ui_sf'], quarterly: ['iciq_ui_sf', 'iciq_fluts'] },
+      pregnancy_birth: { monthly: ['iciq_ui_sf'], quarterly: ['iciq_ui_sf', 'iciq_fluts'] },
+      sexual_function: { monthly: ['iciq_flutssex', 'app_female_sexual'], quarterly: ['iciq_flutssex', 'app_female_sexual'] },
+      bowel_control: { monthly: ['iciq_ui_sf'], quarterly: ['iciq_b'] },
+      long_term_health: { monthly: ['iciq_ui_sf'], quarterly: ['iciq_ui_sf', 'app_global_change'] },
+    },
   },
   other_unspecified: {
     always: { monthly: ['iciq_ui_sf'], quarterly: ['iciq_ui_sf', 'app_global_change'] },
-    goals: {},
+    goals: {
+      bowel_control: { monthly: [], quarterly: ['iciq_b'] },
+    },
   },
 };
 
-/** Module ids for a bundle, de-duplicated, validated modules before app-own ones (QST-013). */
-export function bundleModules(anatomy: Anatomy, goals: Goal[], kind: 'monthly' | 'quarterly'): QuestionnaireModule[] {
+/**
+ * SX28: quarterly extras that take turns, so a review with several goals stays under 10 minutes (QST-011). With more
+ * than one of them due, review N asks only the (N mod count)th. A heaviness or bulge answer adds ICIQ-VS (SX-D.5.1).
+ */
+export const ROTATING_QUARTERLY = ['iciq_fluts', 'iciq_vs', 'iciq_b', 'iciq_mluts'];
+
+/** Module ids for a bundle, de-duplicated, with the SX28 rotation applied (no modules, just ids). */
+export function bundleIds(anatomy: Anatomy, goals: Goal[], kind: 'monthly' | 'quarterly', opts: { reviewNo?: number; bulge?: boolean } = {}): string[] {
   const map = GOAL_MAPPING[anatomy];
   const ids: string[] = [...map.always[kind]];
   for (const g of goals) for (const id of map.goals[g]?.[kind] ?? []) if (!ids.includes(id)) ids.push(id);
-  const mods = ids.map(verifiedModule).filter((m): m is QuestionnaireModule => m !== null);
+  if (kind === 'quarterly' && anatomy === 'female' && opts.bulge && !ids.includes('iciq_vs')) ids.push('iciq_vs');
+  const rotating = ids.filter((id) => ROTATING_QUARTERLY.includes(id) && verifiedModule(id) !== null);
+  if (kind !== 'quarterly' || rotating.length < 2) return ids;
+  const keep = rotating[(opts.reviewNo ?? 0) % rotating.length];
+  return ids.filter((id) => !rotating.includes(id) || id === keep);
+}
+
+/** Modules for a bundle, validated modules before app-own ones (QST-013). */
+export function bundleModules(anatomy: Anatomy, goals: Goal[], kind: 'monthly' | 'quarterly', opts: { reviewNo?: number; bulge?: boolean } = {}): QuestionnaireModule[] {
+  const mods = bundleIds(anatomy, goals, kind, opts).map(verifiedModule).filter((m): m is QuestionnaireModule => m !== null);
   return [...mods.filter((m) => m.validated), ...mods.filter((m) => !m.validated)];
 }

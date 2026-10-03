@@ -173,6 +173,16 @@ export function addOnsFor(anatomy: Anatomy, goals: Goal[]): AddOn[] {
   return ADD_ONS.filter((a) => a.profiles.includes(anatomy) && goals.includes(a.goal));
 }
 
+/** A line under a goal option where the evidence is weak (SX24). */
+export const GOAL_HINT: Partial<Record<Goal, string>> = {
+  bowel_control: 'The evidence is unclear. Small studies suggest it may help.',
+};
+
+/** Shown when the goal is chosen (SX24: bowel leaks have many causes, so a GP check comes first). Training continues. */
+export const GOAL_NOTE: Partial<Record<Goal, string>> = {
+  bowel_control: 'Bowel leaks have many causes. It is a good idea to see a GP about them. You can keep training.',
+};
+
 export const GOAL_LABEL: Record<Anatomy, { goal: Goal; label: string }[]> = {
   male: [
     { goal: 'bladder_control', label: 'Bladder control' },

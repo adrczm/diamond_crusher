@@ -2,7 +2,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert } from '../src/platform/dialog';
-import { GOAL_LABEL } from '../src/content/en/exercise';
+import { GOAL_HINT, GOAL_LABEL, GOAL_NOTE } from '../src/content/en/exercise';
 import { COMMON, DESKTOP, HOME, ONBOARDING, SETTINGS } from '../src/content/en/strings';
 import { activeGoals, getProfile, setGoals, updateProfile } from '../src/data/repositories/profile';
 import { getSettings, setTodayHeroSync, updateSettings, type Settings } from '../src/data/repositories/settings';
@@ -91,7 +91,7 @@ export default function SettingsScreen() {
         <Label>{SETTINGS.goals}</Label>
         <MultiChoice
           label={SETTINGS.goals}
-          options={GOAL_LABEL[anatomy].map((g) => ({ value: g.goal, label: g.label }))}
+          options={GOAL_LABEL[anatomy].map((g) => ({ value: g.goal, label: g.label, hint: GOAL_HINT[g.goal] }))}
           values={data.goals}
           onChange={async (g: Goal[]) => {
             if (!g.length) return;
@@ -100,6 +100,7 @@ export default function SettingsScreen() {
             reload();
           }}
         />
+        {data.goals.map((g) => (GOAL_NOTE[g] ? <Banner key={g} tone="soft" text={GOAL_NOTE[g]!} /> : null))}
         <Label>{SETTINGS.ageBand}</Label>
         <Choice
           options={ONBOARDING.ageOptions.map((o) => ({ value: o.value as AgeBand | null, label: o.label }))}

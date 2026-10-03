@@ -2,6 +2,7 @@
 // src/domain/progress.ts; this file joins them to the stored rows and the copy.
 import { EVENTS, SESSION_LOG } from '../content/en/items';
 import { CHECKIN_MODULE_ID, MODULES } from '../content/en/questionnaires';
+import { mcidFor, mcidWithheld } from '../domain/questionnaire';
 import { LEVEL_NAME, MESSAGES, MEASURE_NAME, PROGRESS } from '../content/en/strings';
 import { listResponses, listScheduledChecks, listSelfChecks } from '../data/repositories/checks';
 import { listContextFlags, listEvents } from '../data/repositories/events';
@@ -139,6 +140,8 @@ export interface ScoreSeries {
   range: { min: number; max: number } | null;
   higherIsBetter: boolean;
   band: { low: number; high: number } | null;
+  /** SX2: a threshold exists but comes from another population, so only the raw change shows. */
+  bandWithheld: boolean;
 }
 
 export function buildProgress(raw: ProgressRaw, today: LocalDate) {
@@ -431,7 +434,8 @@ export function buildProgress(raw: ProgressRaw, today: LocalDate) {
       points: pts,
       range: m.scoring.range ?? null,
       higherIsBetter: m.scoring.direction === 'higherIsBetter',
-      band: mcidBand(m.mcid, pts[0]?.score ?? null),
+      band: mcidBand(mcidFor(m, raw.profile?.anatomy ?? null), pts[0]?.score ?? null),
+      bandWithheld: mcidWithheld(m, raw.profile?.anatomy ?? null),
     };
   }).filter((s) => s.points.length > 0);
   const symptoms = symptomStatus(

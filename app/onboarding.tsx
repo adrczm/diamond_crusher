@@ -5,7 +5,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { GOAL_LABEL } from '../src/content/en/exercise';
+import { GOAL_HINT, GOAL_LABEL, GOAL_NOTE } from '../src/content/en/exercise';
 import { OTHER_PROFILE_PHYSIO } from '../src/content/en/screening';
 import { APP_NAME, COMMON, DISCLAIMER, DISCLAIMER_VERSION, ONBOARDING } from '../src/content/en/strings';
 import { activeGoals, getProfile, setGoals, updateProfile } from '../src/data/repositories/profile';
@@ -211,7 +211,13 @@ export default function Onboarding() {
         <>
           <H1>{ONBOARDING.goalsQuestion}</H1>
           <P muted>{ONBOARDING.goalsNote}</P>
-          <MultiChoice label={ONBOARDING.goalsQuestion} options={options.map((g) => ({ value: g.goal, label: g.label }))} values={chosen} onChange={setGoalsState} />
+          <MultiChoice
+            label={ONBOARDING.goalsQuestion}
+            options={options.map((g) => ({ value: g.goal, label: g.label, hint: GOAL_HINT[g.goal] }))}
+            values={chosen}
+            onChange={setGoalsState}
+          />
+          {chosen.map((g) => (GOAL_NOTE[g] ? <Banner key={g} tone="soft" text={GOAL_NOTE[g]!} /> : null))}
         </>
       );
       actions = (
