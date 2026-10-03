@@ -6,12 +6,12 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { GOAL_LABEL } from '../src/content/en/exercise';
-import { OTHER_PROFILE_PHYSIO, TODO_BANNER } from '../src/content/en/screening';
+import { OTHER_PROFILE_PHYSIO } from '../src/content/en/screening';
 import { APP_NAME, COMMON, DISCLAIMER, DISCLAIMER_VERSION, ONBOARDING } from '../src/content/en/strings';
 import { activeGoals, getProfile, setGoals, updateProfile } from '../src/data/repositories/profile';
 import { answersForRun, getSafetyState } from '../src/data/repositories/safety';
 import { nowIso } from '../src/data/sql';
-import { isBlocked, skippedSafety } from '../src/domain/safety';
+import { CAUTION, isBlocked, skippedSafety } from '../src/domain/safety';
 import type { AgeBand, Anatomy, Goal, SafetyMode } from '../src/domain/types';
 import type { QuestionKey } from '../src/domain/safety';
 import { useApp } from '../src/features/app';
@@ -28,7 +28,7 @@ import { Text } from '../src/ui/text';
 type Step = OnboardingStep | 'import';
 
 type Outcome = { mode: SafetyMode; reasons: QuestionKey[]; cautions: QuestionKey[]; skipped: QuestionKey[] };
-const cautionsOf = (reasons: readonly QuestionKey[]) => reasons.filter((k) => k.startsWith('Q-G') || k === 'Q-F1' || k === 'Q-F2');
+const cautionsOf = (reasons: readonly QuestionKey[]) => reasons.filter((k) => CAUTION.includes(k));
 
 export default function Onboarding() {
   const { db, bump } = useApp();
@@ -187,7 +187,6 @@ export default function Onboarding() {
               setAnatomy(a);
             }}
           />
-          {anatomy === 'female' ? <Banner text={TODO_BANNER} /> : null}
           {anatomy === 'other_unspecified' ? <Banner tone="soft" text={OTHER_PROFILE_PHYSIO} /> : null}
         </>
       );
@@ -256,7 +255,7 @@ export default function Onboarding() {
             onDone={async (a) => {
               setBusy(true);
               try {
-                const r = await completeScreening(db, { kind: 'onboarding', answers: a.answers, startedAt: a.startedAt, surgeryDate: a.surgeryDate });
+                const r = await completeScreening(db, { kind: 'onboarding', answers: a.answers, startedAt: a.startedAt, surgeryDate: a.surgeryDate, dates: a.dates });
                 setOutcome({ mode: r.mode, reasons: r.reasons, cautions: cautionsOf(r.reasons), skipped: r.skipped });
                 go('outcome');
               } finally {

@@ -177,14 +177,20 @@ export const GOAL_LABEL: Record<Anatomy, { goal: Goal; label: string }[]> = {
     { goal: 'bladder_control', label: 'Bladder control' },
     { goal: 'ejaculatory_control', label: 'Ejaculatory control' },
     { goal: 'erection', label: 'Erection strength' },
+    { goal: 'bowel_control', label: 'Bowel control' },
     { goal: 'long_term_health', label: 'Long-term pelvic floor health' },
   ],
+  // SX3, SX5 (bowel control is its own goal, for everyone: SX23).
   female: [
     { goal: 'bladder_control', label: 'Bladder control' },
+    { goal: 'pregnancy_birth', label: 'Pregnancy and after birth' },
+    { goal: 'sexual_function', label: 'Sexual function' },
+    { goal: 'bowel_control', label: 'Bowel control' },
     { goal: 'long_term_health', label: 'Long-term pelvic floor health' },
   ],
   other_unspecified: [
     { goal: 'bladder_control', label: 'Bladder control' },
+    { goal: 'bowel_control', label: 'Bowel control' },
     { goal: 'long_term_health', label: 'Long-term pelvic floor health' },
   ],
 };

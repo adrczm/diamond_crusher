@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
 import { EDUCATION_FOOTER, educationFor } from '../src/content/en/education';
 import { addOnsFor, everydaySqueezes } from '../src/content/en/exercise';
-import { TODO_BANNER } from '../src/content/en/screening';
 import { markContentSeen } from '../src/data/repositories/misc';
 import { activeGoals, getProfile } from '../src/data/repositories/profile';
 import { DESKTOP } from '../src/content/en/strings';
@@ -32,7 +31,6 @@ export default function Library() {
   const article = e ? (
     <>
       <H1>{e.title}</H1>
-      {e.todo || anatomy === 'female' ? <Banner text={TODO_BANNER} /> : null}
       {(e.id === 'ED-08' ? everydaySqueezes(anatomy) : e.body).map((b, i) => (
         <P key={i}>{b}</P>
       ))}

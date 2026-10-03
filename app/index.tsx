@@ -56,7 +56,7 @@ function TodayBody({ m }: { m: HomeModel }) {
       setBusy(false);
     }
   };
-  const confirmClear = (kind: 'urgent' | 'pain' | 'surgery', text: string) =>
+  const confirmClear = (kind: 'urgent' | 'pain' | 'surgery' | 'maternity', text: string) =>
     Alert.alert(CLEARANCE.clearedButton, text, [
       { text: COMMON.cancel, style: 'cancel' },
       { text: COMMON.yes, onPress: () => act(() => clear(db, kind)) },
@@ -84,8 +84,10 @@ function TodayBody({ m }: { m: HomeModel }) {
         <P>{outcomeCopy(mode, m.safety.reasons).body}</P>
         {mode === 'blocked_urgent' ? (
           <Button label={CLEARANCE.clearedButton} kind="secondary" onPress={() => confirmClear('urgent', CLEARANCE.urgentTick)} busy={busy} />
-        ) : (
+        ) : m.safety.reasons.includes('Q-S1') || m.safety.reasons.includes('Q-S2') ? (
           <Button label={CLEARANCE.clearedButton} kind="secondary" onPress={() => confirmClear('surgery', CLEARANCE.preSurgeryHome)} busy={busy} />
+        ) : (
+          <Button label={CLEARANCE.clearedButton} kind="secondary" onPress={() => confirmClear('maternity', CLEARANCE.maternityTick)} busy={busy} />
         )}
       </Card>
     );
@@ -100,7 +102,7 @@ function TodayBody({ m }: { m: HomeModel }) {
     );
   }
   // A2: the note shows until it is answered, and comes back only when answers or logged results change.
-  if (note.show) safety.push(<HealthNoteCard key="note" keys={note.keys} onAnswer={answerNote} busy={busy} />);
+  if (note.show) safety.push(<HealthNoteCard key="note" keys={note.keys} anatomy={m.profile.anatomy} onAnswer={answerNote} busy={busy} />);
 
   // ---- Heading (D5, HE-08): the date, then where the day is. The nickname stays as a small hello. ----
   const [, month, dayOfMonth] = today.split('-').map(Number);
@@ -191,7 +193,7 @@ function TodayBody({ m }: { m: HomeModel }) {
   const links = (
     <View key="links">
       {note.hidden && !noteOpen ? <LinkRow label={HOME.healthNote.row(note.keys.length)} onPress={() => setNoteOpen(true)} /> : null}
-      {note.hidden && noteOpen ? <HealthNoteCard keys={note.keys} onAnswer={answerNote} busy={busy} /> : null}
+      {note.hidden && noteOpen ? <HealthNoteCard keys={note.keys} anatomy={m.profile.anatomy} onAnswer={answerNote} busy={busy} /> : null}
       <LinkRow label={HOME.somethingChanged} onPress={() => router.push('/screening?kind=something_changed')} />
     </View>
   );

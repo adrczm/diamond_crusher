@@ -11,7 +11,7 @@ import {
   type QuestionKey,
   type ScreeningKind,
 } from '../domain/safety';
-import { CAUTION } from '../domain/safety';
+import { CAUTION, type ScreeningFacts } from '../domain/safety';
 import type { Anatomy, SafetyMode } from '../domain/types';
 import { getProfile } from '../data/repositories/profile';
 import { addLevelChange, getProgramme, updateProgramme } from '../data/repositories/programme';
@@ -46,6 +46,8 @@ export async function completeScreening(
     answers: Answers;
     startedAt: string;
     surgeryDate?: string | null;
+    /** Dates given after a "yes" (due date, birth date, planned surgery). */
+    dates?: Partial<Record<QuestionKey, string>>;
     ticks?: ClearanceTicks;
     sourceRef?: string | null;
   }
@@ -62,7 +64,7 @@ export async function completeScreening(
       anatomy,
       startedAt: input.startedAt,
       answers: input.answers,
-      dates: input.surgeryDate ? { 'Q-S3': input.surgeryDate } : undefined,
+      dates: { ...(input.dates ?? {}), ...(input.surgeryDate ? { 'Q-S3': input.surgeryDate } : {}) },
       outcome: mode,
       sourceRef: input.sourceRef ?? null,
     });
@@ -81,7 +83,7 @@ export async function completeScreening(
       await updateProgramme(db, { planned_surgery_date: input.answers['Q-S3'] === 'yes' ? input.surgeryDate ?? null : null });
     }
   });
-  const newCautions = reasons.filter((r) => !prev.reasons.includes(r) && ['Q-G1', 'Q-G2', 'Q-G3', 'Q-G4', 'Q-G5', 'Q-F1', 'Q-F2'].includes(r));
+  const newCautions = reasons.filter((r) => !prev.reasons.includes(r) && CAUTION.includes(r));
   return { mode, reasons, runId, newCautions, skipped: skippedSafety(input.answers) };
 }
 
@@ -109,6 +111,8 @@ export async function reportPain(db: SqlDb, levelAnswer: 'no' | 'a_little' | 'ye
     });
     await setSafetyState(db, { mode: modeFromReasons(reasons), reasons, runId, pausedReason: 'pain_report' });
     await raiseFlag(db, 'pain_route', { signalKey: 'Q-P4', sourceRef });
+    // SX22: pain from the exercises keeps the gentle squeeze locked until the person says the pain has gone.
+    await updateProgramme(db, { gentle_pain_lock: true });
   });
   return true;
 }
@@ -129,7 +133,7 @@ export async function clearQG5(db: SqlDb): Promise<void> {
   await setSafetyState(db, { mode: modeFromReasons(reasons), reasons, runId: prev.set_by_run_id });
 }
 
-export type ClearanceKind = 'urgent' | 'pain' | 'surgery';
+export type ClearanceKind = 'urgent' | 'pain' | 'surgery' | 'maternity';
 
 /**
  * Clearance ticks (ONB-015 to ONB-017). A clearance is a screening run of kind `clearance`.
@@ -138,7 +142,7 @@ export type ClearanceKind = 'urgent' | 'pain' | 'surgery';
 export async function clear(db: SqlDb, kind: ClearanceKind): Promise<ScreeningResult> {
   const prev = await getSafetyState(db);
   const wasSurgery = prev.reasons.includes('Q-S1') || prev.reasons.includes('Q-S2');
-  const answers: Answers = kind === 'surgery' ? { 'Q-S1': 'no', 'Q-S2': 'no' } : {};
+  const answers: Answers = kind === 'surgery' ? { 'Q-S1': 'no', 'Q-S2': 'no' } : kind === 'maternity' ? { 'Q-F2a1': 'no' } : {};
   const ticks: ClearanceTicks = kind === 'urgent' ? { urgentChecked: true } : kind === 'pain' ? { painCleared: true } : {};
   const res = await completeScreening(db, { kind: 'clearance', answers, startedAt: nowIso(), ticks });
   if (kind === 'surgery' && wasSurgery) {
@@ -157,6 +161,69 @@ export async function clear(db: SqlDb, kind: ClearanceKind): Promise<ScreeningRe
     });
   }
   return res;
+}
+
+/** One answer as last given, with its date (skips do not count). */
+export interface LatestAnswer {
+  answer: 'yes' | 'no';
+  valueDate: string | null;
+  /** Local date the run completed. */
+  on: string;
+}
+
+/** The latest yes or no to each safety question, across all runs. */
+export async function latestAnswers(db: SqlDb): Promise<Partial<Record<QuestionKey, LatestAnswer>>> {
+  const rows = await db.all<{ question_key: QuestionKey; answer: 'yes' | 'no'; value_date: string | null; completed_at: string }>(
+    `SELECT a.question_key, a.answer, a.value_date, r.completed_at FROM screening_answer a JOIN screening_run r ON r.id = a.run_id
+     WHERE a.answer != 'skipped' AND r.completed_at IS NOT NULL ORDER BY r.completed_at`
+  );
+  const out: Partial<Record<QuestionKey, LatestAnswer>> = {};
+  for (const r of rows) out[r.question_key] = { answer: r.answer, valueDate: r.value_date, on: toLocalDate(new Date(r.completed_at)) };
+  return out;
+}
+
+/** Life-stage and history facts from the answers (SX-A.17, SX-E.20, G2). Read by screens, the session plan and Learn. */
+export interface ProfileFacts extends ScreeningFacts {
+  pregnant: boolean;
+  dueDate: string | null;
+  /** Gave birth in the last 12 weeks (the postnatal flag ends 12 weeks after the birth date). */
+  postnatal: boolean;
+  birthDate: string | null;
+  birthWithin6Weeks: boolean;
+  prostateTreatment: boolean;
+  /** Pain with sex or tampons is an active reason (hides the inside check, SX-C.10). */
+  painWithInsertion: boolean;
+  /** A heaviness or bulge answer is active: 16-week build and "squeeze before you lift" (SX4). */
+  bulge: boolean;
+  /** Urgency reported: offers the urge control skill (SX6). */
+  urgency: boolean;
+}
+
+const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+
+export function factsFrom(latest: Partial<Record<QuestionKey, LatestAnswer>>, reasons: readonly QuestionKey[], anatomy: Anatomy | null, today: string): ProfileFacts {
+  const female = anatomy === 'female';
+  const yes = (k: QuestionKey) => latest[k]?.answer === 'yes';
+  const birth = female && yes('Q-F2b') ? latest['Q-F2b']!.valueDate ?? latest['Q-F2b']!.on : null;
+  const sinceBirth = birth ? daysBetween(birth, today) : null;
+  const postnatal = sinceBirth !== null && sinceBirth >= 0 && sinceBirth < 84;
+  return {
+    pregnant: female && yes('Q-F2a'),
+    dueDate: female && yes('Q-F2a') ? latest['Q-F2a']!.valueDate : null,
+    postnatal,
+    birthDate: postnatal ? birth : null,
+    birthWithin6Weeks: postnatal && sinceBirth! < 42,
+    prostateTreatment: anatomy !== 'female' && yes('Q-M1'),
+    painWithInsertion: female && reasons.includes('Q-F3'),
+    bulge: female && reasons.includes('Q-F1'),
+    urgency: reasons.includes('Q-G1'),
+  };
+}
+
+export async function profileFacts(db: SqlDb, today = todayLocal()): Promise<ProfileFacts> {
+  const profile = await getProfile(db);
+  const safety = await getSafetyState(db);
+  return factsFrom(await latestAnswers(db), safety.reasons, profile?.anatomy ?? null, today);
 }
 
 export function todayLocal(now = new Date()): string {
